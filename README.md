@@ -13,8 +13,13 @@ C++20 · Qt 6.8+ (Qt Quick / QML, Qt Multimedia, Qt WebSockets, Qt DBus on Linux
 
 ## Download
 
-Grab the latest Windows installer from [Releases](https://github.com/zr3mb/Nokturn/releases/latest).
-Installed copies update themselves — see [Installer and updates](#installer-and-updates-windows).
+Grab the latest version from [Releases](https://github.com/zr3mb/Nokturn/releases/latest):
+
+- **Windows** — `Nokturn-<version>-setup.exe` (installer).
+- **Linux** — `Nokturn-<version>-x86_64.AppImage`: `chmod +x Nokturn-*.AppImage` and run it (put it somewhere
+  you can write to, e.g. `~/Applications`, so it can update itself). Needs `fuse2` (Arch: `sudo pacman -S fuse2`).
+
+Both update themselves — see [Installer and updates](#installer-and-updates).
 
 ## Building (Windows, MSYS2 UCRT64)
 
@@ -29,7 +34,7 @@ pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,qt6-base,qt6-declarative,qt6-mu
 .\build.ps1 -Deploy    # standalone dist\ folder (works without MSYS2)
 ```
 
-## Installer and updates (Windows)
+## Installer and updates
 
 ```powershell
 .\build-installer.ps1                                       # installer\Nokturn-<version>-setup.exe (Inno Setup 6, ships Deno)
@@ -40,11 +45,18 @@ pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,qt6-base,qt6-declarative,qt6-mu
 pushes and creates a **GitHub Release** with the installer (requires `gh` and a public repository). Without
 `-Notes` the change list is generated from the commits.
 
+Publishing the release starts the **Linux AppImage** workflow (`.github/workflows/linux-appimage.yml`, GitHub
+Actions on Ubuntu 22.04 with Qt 6.8 and TagLib 2): it builds `Nokturn-<version>-x86_64.AppImage` with Deno
+inside, checks that it starts and attaches it with its `.sha256` to the same release a few minutes later.
+It can also be run by hand from the Actions tab (without a tag it only builds an artifact).
+
 The app (`src/Updater.*`) checks `releases/latest` 5 s after startup and every 6 hours. When the release is newer,
 it shows a dialog with the change list: *Update now* downloads the installer, verifies SHA-256 (the `digest` field
 from the API or the `.sha256` file), runs it with `/SILENT` and closes Nokturn — the installer overwrites the
 previous version and starts the new one. *Skip this version* silences the dialog until the next release; manually:
-*Settings → Check for updates*. On Linux the button opens the release page. `NOKTURN_UPDATE_API=<url>` overrides
+*Settings → Check for updates*. On Linux the AppImage downloads the new `…-x86_64.AppImage` next to itself
+(SHA-256 verified), renames it over the running file and restarts; a build installed from source opens the release
+page instead. `NOKTURN_UPDATE_API=<url>` overrides
 the API URL (testing).
 
 ## Languages

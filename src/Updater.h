@@ -13,9 +13,10 @@ class QQmlEngine;
 class QJSEngine;
 
 // Updates from GitHub Releases: checks the latest release at startup and every few hours,
-// and when it's newer — shows a dialog. On Windows it downloads the installer
-// (SHA-256 verified), runs it in silent mode and closes the app; the installer
-// overwrites the previous version and starts the new one. On other systems it opens the release page.
+// and when it's newer — shows a dialog. Windows: downloads the installer (SHA-256 verified), runs it
+// in silent mode and closes the app; the installer overwrites the previous version and starts the new one.
+// Linux AppImage: downloads the new AppImage next to the running one, swaps it in and restarts.
+// Elsewhere (a build installed from source) the button opens the release page.
 class Updater : public QObject
 {
     Q_OBJECT

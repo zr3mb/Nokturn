@@ -393,7 +393,6 @@
   "You can already search YouTube Music. You can add music folders at any time on the Sources page.": "Możesz już szukać w YouTube Music. Foldery z muzyką dodasz w każdej chwili w zakładce Źródła.",
   "New version available": "Dostępna nowa wersja",
   "Nokturn %1  ·  you have %2": "Nokturn %1  ·  masz %2",
-  "Starting the installer — Nokturn will restart in a moment…": "Uruchamiam instalator — Nokturn za chwilę uruchomi się ponownie…",
   "Skip this version": "Pomiń tę wersję",
   "Later": "Później",
   "Update now": "Zaktualizuj teraz",
@@ -549,5 +548,8 @@
   "When a playlist ends, the music continues with the next playlist; after an album or search results — with your library.": "Gdy playlista się skończy, muzyka leci dalej z następnej playlisty, a po albumie lub wynikach wyszukiwania — z Twojej biblioteki.",
   "Up next: %1": "Dalej: %1",
   "Up next: your library": "Dalej: Twoja biblioteka",
-  "The stream stopped responding": "Strumień przestał odpowiadać"
+  "The stream stopped responding": "Strumień przestał odpowiadać",
+  "Installing the update — Nokturn will restart in a moment…": "Instaluję aktualizację — Nokturn za chwilę uruchomi się ponownie…",
+  "Couldn't replace the AppImage": "Nie udało się podmienić pliku AppImage",
+  "Couldn't start the new version — start Nokturn again": "Nie udało się uruchomić nowej wersji — uruchom Nokturna ponownie"
 }

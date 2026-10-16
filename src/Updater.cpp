@@ -6,6 +6,7 @@
 #include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QDir>
+#include <QFileInfo>
 #include <QJSEngine>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -15,6 +16,7 @@
 #include <QStandardPaths>
 #include <QVersionNumber>
 
+#include <cstdio>
 #include <memory>
 
 namespace {
@@ -29,6 +31,23 @@ QNetworkRequest githubRequest(const QUrl &url)
     req.setRawHeader("Accept", "application/vnd.github+json");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     return req;
+}
+
+// The release asset this platform installs from.
+#ifdef Q_OS_WIN
+const char *kAssetSuffix = "-setup.exe";
+#else
+const char *kAssetSuffix = "-x86_64.AppImage";
+#endif
+
+// Path of the running AppImage (set by the AppImage runtime); empty outside an AppImage.
+QString appImagePath()
+{
+#ifdef Q_OS_WIN
+    return {};
+#else
+    return qEnvironmentVariable("APPIMAGE");
+#endif
 }
 
 QVersionNumber parseVersion(QString tag)
@@ -73,7 +92,10 @@ bool Updater::canInstall() const
 #ifdef Q_OS_WIN
     return true;
 #else
-    return false;
+    // Linux: only the AppImage can replace itself (and only where we may write next to it);
+    // a build installed from source gets the release page instead.
+    const QString appImage = appImagePath();
+    return !appImage.isEmpty() && QFileInfo(QFileInfo(appImage).absolutePath()).isWritable();
 #endif
 }
 
@@ -120,12 +142,12 @@ void Updater::onRelease(QNetworkReply *reply, bool manual)
         const QJsonObject a = v.toObject();
         const QString name = a.value(QStringLiteral("name")).toString();
         const QUrl url(a.value(QStringLiteral("browser_download_url")).toString());
-        if (name.endsWith(QLatin1String("-setup.exe"), Qt::CaseInsensitive)) {
+        if (name.endsWith(QLatin1String(kAssetSuffix), Qt::CaseInsensitive)) {
             m_installerUrl = url;
             const QString digest = a.value(QStringLiteral("digest")).toString();
             if (digest.startsWith(QLatin1String("sha256:")))
                 m_digest = digest.mid(7).toLatin1().toLower();
-        } else if (name.endsWith(QLatin1String("-setup.exe.sha256"), Qt::CaseInsensitive)) {
+        } else if (name.endsWith(QLatin1String(kAssetSuffix) + QStringLiteral(".sha256"), Qt::CaseInsensitive)) {
             m_shaUrl = url;
         }
     }
@@ -163,9 +185,14 @@ void Updater::install()
 
 void Updater::startDownload()
 {
+#ifdef Q_OS_WIN
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QStringLiteral("/Nokturn-update");
     QDir().mkpath(dir);
     m_installerPath = dir + QChar('/') + m_installerUrl.fileName();
+#else
+    // Next to the running AppImage (same file system), so the final swap is an atomic rename.
+    m_installerPath = appImagePath() + QStringLiteral(".new");
+#endif
     m_file.setFileName(m_installerPath);
     if (!m_file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         fail(tr("Couldn't save the update"));
@@ -222,6 +249,7 @@ void Updater::verifyAndRun(const QByteArray &expectedSha)
         return;
     }
     setState(QStringLiteral("installing"));
+#ifdef Q_OS_WIN
     // Silent mode: a progress window without questions. The installer closes Nokturn, overwrites the files
     // in the same folder (same AppId) and starts the new version.
     const QStringList args = { QStringLiteral("/SILENT"), QStringLiteral("/SUPPRESSMSGBOXES"),
@@ -230,6 +258,23 @@ void Updater::verifyAndRun(const QByteArray &expectedSha)
         fail(tr("Couldn't start the installer"));
         return;
     }
+#else
+    // AppImage: make the new file executable and rename it over the running one — Linux keeps the old
+    // file alive for the running process, so this is safe. Then start the new version.
+    const QString target = appImagePath();
+    QFile::setPermissions(m_installerPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner
+                                               | QFileDevice::ReadGroup | QFileDevice::ExeGroup
+                                               | QFileDevice::ReadOther | QFileDevice::ExeOther);
+    if (std::rename(QFile::encodeName(m_installerPath).constData(), QFile::encodeName(target).constData()) != 0) {
+        QFile::remove(m_installerPath);
+        fail(tr("Couldn't replace the AppImage"));
+        return;
+    }
+    if (!QProcess::startDetached(target, {})) {
+        fail(tr("Couldn't start the new version — start Nokturn again"));
+        return;
+    }
+#endif
     AppPaths::settings()->sync();
     QCoreApplication::quit();
 }

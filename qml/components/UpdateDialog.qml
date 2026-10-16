@@ -122,7 +122,7 @@ Item {
                 }
                 Text {
                     text: Updater.state === "installing"
-                          ? qsTr("Starting the installer — Nokturn will restart in a moment…")
+                          ? qsTr("Installing the update — Nokturn will restart in a moment…")
                           : qsTr("Downloading… %1%").arg(Math.round(Updater.progress * 100))
                     color: Theme.textDim
                     font.pixelSize: 13

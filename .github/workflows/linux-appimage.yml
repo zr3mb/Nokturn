@@ -1,0 +1,113 @@
+# Builds the Linux AppImage and attaches it to the GitHub release.
+# Runs when release.ps1 publishes a release; can also be started by hand (Actions → Linux AppImage →
+# Run workflow) — without a tag it only builds and keeps the AppImage as a workflow artifact.
+name: Linux AppImage
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and upload to (e.g. v0.4.0); empty = build main, artifact only"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  QT_VERSION: "6.8.3"
+  TAGLIB_VERSION: "v2.0.2"
+
+jobs:
+  appimage:
+    # The oldest supported Ubuntu — the AppImage then runs on older and newer distributions alike.
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Pick the tag
+        id: tag
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "ref=${tag:-main}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.ref }}
+
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            g++-12 ninja-build libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libpulse-dev libfuse2 zlib1g-dev file
+
+      - name: Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: qtmultimedia qtwebsockets
+          cache: true
+
+      - name: TagLib ${{ env.TAGLIB_VERSION }}
+        run: |
+          git clone --depth 1 --branch "$TAGLIB_VERSION" --recurse-submodules https://github.com/taglib/taglib.git /tmp/taglib
+          cmake -S /tmp/taglib -B /tmp/taglib/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=ON -DWITH_ZLIB=ON -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF \
+            -DCMAKE_CXX_COMPILER=g++-12
+          cmake --build /tmp/taglib/build
+          sudo cmake --install /tmp/taglib/build
+          sudo ldconfig
+
+      - name: Deno (yt-dlp's JavaScript runtime, shipped inside the AppImage)
+        run: |
+          curl -fsSL -o /tmp/deno.zip https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip
+          curl -fsSL -o /tmp/deno.zip.sha256sum https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip.sha256sum
+          expected="$(grep -oE '[0-9a-fA-F]{64}' /tmp/deno.zip.sha256sum | head -1 | tr 'A-F' 'a-f')"
+          echo "$expected  /tmp/deno.zip" | sha256sum -c -
+          unzip -q /tmp/deno.zip -d /tmp/deno
+
+      - name: Build the AppImage
+        env:
+          CXX: g++-12
+          CC: gcc-12
+          QT_DIR: ${{ env.QT_ROOT_DIR }}
+          DENO_BIN: /tmp/deno/deno
+          APPIMAGE_EXTRACT_AND_RUN: "1"   # no FUSE on the runner
+          LD_LIBRARY_PATH: ${{ env.QT_ROOT_DIR }}/lib
+        run: ./build.sh --appimage
+
+      - name: Name and checksum
+        id: out
+        run: |
+          version="$(grep -oP 'project\(Nokturn VERSION \K[0-9.]+' CMakeLists.txt)"
+          file="Nokturn-${version}-x86_64.AppImage"
+          mv Nokturn*-x86_64.AppImage "$file"
+          sha256sum "$file" | awk '{print $1"  "$2}' > "$file.sha256"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          ls -l "$file"
+
+      - name: Smoke test (the AppImage starts)
+        run: |
+          export APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=offscreen NOKTURN_PROFILE=/tmp/nokturn-profile
+          timeout 20 ./${{ steps.out.outputs.file }} > /tmp/run.log 2>&1 || code=$?
+          cat /tmp/run.log | tail -40
+          # 124 = still running when the timeout hit, i.e. it started fine
+          test "${code:-0}" = "124"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.out.outputs.file }}
+          path: |
+            ${{ steps.out.outputs.file }}
+            ${{ steps.out.outputs.file }}.sha256
+
+      - name: Attach to the release
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" \
+            "${{ steps.out.outputs.file }}" "${{ steps.out.outputs.file }}.sha256" --clobber

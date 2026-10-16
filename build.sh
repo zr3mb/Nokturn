@@ -62,14 +62,23 @@ if [[ $appimage == 1 ]]; then
     appdir="$build/AppDir"
     rm -rf "$appdir"
     DESTDIR="$appdir" cmake --install "$build"
+    # DENO_BIN=/path/to/deno — ship Deno next to the program (yt-dlp's JavaScript runtime), like the Windows installer.
+    if [[ -n "${DENO_BIN:-}" ]]; then
+        install -m 755 "$DENO_BIN" "$appdir/usr/bin/deno"
+    fi
     export QML_SOURCES_PATHS="$root/qml"
     export EXTRA_QT_MODULES="multimedia;websockets;dbus"
+    # Native Wayland support when the Qt build has it (otherwise the app runs through XWayland).
+    qt_plugins="${QT_DIR:+$QT_DIR/plugins}"
+    if [[ -n "$qt_plugins" && -e "$qt_plugins/platforms/libqwayland-egl.so" ]]; then
+        export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
+    fi
     [[ -n "${QT_DIR:-}" ]] && export QMAKE="$QT_DIR/bin/qmake"
     (cd "$build" && "$tools/linuxdeploy-$arch.AppImage" --appdir "$appdir" --plugin qt --output appimage \
         --desktop-file "$appdir/usr/share/applications/nokturn.desktop" \
         --icon-file "$appdir/usr/share/icons/hicolor/scalable/apps/nokturn.svg")
+    mv "$build"/Nokturn*.AppImage "$root/" 2>/dev/null || true
     echo "Done: $(ls "$root"/Nokturn*.AppImage 2>/dev/null)"
-    echo "Gotowe: $(ls "$root"/Nokturn*.AppImage 2>/dev/null)"
 fi
 
 if [[ $run == 1 ]]; then
