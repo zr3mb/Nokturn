@@ -10,6 +10,7 @@
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QPointer>
+#include <QSet>
 #include <QTcpServer>
 #include <QTimer>
 #include <QUrlQuery>
@@ -81,10 +82,21 @@ public:
 
     // YouTube Music match of a Spotify track ("sp:<id>"): videoId, "" = not found.
     bool matchKnown(const QString &trackId) const { return m_matches.contains(trackId); }
-    QString matchedVideoId(const QString &trackId) const { return m_matches.value(trackId); }
+    Q_INVOKABLE QString matchedVideoId(const QString &trackId) const { return m_matches.value(trackId); }
     void match(const QString &trackId, std::function<void(const QString &videoId)> callback);
 
+    // Correcting a wrong match: the search behind it ("artist title"), a few YouTube Music results
+    // to choose from (matchesFound), the user's choice — it sticks — and matching from scratch.
+    Q_INVOKABLE QString matchQuery(const QString &trackId) const;
+    Q_INVOKABLE bool manualMatch(const QString &trackId) const { return m_manual.contains(trackId); }
+    Q_INVOKABLE void findMatches(const QString &trackId, const QString &query);
+    Q_INVOKABLE void chooseMatch(const QString &trackId, const QString &videoId);
+    Q_INVOKABLE void rematch(const QString &trackId);
+
 signals:
+    // [{ videoId, title, artist, album, durationText, cover, kind: "song"|"video", current }]
+    void matchesFound(const QString &trackId, const QVariantList &results, const QString &error);
+    void matchChanged(const QString &trackId);   // a different videoId than before
     void accountChanged();
     void loggingInChanged();
     void syncingChanged();
@@ -130,6 +142,7 @@ private:
     void loadCache();
     void saveCache() const;
     void saveMatches() const;
+    void finishMatch(const QString &trackId, const QString &videoId, bool remember);
 
     QNetworkAccessManager m_net;
     QTcpServer m_server;
@@ -159,6 +172,7 @@ private:
     QDateTime m_lastSync;
 
     QHash<QString, QString> m_matches;              // "sp:<id>" -> YouTube videoId ("" = not found)
+    QSet<QString> m_manual;                         // matches the user chose — never replaced automatically
     QHash<QString, QList<std::function<void(const QString &)>>> m_matching;
     QTimer m_matchesSave;
 };

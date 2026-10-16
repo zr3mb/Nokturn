@@ -25,7 +25,7 @@ class Library : public QObject
     Q_PROPERTY(QVariantList albums READ albums NOTIFY libraryChanged)
     Q_PROPERTY(QVariantList recentAlbums READ recentAlbums NOTIFY libraryChanged)
     Q_PROPERTY(QVariantList artists READ artists NOTIFY libraryChanged)
-    Q_PROPERTY(QVariantList playlists READ playlists NOTIFY libraryChanged)
+    Q_PROPERTY(QVariantList playlists READ playlists NOTIFY playlistsChanged)
     Q_PROPERTY(QVariantList sources READ sources NOTIFY sourcesChanged)
     Q_PROPERTY(QVariantList folders READ folders NOTIFY foldersChanged)
     Q_PROPERTY(int localCount READ localCount NOTIFY libraryChanged)
@@ -76,10 +76,17 @@ public:
     Q_INVOKABLE QVariantList onlineResults() const;         // latest YouTube Music search results
     Q_INVOKABLE int totalDuration(const QVariantList &rows) const;   // sum of durations (seconds)
 
+    // Playlist covers: the user's own picture, otherwise the source's cover (YouTube Music, Spotify),
+    // otherwise a 2×2 collage of four random covers of the playlist's tracks ("mosaic" in the map).
+    Q_INVOKABLE bool setPlaylistCover(int index, const QUrl &image);
+    Q_INVOKABLE void resetPlaylistCover(int index);
+    Q_INVOKABLE void shufflePlaylistCover(int index);   // four other covers for the collage
+
     void ensurePalette(int row);
 
 signals:
     void libraryChanged();
+    void playlistsChanged();
     void foldersChanged();
     void scanChanged();
     void sourcesChanged();
@@ -97,6 +104,9 @@ private:
     void rebuildCollections();
     void rebuildPlaylists();
     QVariantList rowsOfIds(const QStringList &ids) const;
+    static QString coverKey(const QVariantMap &playlist);
+    void applyPlaylistCover(QVariantMap &playlist) const;
+    void refreshPlaylistCover(int index);
     void onScanFinished();
     QList<Track> demoTracks() const;
 

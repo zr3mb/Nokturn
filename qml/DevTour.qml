@@ -13,6 +13,65 @@ Item {
     readonly property bool withEngine: Qt.application.arguments.indexOf("--tour-engine") >= 0
     readonly property bool withBig: Qt.application.arguments.indexOf("--tour-big") >= 0
     readonly property bool withEq: Qt.application.arguments.indexOf("--tour-eq") >= 0
+    readonly property bool withMatch: Qt.application.arguments.indexOf("--tour-match") >= 0
+    // Correcting a Spotify track's YouTube Music match (needs a synced Spotify library).
+    property var matchTrack: ({})
+    property var matchResults: []
+    function firstSpotifyTrack() {
+        for (let i = 0; i < Library.tracks.count; ++i) {
+            const t = Library.tracks.get(i)
+            if (t.source === "spotify")
+                return t
+        }
+        return {}
+    }
+    // The first visible track row of a Spotify track (TrackRow) — to open its menu.
+    function findSpotifyRow(item) {
+        if (item.openMenu && item.t && item.t.source === "spotify" && item.visible && item.opacity > 0.5)
+            return item
+        for (let i = 0; i < item.children.length; ++i) {
+            const found = root.findSpotifyRow(item.children[i])
+            if (found)
+                return found
+        }
+        return null
+    }
+    readonly property var matchSteps: [
+        { name: "M1-library", run: () => { Nav.finishOnboarding(); Nav.navigate("library"); root.matchTrack = root.firstSpotifyTrack()
+                                            console.log("tour: track", root.matchTrack.artist, "-", root.matchTrack.title, root.matchTrack.durationText) } },
+        { name: "M2-menu", run: () => { const row = root.findSpotifyRow(root.target); console.log("tour: menu row", row ? row.t.title : "none")
+                                        if (row) row.openMenu(row.width - row.menuWidth, row.height) } },
+        { name: "M2-auto", run: () => Spotify.rematch(root.matchTrack.id) },
+        { name: "M3-dialog", run: () => { console.log("tour: auto match =", Spotify.matchedVideoId(root.matchTrack.id)); Nav.chooseMatch(root.matchTrack) } },
+        { name: "M4-results", run: () => {} },
+        { name: "M5-choose", run: () => { const r = root.matchResults[root.matchResults.length - 1]
+                                          if (r) Spotify.chooseMatch(root.matchTrack.id, r.videoId)
+                                          console.log("tour: chosen =", Spotify.matchedVideoId(root.matchTrack.id), "manual =", Spotify.manualMatch(root.matchTrack.id)) } },
+        { name: "M6-dialog-again", run: () => Nav.chooseMatch(root.matchTrack) },
+        { name: "M7-rematch", run: () => Spotify.rematch(root.matchTrack.id) },
+        { name: "M8-result", run: () => console.log("tour: after rematch =", Spotify.matchedVideoId(root.matchTrack.id), "manual =", Spotify.manualMatch(root.matchTrack.id)) }
+    ]
+    readonly property bool withCovers: Qt.application.arguments.indexOf("--tour-covers") >= 0
+    // Playlist covers: the collage of track covers, an uploaded picture (one of the tour's own
+    // screenshots), back to the default. Likes a few tracks first, so "Liked" has covers to use.
+    readonly property var coverSteps: [
+        { name: "C1-liked", run: () => { Nav.finishOnboarding()
+                                        let liked = 0
+                                        for (let i = 0; i < Library.tracks.count && liked < 6; ++i) {
+                                            const t = Library.tracks.get(i)
+                                            if (t.cover && !t.liked) { Library.tracks.toggleLiked(i); ++liked }
+                                        }
+                                        Library.shufflePlaylistCover(0)
+                                        console.log("tour: liked mosaic =", JSON.stringify(Library.playlists[0].mosaic))
+                                        Nav.navigate("playlist", { kind: "playlist", index: 0 }) } },
+        { name: "C2-shuffled", run: () => { Library.shufflePlaylistCover(0); console.log("tour: shuffled =", JSON.stringify(Library.playlists[0].mosaic)) } },
+        { name: "C3-custom", run: () => { console.log("tour: upload =", Library.setPlaylistCover(1, "file:///" + root.dir + "/C1-liked.png"),
+                                                      Library.playlists[1].cover, Library.playlists[1].customCover)
+                                         Nav.navigate("playlist", { kind: "playlist", index: 1 }) } },
+        { name: "C4-home", run: () => Nav.navigate("home") },
+        { name: "C5-reset", run: () => { Library.resetPlaylistCover(1); console.log("tour: reset =", Library.playlists[1].cover, Library.playlists[1].customCover)
+                                        Nav.navigate("playlist", { kind: "playlist", index: 1 }) } }
+    ]
     readonly property var eqSteps: [
         { name: "Q1-play", run: () => { Equalizer.applyPreset("Flat"); Player.play(); Nav.navigate("equalizer") } },
         { name: "Q2-flat", run: () => console.log("tour: flat  peak", Equalizer.peak.toFixed(1), "dB, reduction", Equalizer.reduction.toFixed(1)) },
@@ -21,7 +80,7 @@ Item {
         { name: "Q5-nolimit", run: () => { Equalizer.limiter = false; Equalizer.preamp = 12 } },
         { name: "Q6-clip", run: () => { console.log("tour: no limiter peak", Equalizer.peak.toFixed(1), "dB, clipping", Equalizer.clipping); Equalizer.limiter = true; Equalizer.preamp = 0 } }
     ]
-    readonly property var steps: withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
@@ -82,6 +141,17 @@ Item {
         target: YouTube
         enabled: root.dir !== ""
         function onNotice(text, icon) { console.log("tour: notice:", text) }
+    }
+    Connections {
+        target: Spotify
+        enabled: root.dir !== ""
+        function onNotice(text, icon) { console.log("tour: notice:", text) }
+        function onMatchesFound(trackId, results, error) {
+            root.matchResults = results
+            console.log("tour:", results.length, "results", error)
+            results.forEach(r => console.log("tour:  ", r.kind, r.current ? "*" : " ", r.durationText, r.artist, "-", r.title))
+        }
+        function onMatchChanged(trackId) { console.log("tour: matchChanged", trackId) }
     }
 
     Timer {

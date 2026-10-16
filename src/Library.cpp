@@ -6,12 +6,17 @@
 #include "youtube/YouTubeService.h"
 
 #include <QCollator>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QImageReader>
 #include <QJSEngine>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkReply>
+#include <QPainter>
+#include <QRandomGenerator>
 #include <QSaveFile>
 #include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
@@ -324,6 +329,7 @@ void Library::rebuildModel()
     rebuildCollections();
     rebuildPlaylists();
     emit libraryChanged();
+    emit playlistsChanged();
 }
 
 void Library::rebuildPlaylists()
@@ -359,6 +365,178 @@ void Library::rebuildPlaylists()
                 { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.value("id").toString()) } };
         }
     }
+    for (QVariant &v : m_playlists) {
+        QVariantMap p = v.toMap();
+        p.insert("sourceCover", p.value("cover").toString());
+        applyPlaylistCover(p);
+        v = p;
+    }
+}
+
+// ---- playlist covers -------------------------------------------------------------
+
+namespace {
+
+QString coversDir() { return AppPaths::dataDir() + QStringLiteral("/playlist-covers"); }
+
+// Settings keys can't hold "/" — and file names shouldn't hold ":".
+QString safeKey(const QString &key)
+{
+    QString out = key;
+    for (QChar &c : out)
+        if (!c.isLetterOrNumber() && c != QLatin1Char('-') && c != QLatin1Char('_'))
+            c = QLatin1Char('_');
+    return out;
+}
+
+QString customCoverFile(const QString &key)
+{
+    const QString name = AppPaths::settings()->value(QStringLiteral("playlistCover/") + safeKey(key)).toString();
+    if (name.isEmpty())
+        return {};
+    const QString path = coversDir() + QLatin1Char('/') + name;
+    return QFileInfo::exists(path) ? path : QString();
+}
+
+} // namespace
+
+QString Library::coverKey(const QVariantMap &p)
+{
+    const QString kind = p.value("kind").toString();
+    if (kind == QLatin1String("ytplaylist"))
+        return QStringLiteral("yt:") + p.value("ytId").toString();
+    if (kind == QLatin1String("spplaylist"))
+        return QStringLiteral("sp:") + p.value("spId").toString();
+    return kind;
+}
+
+void Library::applyPlaylistCover(QVariantMap &p) const
+{
+    const QString key = coverKey(p);
+    p.insert("coverKey", key);
+    p.remove("mosaic");
+    const QString custom = customCoverFile(key);
+    p.insert("customCover", !custom.isEmpty());
+    if (!custom.isEmpty()) {
+        p.insert("cover", QUrl::fromLocalFile(custom).toString());
+        return;
+    }
+    p.insert("cover", p.value("sourceCover").toString());
+    if (!p.value("cover").toString().isEmpty())
+        return;
+
+    // The collage: covers of different albums picked at random — the same four until the user
+    // shuffles them (the seed is remembered).
+    const QString kind = p.value("kind").toString();
+    YouTubeService *yt = YouTubeService::instance();
+    QVariantList rows;
+    if (kind == QLatin1String("liked"))
+        rows = likedTracks();
+    else if (kind == QLatin1String("recent"))
+        rows = recentlyAdded(50);
+    else if (kind == QLatin1String("youtube"))
+        rows = yt->connected() ? rowsOfIds(yt->likedIds())
+                               : rowsWhere(m_tracks, [](const Track &t) { return t.source == QLatin1String("youtube") && t.demo; });
+    else if (kind == QLatin1String("ytplaylist"))
+        rows = rowsOfIds(yt->playlistTrackIds(p.value("ytId").toString()));   // only what's loaded — no fetching here
+    else if (kind == QLatin1String("spotifyliked"))
+        rows = rowsOfIds(SpotifyService::instance()->likedIds());
+    else if (kind == QLatin1String("spplaylist"))
+        rows = rowsOfIds(SpotifyService::instance()->playlistTrackIds(p.value("spId").toString()));
+
+    QStringList covers;
+    QSet<QString> seen;
+    for (const QVariant &row : std::as_const(rows)) {
+        const QString cover = m_tracks->at(row.toInt()).cover;
+        if (!cover.isEmpty() && !seen.contains(cover)) {
+            seen.insert(cover);
+            covers << cover;
+        }
+    }
+    if (covers.isEmpty())
+        return;
+    const quint32 seed = AppPaths::settings()->value(QStringLiteral("playlistMosaic/") + safeKey(key),
+                                                     quint32(Scanner::stableSeed(key))).toUInt();
+    QRandomGenerator rng(seed);
+    std::shuffle(covers.begin(), covers.end(), rng);
+    if (covers.size() == 1) {
+        p.insert("cover", covers.first());
+        return;
+    }
+    // Two or three different covers: repeated across the diagonal (A B / B A, A B / C A).
+    QStringList mosaic = covers.mid(0, 4);
+    if (mosaic.size() == 2)
+        mosaic << mosaic.at(1) << mosaic.at(0);
+    else if (mosaic.size() == 3)
+        mosaic << mosaic.at(0);
+    p.insert("mosaic", mosaic);
+}
+
+void Library::refreshPlaylistCover(int index)
+{
+    QVariantMap p = m_playlists.at(index).toMap();
+    applyPlaylistCover(p);
+    m_playlists[index] = p;
+    emit playlistsChanged();
+}
+
+bool Library::setPlaylistCover(int index, const QUrl &image)
+{
+    if (index < 0 || index >= m_playlists.size())
+        return false;
+    QImageReader reader(image.isLocalFile() ? image.toLocalFile() : image.toString());
+    reader.setAutoTransform(true);   // phone photos are rotated by their EXIF tag
+    QImage img = reader.read();
+    if (img.isNull()) {
+        emit notice(tr("Couldn't open the image: %1").arg(reader.errorString()), QStringLiteral("close"));
+        return false;
+    }
+    // A square from the middle, at most 640 px — the largest size the cover is shown at.
+    const int side = std::min(img.width(), img.height());
+    img = img.copy((img.width() - side) / 2, (img.height() - side) / 2, side, side);
+    if (side > 640)
+        img = img.scaled(640, 640, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    if (img.hasAlphaChannel()) {
+        QImage flat(img.size(), QImage::Format_RGB32);
+        flat.fill(QColor("#1a1c20"));
+        QPainter(&flat).drawImage(0, 0, img);
+        img = flat;
+    }
+
+    const QString key = coverKey(m_playlists.at(index).toMap());
+    QDir().mkpath(coversDir());
+    // A new name every time — the image cache would keep showing the old picture otherwise.
+    const QString name = safeKey(key) + QLatin1Char('-') + QString::number(QDateTime::currentMSecsSinceEpoch())
+                       + QStringLiteral(".jpg");
+    if (!img.save(coversDir() + QLatin1Char('/') + name, "JPG", 90)) {
+        emit notice(tr("Couldn't save the cover"), QStringLiteral("close"));
+        return false;
+    }
+    if (const QString old = customCoverFile(key); !old.isEmpty())
+        QFile::remove(old);
+    AppPaths::settings()->setValue(QStringLiteral("playlistCover/") + safeKey(key), name);
+    refreshPlaylistCover(index);
+    return true;
+}
+
+void Library::resetPlaylistCover(int index)
+{
+    if (index < 0 || index >= m_playlists.size())
+        return;
+    const QString key = coverKey(m_playlists.at(index).toMap());
+    if (const QString old = customCoverFile(key); !old.isEmpty())
+        QFile::remove(old);
+    AppPaths::settings()->remove(QStringLiteral("playlistCover/") + safeKey(key));
+    refreshPlaylistCover(index);
+}
+
+void Library::shufflePlaylistCover(int index)
+{
+    if (index < 0 || index >= m_playlists.size())
+        return;
+    const QString key = coverKey(m_playlists.at(index).toMap());
+    AppPaths::settings()->setValue(QStringLiteral("playlistMosaic/") + safeKey(key), QRandomGenerator::global()->generate());
+    refreshPlaylistCover(index);
 }
 
 void Library::ensurePalette(int row)

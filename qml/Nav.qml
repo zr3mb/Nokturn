@@ -39,6 +39,12 @@ QtObject {
     signal searchFocusRequested()
     signal toastRequested(string text, string icon)
     signal addFolderRequested()
+    signal matchPickerRequested(var track)
+
+    // A Spotify track plays from the wrong YouTube Music version — choose another (MatchDialog).
+    function chooseMatch(track) {
+        matchPickerRequested(track)
+    }
 
     function addFolder() {
         addFolderRequested()

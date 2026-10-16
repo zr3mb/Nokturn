@@ -14,6 +14,7 @@ Item {
     property int seed: 0
     property string coverIcon: ""
     property string coverSource: ""
+    property var coverMosaic: []
     property bool ownHighlight: false
     property bool playing: false
     signal clicked
@@ -42,6 +43,7 @@ Item {
     }
 
     ArtCover {
+        id: art
         visible: root.cover
         x: 10
         width: 34; height: 34
@@ -52,12 +54,13 @@ Item {
         colorB: root.colorB
         seed: root.seed
         source: root.coverSource
+        mosaic: root.coverMosaic
         scale: mouse.pressed ? 0.9 : 1
         Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
 
         Icon {
             anchors.centerIn: parent
-            visible: root.coverIcon !== ""
+            visible: root.coverIcon !== "" && !art.hasPicture
             name: root.coverIcon
             size: 16
             color: "#f4efe8"

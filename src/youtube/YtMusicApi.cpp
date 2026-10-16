@@ -372,9 +372,15 @@ void YtMusicApi::fetchLibraryPlaylists(std::function<void(const QVariantList &, 
          });
 }
 
-void YtMusicApi::search(const QString &query, TracksCallback callback)
+void YtMusicApi::search(const QString &query, TracksCallback callback, const QString &filter)
 {
-    call(QStringLiteral("search"), { { "query", query } }, [callback](const QJsonObject &json, const QString &error) {
+    QJsonObject body { { "query", query } };
+    // The search filter chips ("Songs", "Videos") of music.youtube.com.
+    if (filter == QLatin1String("songs"))
+        body.insert("params", QStringLiteral("EgWKAQIIAWoMEA4QChADEAQQCRAF"));
+    else if (filter == QLatin1String("videos"))
+        body.insert("params", QStringLiteral("EgWKAQIQAWoMEA4QChADEAQQCRAF"));
+    call(QStringLiteral("search"), body, [callback](const QJsonObject &json, const QString &error) {
         callback(error.isEmpty() ? parseTracks(json) : QList<Track>(), error);
     });
 }
@@ -628,39 +634,108 @@ QString coreTitle(const QString &title)
     static const QRegularExpression extras(
         QStringLiteral("\\s*(\\(|\\[|\\s-\\s).*(feat|ft\\.|remaster|live|version|wersja|edit|mix|mono|stereo|deluxe).*$"),
         QRegularExpression::CaseInsensitiveOption);
+    // Music videos: "Title (Official Video)", "Title [Lyrics]", "Title | 4K"
+    static const QRegularExpression videoTags(
+        QStringLiteral("\\s*(\\(|\\[|\\|)[^)\\]|]*(official|video|audio|lyric|visuali[sz]er|teledysk|\\bhd\\b|\\b4k\\b|\\bmv\\b)[^)\\]]*(\\)|\\]|$)"),
+        QRegularExpression::CaseInsensitiveOption);
+    // "Title feat. X" without brackets (video uploads)
+    static const QRegularExpression bareFeat(QStringLiteral("\\s+(feat\\.?|ft\\.)\\s.*$"), QRegularExpression::CaseInsensitiveOption);
     QString t = title;
+    t.remove(videoTags);
     t.remove(extras);
+    t.remove(bareFeat);
     return LyricsAligner::normalize(t);
+}
+
+// "Artist - Title (Official Video)" (video uploads) -> "Title (Official Video)"
+QString withoutArtistPrefix(const QString &title, const QString &artist)
+{
+    static const QRegularExpression dash(QStringLiteral("\\s[-–—]\\s"));
+    const auto m = dash.match(title);
+    if (!m.hasMatch() || artist.isEmpty())
+        return title;
+    const QString left = LyricsAligner::normalize(title.left(m.capturedStart()));
+    if (left.isEmpty() || !(left.contains(artist) || artist.contains(left)))
+        return title;
+    return title.mid(m.capturedEnd());
+}
+
+// The kind of version a title names ("live", "remix", "cover", "spedup"…). Words that are rare in
+// real titles count anywhere; the ambiguous ones ("Live Forever", "Cover Me") only in the extras —
+// brackets or after " - ".
+QSet<QString> variantTags(const QString &title)
+{
+    static const QRegularExpression anywhere(
+        QStringLiteral("\\b(sped[\\s-]*up|speed[\\s-]*up|slowed|reverb|nightcore|karaoke|8d(?:\\s*audio)?|bass[\\s-]*boosted|daycore)\\b"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    static const QRegularExpression inExtras(
+        QStringLiteral("\\b(cover|live|remix|acoustic|instrumental|unplugged|mashup|tribute|demo|piano version|orchestral)\\b"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    static const QRegularExpression extrasStart(QStringLiteral("\\(|\\[|\\s[-–—|]\\s"));
+
+    QSet<QString> tags;
+    const auto add = [&tags](const QRegularExpression &re, const QString &text) {
+        auto it = re.globalMatch(text);
+        while (it.hasNext()) {
+            QString tag = LyricsAligner::normalize(it.next().captured(1));
+            if (tag == QLatin1String("speedup"))
+                tag = QStringLiteral("spedup");
+            else if (tag.startsWith(QLatin1String("8d")))
+                tag = QStringLiteral("8d");
+            tags.insert(tag);
+        }
+    };
+    add(anywhere, title);
+    if (const int at = int(title.indexOf(extrasStart)); at >= 0)
+        add(inExtras, title.mid(at));
+    return tags;
 }
 
 } // namespace
 
+double YtMusicApi::matchScore(const Track &local, const Track &result)
+{
+    const QString artist = LyricsAligner::normalize(local.artist);
+    const QString resultTitle = withoutArtistPrefix(
+        result.title, LyricsAligner::normalize(local.artist.section(QStringLiteral(", "), 0, 0)));
+    const double ts = LyricsAligner::similarity(coreTitle(local.title), coreTitle(resultTitle));
+    if (ts < 0.6)
+        return -1;
+    const QString ra = LyricsAligner::normalize(result.artist);
+    const double as = artist.isEmpty() ? 0.5
+                    : ra.isEmpty() ? 0.0
+                    : (ra.contains(artist) || artist.contains(ra)) ? 1.0
+                    : LyricsAligner::similarity(artist, ra);
+    double score = ts * 2 + as;
+    if (as < 0.5)
+        score -= 0.5;   // someone else's recording of the same title (a cover)
+    if (local.duration > 0 && result.duration > 0) {
+        const int diff = std::abs(local.duration - result.duration);
+        if (diff > 12)
+            return -1;   // a different version (e.g. live)
+        score += 1.0 - diff / 12.0;
+    }
+
+    // A cover / live / remix / sped up version when the original was asked for (or the other way round).
+    const QSet<QString> wanted = variantTags(local.title);
+    const QSet<QString> found = variantTags(resultTitle) + variantTags(result.artist);
+    if (!(found - wanted).isEmpty())
+        score -= 1.5;
+    if (!(wanted - found).isEmpty())
+        score -= 0.75;
+    return score;
+}
+
 int YtMusicApi::bestMatch(const Track &local, const QList<Track> &results)
 {
-    const QString title = coreTitle(local.title);
-    const QString artist = LyricsAligner::normalize(local.artist);
     int best = -1;
     double bestScore = 0;
     for (int i = 0; i < results.size(); ++i) {
-        const Track &r = results.at(i);
-        const double ts = LyricsAligner::similarity(title, coreTitle(r.title));
-        if (ts < 0.6)
-            continue;
-        const QString ra = LyricsAligner::normalize(r.artist);
-        const double as = artist.isEmpty() ? 0.5
-                        : (ra.contains(artist) || artist.contains(ra)) ? 1.0
-                        : LyricsAligner::similarity(artist, ra);
-        double score = ts * 2 + as;
-        if (local.duration > 0 && r.duration > 0) {
-            const int diff = std::abs(local.duration - r.duration);
-            if (diff > 12)
-                continue;   // a different version (e.g. live)
-            score += 1.0 - diff / 12.0;
-        }
+        const double score = matchScore(local, results.at(i));
         if (score > bestScore) {
             bestScore = score;
             best = i;
         }
     }
-    return bestScore >= 2.0 ? best : -1;
+    return bestScore >= kMatchThreshold ? best : -1;
 }

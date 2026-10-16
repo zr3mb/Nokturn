@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Nokturn
 
@@ -16,6 +17,16 @@ Item {
         if (current) Player.toggle()
         else if (queue) Player.playFrom(queue, trackIndex, context)
         else Player.playIndex(trackIndex)
+    }
+
+    // Track menu — for now the YouTube Music match of a Spotify track (it's played from there).
+    readonly property int menuWidth: 320
+    function openMenu(px, py) {
+        if (t.source !== "spotify")
+            return false
+        const menu = menuComponent.createObject(root, { x: px, y: py })
+        menu.open()
+        return true
     }
 
     readonly property var t: {
@@ -52,7 +63,9 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        onDoubleClicked: root.current ? Player.play() : root.play()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: mouse => { if (mouse.button === Qt.RightButton) root.openMenu(mouse.x, mouse.y) }
+        onDoubleClicked: mouse => { if (mouse.button === Qt.LeftButton) root.current ? Player.play() : root.play() }
     }
 
     Rectangle {
@@ -175,12 +188,73 @@ Item {
         }
 
         IconButton {
+            id: moreButton
             icon: "more"
             iconSize: 18
             showDot: false
             opacity: root.hovered ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Theme.fast } }
-            onClicked: Nav.toast(qsTr("The context menu is coming soon"), "more")
+            onClicked: {
+                const p = moreButton.mapToItem(root, moreButton.width, moreButton.height)
+                if (!root.openMenu(p.x - menuWidth, p.y + 4))
+                    Nav.toast(qsTr("The context menu is coming soon"), "more")
+            }
+        }
+    }
+
+    Component {
+        id: menuComponent
+        Popup {
+            id: menu
+            width: root.menuWidth
+            padding: 6
+            margins: 10
+            focus: true
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+            background: Rectangle {
+                radius: 14
+                color: Theme.surfaceHi
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.07)
+            }
+            enter: Transition {
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140 }
+                NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 220; easing.type: Easing.OutCubic }
+            }
+            exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 } }
+            onClosed: destroy()
+
+            contentItem: ColumnLayout {
+                spacing: 2
+                Text {
+                    Layout.fillWidth: true
+                    Layout.margins: 10
+                    Layout.bottomMargin: 4
+                    text: Spotify.manualMatch(root.t.id) ? qsTr("Plays the version you chose on YouTube Music")
+                                                         : qsTr("Plays from YouTube Music — matched automatically")
+                    color: Theme.textFaint
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+                MenuEntry {
+                    Layout.fillWidth: true
+                    icon: "search"
+                    text: qsTr("Wrong match — choose another")
+                    onTriggered: {
+                        menu.close()
+                        Nav.chooseMatch(root.t)
+                    }
+                }
+                MenuEntry {
+                    Layout.fillWidth: true
+                    icon: "refresh"
+                    text: qsTr("Match again")
+                    onTriggered: {
+                        menu.close()
+                        Spotify.rematch(root.t.id)
+                    }
+                }
+            }
         }
     }
 }

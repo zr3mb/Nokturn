@@ -106,6 +106,11 @@ ApplicationWindow {
             anchors.fill: parent
         }
 
+        // Correcting a Spotify track's YouTube Music match
+        MatchDialog {
+            id: matchDialog
+        }
+
         Toast {
             id: toast
             bottomOffset: playerBar.height + 22
@@ -159,6 +164,9 @@ ApplicationWindow {
         }
         function onAddFolderRequested() {
             folderDialog.open()
+        }
+        function onMatchPickerRequested(track) {
+            matchDialog.show(track)
         }
     }
 

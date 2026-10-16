@@ -81,6 +81,8 @@ qt_add_qml_module(Nokturn
         qml/components/IconButton.qml
         qml/components/InputField.qml
         qml/components/LyricsView.qml
+        qml/components/MatchDialog.qml
+        qml/components/MenuEntry.qml
         qml/components/LogoMark.qml
         qml/components/PageFlick.qml
         qml/components/Panel.qml

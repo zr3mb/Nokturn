@@ -163,6 +163,8 @@ Item {
                         colorB: modelData.colorB
                         seed: modelData.seed
                         coverIcon: modelData.icon
+                        coverSource: modelData.cover || ""
+                        coverMosaic: modelData.mosaic || []
                         revealDelay: 180 + index * 55
                         onClicked: page.openPick(modelData, index)
                         onPlayClicked: page.playPick(modelData, index)

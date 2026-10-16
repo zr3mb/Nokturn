@@ -170,6 +170,7 @@ Panel {
                         seed: modelData.seed
                         coverIcon: modelData.icon
                         coverSource: modelData.cover || ""
+                        coverMosaic: modelData.mosaic || []
                         selected: root.isPlaylist(index)
                         onSelectedChanged: if (selected) root.selectedItem = plItem
                         Component.onCompleted: if (selected) root.selectedItem = plItem

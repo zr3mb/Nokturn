@@ -9,6 +9,8 @@ Item {
     property color colorB: Theme.accent2
     property int seed: 0
     property string coverIcon: ""
+    property string coverSource: ""
+    property var coverMosaic: []
     property bool playing: false
     property int revealDelay: 0
     signal clicked
@@ -49,10 +51,12 @@ Item {
         colorA: root.colorA
         colorB: root.colorB
         seed: root.seed
+        source: root.coverSource
+        mosaic: root.coverMosaic
 
         Icon {
             anchors.centerIn: parent
-            visible: root.coverIcon !== ""
+            visible: root.coverIcon !== "" && !cover.hasPicture
             name: root.coverIcon
             size: 26
             color: "#f4efe8"

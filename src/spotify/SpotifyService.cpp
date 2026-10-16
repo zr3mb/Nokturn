@@ -16,6 +16,7 @@
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QRandomGenerator>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
 #include <QTcpSocket>
@@ -23,6 +24,7 @@
 
 #include <climits>
 #include <cstdlib>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -33,6 +35,7 @@ const char *kScopes = "playlist-read-private playlist-read-collaborative user-li
 QString tokenFile() { return AppPaths::dataDir() + QStringLiteral("/spotify.token"); }
 QString cacheFile() { return AppPaths::dataDir() + QStringLiteral("/spotify.json"); }
 QString matchesFile() { return AppPaths::dataDir() + QStringLiteral("/spotify-matches.json"); }
+constexpr int kMatchesVersion = 2;   // spotify-matches.json: "_version", "_manual" and "sp:<id>": videoId
 QString browserProfile() { return AppPaths::dataDir() + QStringLiteral("/browser-spotify"); }
 
 QString randomString(int length)
@@ -896,6 +899,31 @@ QList<Track> SpotifyService::tracks() const
 
 // ---- matching to YouTube Music --------------------------------------------------------
 
+namespace {
+
+// A "songs" result this good (title, artist and duration all fit) is taken without a second search.
+constexpr double kConfidentMatch = 3.0;
+
+// "Song - Remastered 2011", "Song (feat. X)" -> "Song": the second search does better without them.
+QString plainTitle(const QString &title)
+{
+    static const QRegularExpression extras(
+        QStringLiteral("\\s*(\\(|\\[|\\s-\\s)[^)\\]]*(feat|ft\\.|with |remaster|version|edit|mono|stereo|deluxe|anniversary)[^)\\]]*(\\)|\\]|$)"),
+        QRegularExpression::CaseInsensitiveOption);
+    QString t = title;
+    t.remove(extras);
+    t = t.trimmed();
+    return t.isEmpty() ? title : t;
+}
+
+} // namespace
+
+QString SpotifyService::matchQuery(const QString &trackId) const
+{
+    const Track t = m_tracks.value(trackId);
+    return (t.artist.section(QStringLiteral(", "), 0, 0) + QLatin1Char(' ') + t.title).trimmed();
+}
+
 void SpotifyService::match(const QString &trackId, std::function<void(const QString &)> callback)
 {
     if (m_matches.contains(trackId)) {
@@ -908,20 +936,133 @@ void SpotifyService::match(const QString &trackId, std::function<void(const QStr
     if (waiting.size() > 1)
         return;   // already searching
 
+    // 1) Songs only — official audio, no music videos with intros and skits. 2) When nothing there
+    // fits well (a missing track, only a remix or live version): videos — official clips, lyric
+    // videos, uploads of versions that aren't on YouTube Music as songs — with the title stripped of
+    // "Remastered"/"feat.". No songs at all (the filter stopped working?) — an unfiltered search.
     const Track t = m_tracks.value(trackId);
-    const QString query = t.artist.section(QStringLiteral(", "), 0, 0) + QLatin1Char(' ') + t.title;
-    YouTubeService::instance()->api()->search(query, [this, trackId, t](const QList<Track> &results, const QString &error) {
-        QString videoId;
-        if (error.isEmpty()) {
-            const int best = YtMusicApi::bestMatch(t, results);
-            if (best >= 0)
-                videoId = results.at(best).path;
-            m_matches.insert(trackId, videoId);   // also "not found", so we don't search again
-            m_matchesSave.start();
+    YtMusicApi *api = YouTubeService::instance()->api();
+    api->search(matchQuery(trackId), [this, api, trackId, t](const QList<Track> &songs, const QString &error) {
+        const int best = YtMusicApi::bestMatch(t, songs);
+        const double score = best >= 0 ? YtMusicApi::matchScore(t, songs.at(best)) : -1;
+        const QString song = best >= 0 ? songs.at(best).path : QString();
+        if (score >= kConfidentMatch) {
+            finishMatch(trackId, song, true);
+            return;
         }
-        const auto callbacks = m_matching.take(trackId);
-        for (const auto &cb : callbacks)
-            cb(videoId);
+        const QString query = (t.artist.section(QStringLiteral(", "), 0, 0) + QLatin1Char(' ') + plainTitle(t.title)).trimmed();
+        api->search(query, [this, trackId, t, error, song, score](const QList<Track> &results, const QString &error2) {
+            QString videoId = song;
+            const int other = YtMusicApi::bestMatch(t, results);
+            // An official audio track wins a tie with a video.
+            if (other >= 0 && YtMusicApi::matchScore(t, results.at(other)) > score + 0.25)
+                videoId = results.at(other).path;
+            // "Not found" is remembered too, so we don't search again — but not after a network error.
+            finishMatch(trackId, videoId, !videoId.isEmpty() || (error.isEmpty() && error2.isEmpty()));
+        }, songs.isEmpty() ? QString() : QStringLiteral("videos"));
+    }, QStringLiteral("songs"));
+}
+
+void SpotifyService::finishMatch(const QString &trackId, const QString &videoId, bool remember)
+{
+    QString result = videoId;
+    if (m_manual.contains(trackId)) {
+        result = m_matches.value(trackId);   // the user chose one while we were searching
+    } else if (remember) {
+        const bool changed = m_matches.contains(trackId) && m_matches.value(trackId) != result;
+        m_matches.insert(trackId, result);
+        m_matchesSave.start();
+        if (changed)
+            emit matchChanged(trackId);
+    }
+    const auto callbacks = m_matching.take(trackId);
+    for (const auto &cb : callbacks)
+        cb(result);
+}
+
+void SpotifyService::findMatches(const QString &trackId, const QString &query)
+{
+    const QString q = query.trimmed().isEmpty() ? matchQuery(trackId) : query.trimmed();
+    if (q.isEmpty()) {
+        emit matchesFound(trackId, {}, QString());
+        return;
+    }
+    // Songs and videos side by side (the right version may only exist as a video upload).
+    struct Pending { QList<Track> songs, videos; QString error; int left = 2; };
+    auto pending = std::make_shared<Pending>();
+    const auto done = [this, trackId, pending] {
+        if (--pending->left > 0)
+            return;
+        const Track t = m_tracks.value(trackId);
+        const QString current = m_matches.value(trackId);
+        QVariantList out;
+        QSet<QString> seen;
+        const auto add = [&](const QList<Track> &list, const QString &kind, int max) {
+            int n = 0;
+            for (const Track &r : list) {
+                if (n >= max)
+                    break;
+                if (r.path.isEmpty() || seen.contains(r.path))
+                    continue;
+                seen.insert(r.path);
+                ++n;
+                out << QVariantMap {
+                    { "videoId", r.path }, { "title", r.title }, { "artist", r.artist }, { "album", r.album },
+                    { "durationText", r.duration > 0 ? TrackModel::formatDuration(r.duration) : QString() },
+                    { "durationDiff", t.duration > 0 && r.duration > 0 ? r.duration - t.duration : 0 },
+                    { "cover", r.cover }, { "kind", kind }, { "current", r.path == current },
+                };
+            }
+        };
+        add(pending->songs, QStringLiteral("song"), 6);
+        add(pending->videos, QStringLiteral("video"), 4);
+        emit matchesFound(trackId, out, out.isEmpty() ? pending->error : QString());
+    };
+    YtMusicApi *api = YouTubeService::instance()->api();
+    api->search(q, [pending, done](const QList<Track> &results, const QString &error) {
+        pending->songs = results;
+        if (!error.isEmpty())
+            pending->error = error;
+        done();
+    }, QStringLiteral("songs"));
+    api->search(q, [pending, done](const QList<Track> &results, const QString &error) {
+        pending->videos = results;
+        if (!error.isEmpty())
+            pending->error = error;
+        done();
+    }, QStringLiteral("videos"));
+}
+
+void SpotifyService::chooseMatch(const QString &trackId, const QString &videoId)
+{
+    if (videoId.isEmpty())
+        return;
+    const bool changed = m_matches.value(trackId) != videoId || !m_matches.contains(trackId);
+    m_matches.insert(trackId, videoId);
+    m_manual.insert(trackId);
+    saveMatches();   // right away — the user's choice shouldn't wait for the timer
+    if (changed)
+        emit matchChanged(trackId);
+}
+
+void SpotifyService::rematch(const QString &trackId)
+{
+    if (!m_tracks.contains(trackId))
+        return;
+    const bool hadMatch = m_matches.contains(trackId);
+    const QString before = m_matches.take(trackId);
+    m_manual.remove(trackId);
+    m_matchesSave.start();
+    const QString title = m_tracks.value(trackId).title;
+    match(trackId, [this, trackId, hadMatch, before, title](const QString &videoId) {
+        if (videoId.isEmpty())
+            emit notice(tr("Not found on YouTube Music: %1").arg(title), QStringLiteral("close"));
+        else
+            emit notice(videoId == before ? tr("Matched again — the same version came up")
+                                          : tr("Matched again: %1").arg(title),
+                        QStringLiteral("check"));
+        if (hadMatch && videoId != before)
+            emit matchChanged(trackId);
     });
 }
 
@@ -952,8 +1093,15 @@ void SpotifyService::loadCache()
     QFile m(matchesFile());
     if (m.open(QIODevice::ReadOnly)) {
         const QJsonObject root = QJsonDocument::fromJson(m.readAll()).object();
-        for (auto it = root.begin(); it != root.end(); ++it)
-            m_matches.insert(it.key(), it.value().toString());
+        // Matches from before version 2 were picked without telling songs from videos, covers or
+        // remixes — they're looked up again with the better matching when the track plays.
+        if (root.value("_version").toInt() >= kMatchesVersion) {
+            for (const QString &id : fromArray(root.value("_manual").toArray()))
+                m_manual.insert(id);
+            for (auto it = root.begin(); it != root.end(); ++it)
+                if (!it.key().startsWith(QLatin1Char('_')))
+                    m_matches.insert(it.key(), it.value().toString());
+        }
     }
 }
 
@@ -981,9 +1129,12 @@ void SpotifyService::saveCache() const
 
 void SpotifyService::saveMatches() const
 {
-    QJsonObject root;
+    QJsonObject root { { "_version", kMatchesVersion } };
     for (auto it = m_matches.cbegin(); it != m_matches.cend(); ++it)
         root.insert(it.key(), it.value());
+    QStringList manual(m_manual.cbegin(), m_manual.cend());
+    manual.sort();
+    root.insert("_manual", toArray(manual));
     QSaveFile f(matchesFile());
     if (f.open(QIODevice::WriteOnly)) {
         f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));

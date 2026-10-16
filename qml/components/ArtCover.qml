@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Shapes
 import Nokturn
 
@@ -12,7 +13,10 @@ Item {
     property int seed: 0
     property bool decorated: true
     property string source: ""
-    readonly property bool hasPicture: picture.status === Image.Ready
+    property var mosaic: []   // four cover URLs — a 2×2 collage when there's no source (playlists)
+    readonly property bool useMosaic: source === "" && mosaic && mosaic.length >= 4
+    property int mosaicReady: 0
+    readonly property bool hasPicture: picture.status === Image.Ready || (useMosaic && mosaicReady > 0)
     // fillItem draws the texture at its natural size — we scale it to cover the shape
     // (like PreserveAspectCrop) and center it. Also applies to 16:9 music-video thumbnails.
     readonly property real texW: Math.max(1, picture.implicitWidth)
@@ -154,10 +158,70 @@ Item {
         mipmap: true
     }
 
+    // The collage: four tiles, cut to the same rounded shape by a mask.
+    Item {
+        id: collage
+        width: root.w
+        height: root.h
+        visible: false
+        layer.enabled: root.useMosaic
+
+        Rectangle {
+            anchors.fill: parent
+            color: root.colorB
+        }
+        Grid {
+            columns: 2
+            Repeater {
+                model: root.useMosaic ? root.mosaic.slice(0, 4) : []
+                Image {
+                    required property string modelData
+                    width: root.w / 2
+                    height: root.h / 2
+                    source: modelData
+                    fillMode: Image.PreserveAspectCrop
+                    sourceSize.width: root.w > 160 ? 256 : 96
+                    sourceSize.height: root.w > 160 ? 256 : 96
+                    asynchronous: true
+                    smooth: true
+                    mipmap: true
+                    onStatusChanged: if (status === Image.Ready) root.mosaicReady += 1
+                }
+            }
+        }
+    }
+    onMosaicChanged: mosaicReady = 0
+
+    Shape {
+        id: collageMask
+        width: root.w
+        height: root.h
+        visible: false
+        layer.enabled: root.useMosaic
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            strokeColor: "transparent"
+            fillColor: "white"
+            PathSvg { path: root.frame }
+        }
+    }
+
+    MultiEffect {
+        anchors.fill: parent
+        visible: root.useMosaic
+        opacity: root.useMosaic && root.mosaicReady > 0 ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 350 } }
+        source: collage
+        maskEnabled: true
+        maskSource: collageMask
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+    }
+
     Shape {
         anchors.fill: parent
-        visible: root.hasPicture
-        opacity: root.hasPicture ? 1 : 0
+        visible: picture.status === Image.Ready
+        opacity: picture.status === Image.Ready ? 1 : 0
         preferredRendererType: Shape.CurveRenderer
         Behavior on opacity { NumberAnimation { duration: 350 } }
 

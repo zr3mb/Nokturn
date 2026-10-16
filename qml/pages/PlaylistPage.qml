@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
 import QtQuick.Controls.Basic
+import QtQuick.Dialogs
 import Nokturn
 
 // Playlist, album or artist view. The list is virtualized (ListView), because YouTube Music
@@ -48,6 +49,7 @@ Item {
                    : qsTr("Your playlist")
         return { label: yt ? qsTr("PLAYLIST · YOUTUBE MUSIC") : sp ? qsTr("PLAYLIST · SPOTIFY") : qsTr("PLAYLIST"), title: p.name, meta: [meta],
                  colorA: p.colorA, colorB: p.colorB, seed: p.seed, cover: p.cover || "", icon: p.icon, round: false,
+                 mosaic: p.mosaic || [], playlistIndex: index, customCover: p.customCover === true,
                  rows: Library.playlistRows(index), loading: Library.playlistLoading(index) }
     }
     // Queue id for the mix settings (separate for each playlist / album / artist).
@@ -116,6 +118,7 @@ Item {
                             colorB: page.info.colorB
                             seed: page.info.seed
                             source: page.info.cover
+                            mosaic: page.info.mosaic || []
                             decorated: page.info.icon === ""
                             layer.enabled: true
                             layer.effect: MultiEffect {
@@ -130,6 +133,37 @@ Item {
                                 name: page.info.icon
                                 size: 84
                                 color: "#f4efe8"
+                            }
+
+                            // Playlists: your own picture or a different collage
+                            HoverHandler { id: coverHover; enabled: page.info.playlistIndex !== undefined }
+                            Rectangle {
+                                id: coverButton
+                                anchors { right: parent.right; bottom: parent.bottom; margins: 12 }
+                                width: 40; height: 40
+                                radius: 20
+                                visible: page.info.playlistIndex !== undefined
+                                opacity: coverHover.hovered || coverMenu.opened ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+                                color: Qt.rgba(0, 0, 0, editArea.containsMouse ? 0.72 : 0.55)
+                                Icon {
+                                    anchors.centerIn: parent
+                                    name: "edit"
+                                    size: 18
+                                    color: "#f4efe8"
+                                }
+                                MouseArea {
+                                    id: editArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        const p = coverButton.mapToItem(page, 0, coverButton.height + 8)
+                                        coverMenu.x = p.x
+                                        coverMenu.y = p.y
+                                        coverMenu.open()
+                                    }
+                                }
                             }
                         }
 
@@ -275,6 +309,71 @@ Item {
             queue: page.info.rows
             context: page.context
             revealDelay: index < 16 ? 180 + index * 30 : 0
+        }
+    }
+
+    // Playlist cover: upload a picture, shuffle the collage, go back to the default
+    Popup {
+        id: coverMenu
+        width: 300
+        padding: 6
+        margins: 10
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            radius: 14
+            color: Theme.surfaceHi
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.07)
+        }
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140 }
+            NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 220; easing.type: Easing.OutCubic }
+        }
+        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 } }
+
+        contentItem: ColumnLayout {
+            spacing: 2
+            MenuEntry {
+                Layout.fillWidth: true
+                icon: "image"
+                text: qsTr("Upload your own picture…")
+                onTriggered: {
+                    coverMenu.close()
+                    coverDialog.open()
+                }
+            }
+            MenuEntry {
+                Layout.fillWidth: true
+                visible: !page.info.customCover && (page.info.mosaic || []).length >= 4
+                icon: "shuffle"
+                text: qsTr("Shuffle the collage")
+                onTriggered: {
+                    coverMenu.close()
+                    Library.shufflePlaylistCover(page.info.playlistIndex)
+                }
+            }
+            MenuEntry {
+                Layout.fillWidth: true
+                visible: page.info.customCover === true
+                icon: "refresh"
+                text: qsTr("Restore the default cover")
+                onTriggered: {
+                    coverMenu.close()
+                    Library.resetPlaylistCover(page.info.playlistIndex)
+                    Nav.toast(qsTr("The default cover is back"), "image")
+                }
+            }
+        }
+    }
+
+    FileDialog {
+        id: coverDialog
+        title: qsTr("Choose a picture for the playlist")
+        nameFilters: [qsTr("Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)")]
+        onAccepted: {
+            if (Library.setPlaylistCover(page.info.playlistIndex, selectedFile))
+                Nav.toast(qsTr("New playlist cover"), "image")
         }
     }
 

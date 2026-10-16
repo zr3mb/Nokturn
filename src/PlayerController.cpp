@@ -104,6 +104,16 @@ PlayerController::PlayerController(QObject *parent)
         emit bufferingChanged();
         skipAfterError(tr("Couldn't play from YouTube: %1").arg(error));
     });
+    // A Spotify track got a different YouTube Music match (chosen by the user or matched again):
+    // the playing track switches to it right away, a prepared next track is dropped.
+    connect(SpotifyService::instance(), &SpotifyService::matchChanged, this, [this](const QString &trackId) {
+        if (m_decks[standby()].trackId == trackId)
+            cancelPreload();
+        if (m_currentId != trackId || m_decks[m_active].resolving == QStringLiteral("match:") + trackId
+            || SpotifyService::instance()->matchedVideoId(trackId).isEmpty())
+            return;   // not playing, or still waiting for the match (it'll use the new one)
+        load(trackId, m_wantPlay || playing());
+    });
     connect(m_tracks, &TrackModel::likedChanged, this, [this](int row, bool) {
         if (row == m_index)
             emit likedChanged();
