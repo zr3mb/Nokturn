@@ -6,6 +6,11 @@
 #include <QString>
 #include <QUrl>
 
+// Encryption for account secrets on disk (the same as for the cookies below) — also used for the
+// Spotify token. Windows: DPAPI; Linux: a key from the system password store.
+QByteArray protectSecret(const QByteArray &plain);
+QByteArray unprotectSecret(const QByteArray &data);
+
 struct YtCookie
 {
     QString name;

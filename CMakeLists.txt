@@ -14,6 +14,8 @@ endif()
 # Discord application ID (discord.com/developers) for the "Listening to …" status.
 # Empty = the user enters their own in Settings.
 set(NOKTURN_DISCORD_CLIENT_ID "" CACHE STRING "Application ID aplikacji Discord dla Rich Presence")
+# Spotify app ("Client ID" from developer.spotify.com) used by default; users can enter their own in Sources.
+set(NOKTURN_SPOTIFY_CLIENT_ID "" CACHE STRING "Spotify Web API Client ID")
 
 qt_standard_project_setup(REQUIRES 6.8)
 if(QT_KNOWN_POLICY_QTP0004)
@@ -58,6 +60,7 @@ qt_add_qml_module(Nokturn
         src/platform/DiscordPresence.h src/platform/DiscordPresence.cpp
         src/Updater.h           src/Updater.cpp
         src/Language.h          src/Language.cpp
+        src/spotify/SpotifyService.h  src/spotify/SpotifyService.cpp
     QML_FILES
         qml/Main.qml
         qml/Theme.qml
@@ -151,7 +154,7 @@ if(UNIX AND NOT APPLE)
     set_target_properties(Nokturn PROPERTIES OUTPUT_NAME nokturn)
 endif()
 
-target_include_directories(Nokturn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio ${CMAKE_CURRENT_SOURCE_DIR}/src/lyrics ${CMAKE_CURRENT_SOURCE_DIR}/src/platform)
+target_include_directories(Nokturn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio ${CMAKE_CURRENT_SOURCE_DIR}/src/lyrics ${CMAKE_CURRENT_SOURCE_DIR}/src/platform ${CMAKE_CURRENT_SOURCE_DIR}/src/spotify)
 target_link_libraries(Nokturn PRIVATE
     Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia Qt6::Concurrent Qt6::Network Qt6::WebSockets
     TagLib::tag
@@ -159,7 +162,8 @@ target_link_libraries(Nokturn PRIVATE
 )
 target_compile_definitions(Nokturn PRIVATE
     NOKTURN_DISCORD_CLIENT_ID="${NOKTURN_DISCORD_CLIENT_ID}"
-    NOKTURN_VERSION="${PROJECT_VERSION}")
+    NOKTURN_VERSION="${PROJECT_VERSION}"
+    NOKTURN_SPOTIFY_CLIENT_ID="${NOKTURN_SPOTIFY_CLIENT_ID}")
 
 if(UNIX AND NOT APPLE)
     target_sources(Nokturn PRIVATE src/platform/Mpris.h src/platform/Mpris.cpp)

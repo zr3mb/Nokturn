@@ -7,6 +7,7 @@
 #include "audio/Equalizer.h"
 #include "lyrics/LyricsService.h"
 #include "platform/DiscordPresence.h"
+#include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 
 #ifdef NOKTURN_MPRIS
@@ -175,10 +176,12 @@ void PlayerController::setupDeck(int d)
             emit positionChanged();
     });
     connect(deck.player, &QMediaPlayer::errorOccurred, this, [this, d](QMediaPlayer::Error, const QString &message) {
-        if (d == m_active)
-            skipAfterError(tr("Can't play: %1").arg(message));
-        else if (!m_engine.inTransition())
+        if (d == m_active) {
+            if (!retryStream(d))
+                skipAfterError(tr("Can't play: %1").arg(message));
+        } else if (!m_engine.inTransition() && !retryStream(d)) {
             cancelPreload();
+        }
     });
 }
 
@@ -335,7 +338,7 @@ bool PlayerController::canPlay(int row, bool explain)
         }
         return false;
     }
-    if (t.source == QLatin1String("youtube")) {
+    if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify")) {
         if (!YouTubeService::instance()->engineReady()) {
             if (explain)
                 emit notice(tr("Download the playback engine (yt-dlp) in Sources → YouTube Music"),
@@ -384,13 +387,10 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
     Deck &deck = m_decks[m_active];
     deck.trackId = id;
     const Track &t = m_tracks->at(row);
-    if (t.source == QLatin1String("youtube")) {
-        deck.player->stop();
-        deck.player->setSource(QUrl());
-        deck.resolving = t.path;
+    if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify")) {
         m_autoplayAfterResolve = autoplay;
-        YouTubeService::instance()->resolver()->resolve(t.path);
         Library::instance()->ensurePalette(row);
+        startStream(m_active, t);
     } else {
         deck.resolving.clear();
         deck.player->setSource(QUrl::fromLocalFile(t.path));
@@ -429,15 +429,100 @@ void PlayerController::prefetchNext()
     }
     if (next < 0)
         return;
-    const int row = m_tracks->rowOf(m_queue.at(next));
-    if (row >= 0 && m_tracks->at(row).source == QLatin1String("youtube") && !m_tracks->at(row).demo)
-        YouTubeService::instance()->resolver()->prefetch(m_tracks->at(row).path);
+    prefetchTrack(m_tracks->rowOf(m_queue.at(next)));
 }
 
 void PlayerController::prefetch(int row)
 {
-    if (m_tracks->isValidRow(row) && m_tracks->at(row).source == QLatin1String("youtube") && !m_tracks->at(row).demo)
-        YouTubeService::instance()->resolver()->prefetch(m_tracks->at(row).path);
+    prefetchTrack(row);
+}
+
+void PlayerController::prefetchTrack(int row)
+{
+    if (!m_tracks->isValidRow(row) || m_tracks->at(row).demo)
+        return;
+    const Track &t = m_tracks->at(row);
+    if (t.source == QLatin1String("youtube")) {
+        YouTubeService::instance()->resolver()->prefetch(t.path);
+    } else if (t.source == QLatin1String("spotify")) {
+        SpotifyService::instance()->match(t.id, [](const QString &videoId) {
+            if (!videoId.isEmpty())
+                YouTubeService::instance()->resolver()->prefetch(videoId);
+        });
+    }
+}
+
+QString PlayerController::streamIdOf(const Track &t) const
+{
+    if (t.source == QLatin1String("youtube"))
+        return t.path;
+    if (t.source == QLatin1String("spotify"))
+        return SpotifyService::instance()->matchedVideoId(t.id);
+    return {};
+}
+
+void PlayerController::startStream(int d, const Track &t)
+{
+    // A network track: YouTube gets its stream URL from yt-dlp, a Spotify track is first matched to
+    // YouTube Music. The deck stays "resolving" until the URL arrives (the resolved / failed signals).
+    Deck &deck = m_decks[d];
+    deck.player->stop();
+    deck.player->setSource(QUrl());
+    if (t.source == QLatin1String("spotify") && !SpotifyService::instance()->matchKnown(t.id)) {
+        const QString marker = QStringLiteral("match:") + t.id;
+        deck.resolving = marker;
+        SpotifyService::instance()->match(t.id, [this, d, marker, id = t.id](const QString &) {
+            if (m_decks[d].resolving != marker)
+                return;   // the deck has moved on
+            if (const int row = m_tracks->rowOf(id); row >= 0)
+                startStream(d, m_tracks->at(row));
+        });
+        return;
+    }
+    const QString videoId = streamIdOf(t);
+    if (videoId.isEmpty()) {
+        deck.resolving.clear();
+        if (d == m_active)
+            skipAfterError(tr("Not found on YouTube Music: %1").arg(t.title));
+        else
+            cancelPreload();
+        return;
+    }
+    StreamResolver *resolver = YouTubeService::instance()->resolver();
+    if (d != m_active) {
+        if (const QUrl url = resolver->cachedUrl(videoId); url.isValid()) {
+            deck.resolving.clear();
+            deck.player->setSource(url);   // the prepared next track loads straight away
+            return;
+        }
+    }
+    deck.resolving = videoId;
+    resolver->resolve(videoId);
+}
+
+bool PlayerController::retryStream(int d)
+{
+    // The stream URL couldn't be opened (expired, bound to another address, refused for this YouTube
+    // client): get a fresh one — through the account when signed in — once per track before giving up.
+    Deck &deck = m_decks[d];
+    const int row = m_tracks->rowOf(deck.trackId);
+    if (row < 0)
+        return false;
+    const QString videoId = streamIdOf(m_tracks->at(row));
+    if (videoId.isEmpty())
+        return false;
+    if (deck.resolving == videoId)
+        return true;   // already retrying (errorOccurred and InvalidMedia come together)
+    if (m_streamRetried.contains(videoId))
+        return false;
+    m_streamRetried.insert(videoId);
+    deck.player->stop();
+    deck.player->setSource(QUrl());
+    deck.resolving = videoId;
+    if (d == m_active)
+        m_autoplayAfterResolve = m_wantPlay;
+    YouTubeService::instance()->resolver()->resolveAgain(videoId);
+    return true;
 }
 
 void PlayerController::playFrom(const QVariantList &rows, int row, const QString &context)
@@ -705,8 +790,8 @@ void PlayerController::checkStall(double dt)
         return;
     }
     const Track *t = current();
-    if (t && t->source == QLatin1String("youtube"))
-        YouTubeService::instance()->resolver()->forget(t->path);
+    if (t && !streamIdOf(*t).isEmpty())
+        YouTubeService::instance()->resolver()->forget(streamIdOf(*t));
     const QString id = m_currentId;
     m_currentId.clear();   // load() of the same id would otherwise be treated as "already playing"
     load(id, true);
@@ -777,7 +862,7 @@ void PlayerController::onDeckMediaStatus(int d, QMediaPlayer::MediaStatus status
         // The other deck: either the prepared next track or the previous one playing out.
         if (status == QMediaPlayer::EndOfMedia && m_engine.inTransition())
             m_engine.setDeckEnded(d);
-        else if (status == QMediaPlayer::InvalidMedia && !m_engine.inTransition())
+        else if (status == QMediaPlayer::InvalidMedia && !m_engine.inTransition() && !retryStream(d))
             cancelPreload();
         return;
     }
@@ -801,7 +886,8 @@ void PlayerController::onDeckMediaStatus(int d, QMediaPlayer::MediaStatus status
         }
         break;
     case QMediaPlayer::InvalidMedia:
-        skipAfterError(tr("Unsupported or damaged file"));
+        if (!retryStream(m_active))
+            skipAfterError(tr("Unsupported or damaged file"));
         break;
     default:
         break;
@@ -981,17 +1067,8 @@ void PlayerController::preloadNext()
     m_plannedId = id;
 
     const Track &t = m_tracks->at(row);
-    if (t.source == QLatin1String("youtube")) {
-        StreamResolver *resolver = YouTubeService::instance()->resolver();
-        const QUrl url = resolver->cachedUrl(t.path);
-        if (url.isValid()) {
-            deck.resolving.clear();
-            deck.player->setSource(url);
-        } else {
-            deck.player->setSource(QUrl());
-            deck.resolving = t.path;
-            resolver->resolve(t.path);
-        }
+    if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify")) {
+        startStream(d, t);
     } else {
         deck.resolving.clear();
         deck.player->setSource(QUrl::fromLocalFile(t.path));

@@ -168,6 +168,18 @@ void StreamResolver::resolve(const QString &videoId)
     run(videoId, false);
 }
 
+void StreamResolver::resolveAgain(const QString &videoId)
+{
+    m_cache.remove(videoId);
+    if (m_running.contains(videoId))
+        return;
+    if (!ready()) {
+        emit failed(videoId, tr("The yt-dlp engine is missing"));
+        return;
+    }
+    run(videoId, m_cookies.isLoggedIn());
+}
+
 void StreamResolver::run(const QString &videoId, bool withCookies)
 {
     QStringList args = baseArguments();

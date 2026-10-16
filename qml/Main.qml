@@ -178,6 +178,11 @@ ApplicationWindow {
     }
 
     Connections {
+        target: Spotify
+        function onNotice(text, icon) { toast.show(text, icon) }
+    }
+
+    Connections {
         target: Lyrics
         function onNotice(text, icon) { toast.show(text, icon) }
     }

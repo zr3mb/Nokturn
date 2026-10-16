@@ -160,6 +160,8 @@ Panel {
                             Library.tracks.revision
                             if (modelData.kind === "ytplaylist")
                                 return "YouTube Music" + (modelData.count >= 0 ? " · " + qsTr("%n tracks", "", modelData.count) : "")
+                            if (modelData.kind === "spplaylist" || modelData.kind === "spotifyliked")
+                                return "Spotify · " + qsTr("%n tracks", "", Library.playlistRows(index).length)
                             const n = Library.playlistRows(index).length
                             return qsTr("Playlist · %n tracks", "", n)
                         }

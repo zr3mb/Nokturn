@@ -12,6 +12,7 @@
 #include <QObject>
 #include <QTimer>
 #include <QHash>
+#include <QSet>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
@@ -215,6 +216,10 @@ private:
     bool continueAfterQueue();
     void skipAfterError(const QString &message);
     void checkStall(double dt);
+    void startStream(int deck, const Track &t);
+    QString streamIdOf(const Track &t) const;
+    bool retryStream(int deck);
+    void prefetchTrack(int row);
     void onModelReset();
     void onMediaStatus(QMediaPlayer::MediaStatus status);
     void ensureTicking();
@@ -239,6 +244,7 @@ private:
     bool m_autoplay = true;
     bool m_wantPlay = false;           // the user expects music (cleared by pause) — errors then skip ahead
     int m_failures = 0;                // failed tracks in a row — stops skipping after a few
+    QSet<QString> m_streamRetried;     // videoIds whose stream already got a second, fresh URL
     QString m_skipPending;             // track id with a skip already scheduled (errors come in pairs)
     qint64 m_lastPosMs = -1;           // stall detection: the position stopped moving while "playing"
     double m_stall = 0;

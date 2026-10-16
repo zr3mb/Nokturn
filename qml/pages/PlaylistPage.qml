@@ -40,10 +40,13 @@ Item {
             return { label: qsTr("PLAYLIST"), title: "", meta: [], colorA: Theme.accent, colorB: Theme.accent2,
                      seed: 0, cover: "", icon: "music", round: false, rows: [], loading: false }
         const yt = p.kind === "ytplaylist"
+        const sp = p.kind === "spplaylist" || p.kind === "spotifyliked"
         const meta = yt ? "YouTube Music"
                    : p.kind === "youtube" ? (YouTube.connected ? qsTr("Liked on your YouTube account") : qsTr("Sample tracks from YouTube Music"))
+                   : p.kind === "spotifyliked" ? qsTr("Liked on your Spotify account")
+                   : sp ? qsTr("Spotify — played from YouTube Music")
                    : qsTr("Your playlist")
-        return { label: yt ? qsTr("PLAYLIST · YOUTUBE MUSIC") : qsTr("PLAYLIST"), title: p.name, meta: [meta],
+        return { label: yt ? qsTr("PLAYLIST · YOUTUBE MUSIC") : sp ? qsTr("PLAYLIST · SPOTIFY") : qsTr("PLAYLIST"), title: p.name, meta: [meta],
                  colorA: p.colorA, colorB: p.colorB, seed: p.seed, cover: p.cover || "", icon: p.icon, round: false,
                  rows: Library.playlistRows(index), loading: Library.playlistLoading(index) }
     }
@@ -55,7 +58,7 @@ Item {
         if (a.kind === "ytcollection") return "ytc:" + a.playlistId
         const p = Library.playlists[a.index || 0]
         if (!p) return ""
-        return p.kind === "ytplaylist" ? "yt:" + p.ytId : "playlist:" + p.kind
+        return p.kind === "ytplaylist" ? "yt:" + p.ytId : p.kind === "spplaylist" ? "sp:" + p.spId : "playlist:" + p.kind
     }
     readonly property var mix: { Player.mixRevision; return Player.mixFor(context) }
     readonly property int totalSeconds: Library.totalDuration(info.rows)

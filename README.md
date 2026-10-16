@@ -186,10 +186,32 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
   yt-dlp needs a JavaScript runtime — the Windows installer ships **Deno**; otherwise Nokturn uses Deno or
   Node.js if present. URLs are resolved **anonymously first** (~2 s); the account cookies are only a fallback
   (age-restricted tracks, bot checks), because with them yt-dlp needs ~5 s per track.
-  `NOKTURN_STREAM_DEBUG=1` prints how long each yt-dlp call took.
+  If a stream URL can't be opened, Nokturn asks for a fresh one once (through the account when signed in)
+  before skipping the track. `NOKTURN_STREAM_DEBUG=1` prints how long each yt-dlp call took.
 - **Note:** this is an unofficial way of using YouTube Music and goes against YouTube's terms of service. Changes
   on YouTube's side can break it (then *Update* next to yt-dlp helps), and in the extreme case they may lead to
   account restrictions.
+
+## Spotify — how it works
+
+- **What it does:** syncs your Spotify playlists (your own and followed ones) and liked songs into Nokturn. They
+  show up in the sidebar ("Liked on Spotify" + one entry per playlist) and in the library.
+- **Playback:** Spotify doesn't let third-party apps stream its audio, so each Spotify track is matched to
+  YouTube Music when you play it (search "artist title", then the best match by title, artist and duration) and
+  played through the same yt-dlp path as YouTube tracks. Matches are cached in `spotify-matches.json`; a track
+  with no match is skipped with a notice. This needs the yt-dlp engine (see above), not a YouTube account.
+- **Your own Client ID:** Spotify requires every app to be registered, and apps in development mode are limited
+  to a few users — so each user signs in with their own (free) Spotify app:
+  1. Open <https://developer.spotify.com/dashboard> and create an app.
+  2. Add the redirect URI `http://127.0.0.1:43117/callback` and tick **Web API**.
+  3. Copy the app's **Client ID** into *Sources → Spotify* and click *Sign in to Spotify*.
+
+  A build can ship a built-in ID instead: `-DNOKTURN_SPOTIFY_CLIENT_ID=<id>` in CMake.
+- **Sign-in:** OAuth 2.0 Authorization Code with PKCE (no client secret) in your regular browser; Nokturn listens
+  on `127.0.0.1:43117` for the redirect. Read-only scopes: `playlist-read-private playlist-read-collaborative
+  user-library-read`. The refresh token is encrypted (DPAPI / Secret Service) in `spotify.token`.
+- **Sync:** a few seconds after start and with the refresh button. Playlists whose `snapshot_id` didn't change
+  aren't downloaded again; the data is cached in `spotify.json`.
 
 ## Mixing tracks — how it works
 
@@ -274,6 +296,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `src/youtube/YtCookies.*` | Cookies: encryption (DPAPI / Secret Service), `SAPISIDHASH`, cookies.txt export |
 | `src/youtube/YtMusicApi.*` | InnerTube client and response parser (tracks, playlists, account) |
 | `src/youtube/StreamResolver.*` | yt-dlp: download with SHA-256 verification, stream URLs, cache |
+| `src/spotify/SpotifyService.*` | `Spotify` singleton: PKCE sign-in, playlist / liked songs sync, YouTube Music matching |
 | `src/youtube/YouTubeService.*` | `YouTube` singleton for QML: account state, sync, library cache |
 | `src/audio/AudioEngine.*`, `src/audio/Equalizer.*` | Custom output path: deck mixer (transition styles), buffer + `QAudioSink`, 7-band parametric equalizer |
 | `src/lyrics/Lyrics.*` | Lyrics structure, LRC parser, cache (de)serialization |

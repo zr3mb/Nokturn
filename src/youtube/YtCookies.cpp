@@ -139,6 +139,9 @@ bool domainMatches(const QString &cookieDomain, const QString &host)
 
 } // namespace
 
+QByteArray protectSecret(const QByteArray &plain) { return protect(plain); }
+QByteArray unprotectSecret(const QByteArray &data) { return unprotect(data); }
+
 QString YtCookies::value(const QString &name) const
 {
     for (const YtCookie &c : cookies)

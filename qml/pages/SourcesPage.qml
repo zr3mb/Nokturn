@@ -407,6 +407,121 @@ Item {
                             }
                         }
                     }
+
+                    SourceCard {
+                        source: page.src("spotify")
+                        status: Spotify.loggingIn ? "connecting" : Spotify.connected ? "connected" : "disconnected"
+                        detail: !Spotify.connected ? ""
+                                : Spotify.syncing ? qsTr("Syncing with your account…")
+                                : qsTr("%n liked tracks", "", Spotify.likedCount)
+                                  + " · " + qsTr("%n playlists", "", Spotify.playlistCount)
+                                  + (Spotify.lastSync !== "" ? " · " + Spotify.lastSync : "")
+
+                        // Signed out: the Spotify app (Client ID) and sign-in
+                        ColumnLayout {
+                            visible: !Spotify.connected && !Spotify.loggingIn
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Hint {
+                                text: qsTr("Spotify doesn't let other apps play its music, so Nokturn syncs your playlists and liked songs and plays each track from YouTube Music.")
+                            }
+                            Hint {
+                                visible: !Spotify.builtInClientId
+                                text: qsTr("You need your own Spotify app (free, 2 minutes): open the Spotify dashboard, create an app with the redirect URI %1 and the Web API checked, then paste its Client ID below.").arg(Spotify.redirectUri)
+                            }
+                            InputField {
+                                id: spotifyClient
+                                Layout.fillWidth: true
+                                icon: "key"
+                                placeholderText: qsTr("Spotify app Client ID")
+                                text: Spotify.clientId
+                                onEditingFinished: Spotify.clientId = text
+                            }
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: 10
+                                PillButton {
+                                    icon: "person"
+                                    text: qsTr("Sign in to Spotify")
+                                    enabled: spotifyClient.text.trim() !== ""
+                                    onClicked: {
+                                        Spotify.clientId = spotifyClient.text
+                                        Spotify.login()
+                                    }
+                                }
+                                PillButton {
+                                    kind: "ghost"
+                                    icon: "link"
+                                    text: qsTr("Open the Spotify dashboard")
+                                    onClicked: Qt.openUrlExternally("https://developer.spotify.com/dashboard")
+                                }
+                            }
+                        }
+
+                        // Signing in through the browser
+                        RowLayout {
+                            visible: Spotify.loggingIn
+                            Layout.fillWidth: true
+                            spacing: 14
+                            Spinner { size: 22; color: Theme.warning }
+                            Hint {
+                                text: qsTr("Sign in in the browser and allow access — Nokturn continues by itself.")
+                            }
+                            PillButton {
+                                kind: "ghost"
+                                text: qsTr("Cancel")
+                                onClicked: Spotify.cancelLogin()
+                            }
+                        }
+
+                        // Signed in
+                        RowLayout {
+                            visible: Spotify.connected
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            ArtCover {
+                                Layout.preferredWidth: 44
+                                Layout.preferredHeight: 44
+                                radius: 22
+                                decorated: false
+                                colorA: "#8fc79a"
+                                colorB: "#2f4a36"
+                                Icon {
+                                    anchors.centerIn: parent
+                                    name: "person"
+                                    size: 22
+                                    color: "#f4efe8"
+                                }
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: Spotify.accountName || qsTr("Spotify account")
+                                color: Theme.text
+                                font.pixelSize: 14
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+                            Spinner {
+                                visible: Spotify.syncing
+                                size: 18
+                                color: Theme.textDim
+                            }
+                            IconButton {
+                                visible: !Spotify.syncing
+                                icon: "refresh"
+                                iconSize: 18
+                                showDot: false
+                                onClicked: Spotify.refresh()
+                            }
+                            PillButton {
+                                kind: "ghost"
+                                text: qsTr("Sign out")
+                                onClicked: Spotify.logout()
+                            }
+                        }
+                    }
                 }
 
                 // ---- right column -------------------------------------------

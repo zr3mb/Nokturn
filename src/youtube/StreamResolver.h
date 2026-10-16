@@ -29,6 +29,8 @@ public:
     void setCookies(const YtCookies &cookies) { m_cookies = cookies; }
 
     void resolve(const QString &videoId);
+    // A fresh URL through the account (another YouTube client) — when the anonymous one can't be opened.
+    void resolveAgain(const QString &videoId);
     void prefetch(const QString &videoId) { if (ready() && !cachedUrl(videoId).isValid()) resolve(videoId); }
     QUrl cachedUrl(const QString &videoId) const;
     void forget(const QString &videoId) { m_cache.remove(videoId); }   // e.g. the URL expired mid-playback

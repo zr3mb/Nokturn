@@ -2,6 +2,7 @@
 
 #include "AppPaths.h"
 #include "Language.h"
+#include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 
 #include <QCollator>
@@ -89,6 +90,8 @@ Library::Library(QObject *parent)
 
     connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &Library::rebuildModel);
     connect(YouTubeService::instance(), &YouTubeService::accountChanged, this, &Library::rebuildModel);
+    connect(SpotifyService::instance(), &SpotifyService::dataChanged, this, &Library::rebuildModel);
+    connect(SpotifyService::instance(), &SpotifyService::accountChanged, this, &Library::rebuildModel);
     // Source and playlist names, demo tracks — everything built here follows the interface language.
     connect(Language::instance(), &Language::changed, this, [this] {
         buildSources();
@@ -110,6 +113,9 @@ void Library::buildSources()
         QVariantMap { { "id", "youtube" }, { "name", "YouTube Music" },
                       { "description", tr("Liked songs and playlists from your account — you sign in as usual in the browser.") },
                       { "icon", "playCircle" }, { "status", "disconnected" }, { "color", QColor("#cf9d9d") } },
+        QVariantMap { { "id", "spotify" }, { "name", "Spotify" },
+                      { "description", tr("Your Spotify playlists and liked songs — played from YouTube Music.") },
+                      { "icon", "music" }, { "status", "disconnected" }, { "color", QColor("#8fc79a") } },
         QVariantMap { { "id", "radio" }, { "name", tr("Internet radio") },
                       { "description", tr("Icecast / SHOUTcast streaming stations and saved favorites.") },
                       { "icon", "radio" }, { "status", "available" }, { "color", QColor("#cdb68e") } },
@@ -307,6 +313,7 @@ void Library::rebuildModel()
     YouTubeService *yt = YouTubeService::instance();
     QList<Track> all = m_local;
     all << yt->tracks();
+    all << SpotifyService::instance()->tracks();
     for (const Track &t : demoTracks()) {
         // Sample YouTube tracks disappear once the account is connected.
         if (t.source == QLatin1String("youtube") && yt->connected())
@@ -339,6 +346,19 @@ void Library::rebuildPlaylists()
             { "icon", "" }, { "cover", p.value("cover") }, { "count", p.value("count") },
             { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.value("id").toString()) } };
     }
+    SpotifyService *sp = SpotifyService::instance();
+    if (sp->connected()) {
+        m_playlists << QVariantMap { { "name", tr("Liked on Spotify") }, { "kind", "spotifyliked" }, { "icon", "heart" },
+                                     { "colorA", QColor("#8fc79a") }, { "colorB", QColor("#2f4a36") }, { "seed", 4 } };
+        for (const QVariant &v : sp->playlists()) {
+            const QVariantMap p = v.toMap();
+            const auto [a, b] = Scanner::fallbackPalette(p.value("id").toString());
+            m_playlists << QVariantMap {
+                { "name", p.value("name") }, { "kind", "spplaylist" }, { "spId", p.value("id") },
+                { "icon", "" }, { "cover", p.value("cover") }, { "count", p.value("count") },
+                { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.value("id").toString()) } };
+        }
+    }
 }
 
 void Library::ensurePalette(int row)
@@ -347,7 +367,8 @@ void Library::ensurePalette(int row)
     if (!m_tracks->isValidRow(row))
         return;
     const Track &t = m_tracks->at(row);
-    if (t.source != QLatin1String("youtube") || t.demo || !t.cover.startsWith(QLatin1String("http"))
+    if ((t.source != QLatin1String("youtube") && t.source != QLatin1String("spotify")) || t.demo
+        || !t.cover.startsWith(QLatin1String("http"))
         || m_paletteDone.contains(t.id))
         return;
     m_paletteDone.insert(t.id);
@@ -556,6 +577,10 @@ QVariantList Library::playlistRows(int index)
         yt->ensurePlaylist(id);
         return rowsOfIds(yt->playlistTrackIds(id));
     }
+    if (kind == QLatin1String("spotifyliked"))
+        return rowsOfIds(SpotifyService::instance()->likedIds());
+    if (kind == QLatin1String("spplaylist"))
+        return rowsOfIds(SpotifyService::instance()->playlistTrackIds(p.value("spId").toString()));
     return {};
 }
 
@@ -573,8 +598,12 @@ QString Library::playlistContext(int index) const
     const QVariantMap p = m_playlists.value(index).toMap();
     if (p.isEmpty())
         return {};
-    return p.value("kind") == QLatin1String("ytplaylist") ? QStringLiteral("yt:") + p.value("ytId").toString()
-                                                         : QStringLiteral("playlist:") + p.value("kind").toString();
+    const QString kind = p.value("kind").toString();
+    if (kind == QLatin1String("ytplaylist"))
+        return QStringLiteral("yt:") + p.value("ytId").toString();
+    if (kind == QLatin1String("spplaylist"))
+        return QStringLiteral("sp:") + p.value("spId").toString();
+    return QStringLiteral("playlist:") + kind;
 }
 
 int Library::playlistIndex(const QString &context) const
@@ -622,6 +651,7 @@ QVariantList Library::libraryRows() const
 {
     QVariantList out = localTracks();
     out << rowsOfIds(YouTubeService::instance()->likedIds());
+    out << rowsOfIds(SpotifyService::instance()->likedIds());
     return out;
 }
 
