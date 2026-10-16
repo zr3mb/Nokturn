@@ -1,0 +1,141 @@
+#pragma once
+
+#include "Lyrics.h"
+#include "SpeechEngine.h"
+#include "TrackModel.h"
+
+#include <QHash>
+#include <QObject>
+#include <QVariantList>
+#include <QtQml/qqmlregistration.h>
+
+#include <vector>
+
+class QQmlEngine;
+class QJSEngine;
+
+// Teksty utworów dla QML.
+// Kolejność źródeł: YouTube Music (wersja z czasami, potem zwykły tekst; dla plików lokalnych
+// utwór jest wyszukiwany po wykonawcy i tytule), a w drugiej kolejności tekst z pliku
+// (.lrc obok utworu albo tag LYRICS). Gdy tekst nie ma czasów, a użytkownik włączył
+// "automatyczne dopasowanie" (alpha), czasy linii wyznacza rozpoznawanie mowy (SpeechEngine).
+// Wyniki trafiają do cache na dysku — rozpoznawanie dla danego utworu wykonuje się raz.
+class LyricsService : public QObject
+{
+    Q_OBJECT
+    QML_NAMED_ELEMENT(Lyrics)
+    QML_SINGLETON
+
+    // "none" (nic nie gra) | "loading" | "ready" | "missing" | "error"
+    Q_PROPERTY(QString state READ state NOTIFY lyricsChanged)
+    Q_PROPERTY(QString error READ error NOTIFY lyricsChanged)
+    Q_PROPERTY(QVariantList lines READ lines NOTIFY lyricsChanged)
+    Q_PROPERTY(bool synced READ synced NOTIFY lyricsChanged)
+    Q_PROPERTY(QString source READ source NOTIFY lyricsChanged)
+    Q_PROPERTY(QString origin READ origin NOTIFY lyricsChanged)
+
+    Q_PROPERTY(bool aligning READ aligning NOTIFY alignChanged)
+    Q_PROPERTY(qreal alignProgress READ alignProgress NOTIFY alignChanged)
+    Q_PROPERTY(QString alignStage READ alignStage NOTIFY alignChanged)
+    Q_PROPERTY(bool canAlign READ canAlign NOTIFY alignChanged)
+
+    Q_PROPERTY(bool autoAlign READ autoAlign WRITE setAutoAlign NOTIFY settingsChanged)
+    Q_PROPERTY(QString sttModel READ sttModel WRITE setSttModel NOTIFY settingsChanged)
+    Q_PROPERTY(QStringList sttModels READ sttModels CONSTANT)
+    Q_PROPERTY(bool sttEngineReady READ sttEngineReady NOTIFY sttChanged)
+    Q_PROPERTY(bool sttModelReady READ sttModelReady NOTIFY sttChanged)
+    Q_PROPERTY(bool sttReady READ sttReady NOTIFY sttChanged)
+    Q_PROPERTY(bool sttDownloading READ sttDownloading NOTIFY sttChanged)
+    Q_PROPERTY(qreal sttProgress READ sttProgress NOTIFY sttChanged)
+    Q_PROPERTY(QString sttDownloadLabel READ sttDownloadLabel NOTIFY sttChanged)
+    Q_PROPERTY(bool hardwareOk READ hardwareOk CONSTANT)
+    Q_PROPERTY(QString hardwareSummary READ hardwareSummary CONSTANT)
+    Q_PROPERTY(QString recommendedModel READ recommendedModel CONSTANT)
+
+public:
+    static LyricsService *instance();
+    static LyricsService *create(QQmlEngine *, QJSEngine *);
+
+    QString state() const { return m_state; }
+    QString error() const { return m_error; }
+    QVariantList lines() const { return m_lines; }
+    bool synced() const { return m_lyrics.synced; }
+    QString source() const { return m_lyrics.source; }
+    QString origin() const { return m_lyrics.origin; }
+
+    bool aligning() const { return m_speech.busy() || !m_waitingStream.isEmpty(); }
+    qreal alignProgress() const { return m_alignProgress; }
+    QString alignStage() const { return m_alignStage; }
+    bool canAlign() const;
+
+    bool autoAlign() const { return m_autoAlign; }
+    void setAutoAlign(bool on);
+    QString sttModel() const { return m_model; }
+    void setSttModel(const QString &model);
+    QStringList sttModels() const { return SpeechEngine::modelNames(); }
+    bool sttEngineReady() const { return m_speech.engineReady(); }
+    bool sttModelReady() const { return m_speech.modelReady(m_model); }
+    bool sttReady() const { return sttEngineReady() && sttModelReady(); }
+    bool sttDownloading() const { return m_speech.downloading(); }
+    qreal sttProgress() const { return m_speech.downloadProgress(); }
+    QString sttDownloadLabel() const { return m_speech.downloadLabel(); }
+    bool hardwareOk() const { return m_hardware.sufficient; }
+    QString hardwareSummary() const { return m_hardware.summary; }
+    QString recommendedModel() const { return m_hardware.recommendedModel; }
+
+    // Indeks linii (w `lines`) śpiewanej w danej chwili; -1 przed pierwszą linią lub bez czasów.
+    Q_INVOKABLE int lineAt(double seconds) const;
+    Q_INVOKABLE QString modelSize(const QString &model) const { return SpeechEngine::modelSize(model); }
+    Q_INVOKABLE void retry();
+    Q_INVOKABLE void alignNow();
+    Q_INVOKABLE void cancelAlign();
+    Q_INVOKABLE void downloadSttEngine() { m_speech.downloadEngine(); }
+    Q_INVOKABLE void downloadSttModel() { m_speech.downloadModel(m_model); }
+    Q_INVOKABLE void cancelSttDownload() { m_speech.cancelDownload(); }
+    Q_INVOKABLE void removeSttModel(const QString &model) { m_speech.removeModel(model); }
+
+    // Wywoływane przez odtwarzacz przy zmianie utworu (nullptr = nic nie gra).
+    void setTrack(const Track *track);
+
+signals:
+    void lyricsChanged();
+    void alignChanged();
+    void settingsChanged();
+    void sttChanged();
+    void notice(const QString &text, const QString &icon);
+
+private:
+    explicit LyricsService(QObject *parent = nullptr);
+
+    void fetch();
+    void fetchYouTube(const QString &videoId, quint64 serial, std::function<void(const Lyrics &, const QString &)> done);
+    void fetchLocal(quint64 serial, const Lyrics &fromYouTube, const QString &ytError);
+    void apply(const Lyrics &lyrics, bool store);
+    void setState(const QString &state, const QString &error = {});
+    void maybeAutoAlign();
+    void startAlign(const QUrl &audio);
+
+    QString cachePath(const QString &trackId) const;
+    bool loadCached(const QString &trackId, Lyrics &out) const;
+    void storeCached(const QString &trackId, const Lyrics &lyrics) const;
+
+    SpeechEngine m_speech;
+    SpeechEngine::Hardware m_hardware;
+
+    Track m_track;
+    bool m_hasTrack = false;
+    quint64 m_serial = 0;
+    Lyrics m_lyrics;
+    QVariantList m_lines;
+    std::vector<std::pair<qint64, int>> m_starts;   // (początek ms, indeks linii) — do wyszukiwania binarnego
+    QString m_state = QStringLiteral("none");
+    QString m_error;
+
+    QString m_waitingStream;   // videoId, na którego adres czekamy, żeby rozpocząć rozpoznawanie
+    qreal m_alignProgress = 0;
+    QString m_alignStage;
+    QHash<QString, bool> m_alignTried;   // utwory, dla których rozpoznawanie już zawiodło w tej sesji
+
+    bool m_autoAlign = false;
+    QString m_model;
+};

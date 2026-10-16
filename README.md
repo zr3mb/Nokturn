@@ -60,6 +60,35 @@ Narzędzie deweloperskie: `Nokturn.exe --tour <folder>` przechodzi po wszystkich
 - **Uwaga:** to nieoficjalny sposób korzystania z YouTube Music, niezgodny z regulaminem YouTube. Zmiany po stronie
   YouTube mogą go psuć (wtedy pomaga *Aktualizuj* przy yt-dlp), a w skrajnym razie grożą ograniczeniem konta.
 
+## Teksty utworów — jak to działa
+
+- **Gdzie:** zakładka *Tekst* w panelu „Teraz odtwarzane” (albo przycisk z liniami tekstu na pasku odtwarzacza)
+  oraz kolumna obok okładki w trybie pełnoekranowym. Przy tekście z czasami bieżąca linia jest podświetlona
+  i przewijana na środek, a kliknięcie linii przewija utwór.
+- **Skąd (po kolei):**
+  1. **YouTube Music** — najpierw wersja z czasami (zapytanie jako klient mobilny `ANDROID_MUSIC`, bo strona WWW
+     jej nie udostępnia), potem zwykły tekst z zakładki *Tekst*. Dla plików lokalnych utwór jest najpierw
+     wyszukiwany po wykonawcy i tytule (z kontrolą długości ±12 s, żeby nie trafić na wersję koncertową).
+  2. **Plik lokalny** — `.lrc` obok utworu (z czasami) albo tag `LYRICS` / `UNSYNCEDLYRICS`.
+     Lokalny `.lrc` z czasami wygrywa ze zwykłym tekstem z YouTube.
+- **Cache:** `lyrics\<sha1>.json` w katalogu danych. Brak tekstu jest zapamiętywany na 3 dni.
+
+### Automatyczne dopasowanie czasu (alpha)
+
+Dla tekstów bez znaczników czasu można włączyć w *Ustawienia → Teksty utworów* rozpoznawanie śpiewu:
+
+- Działa **lokalnie** przez [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (`whisper-cli`). Program
+  (paczka `whisper-bin-x64.zip` z GitHuba, suma SHA-256 z pola `digest` wydania) i model ggml (Hugging Face,
+  suma SHA-256 z `lfs.oid`) pobiera się z poziomu ustawień. Paczkę rozpakowuje wbudowany w Windows `tar`.
+- Dostępne tylko na **mocniejszym sprzęcie** (min. 4 wątki CPU i 8 GB RAM). Zalecany model jest dobierany
+  do sprzętu: `base` (142 MB), `small` (466 MB, od 8 wątków), `medium` (1,5 GB, od 16 wątków i 16 GB RAM).
+- Przebieg: Qt Multimedia dekoduje utwór (plik albo strumień YouTube) do WAV 16 kHz mono →
+  `whisper-cli -ml 1 -sow -oj` zwraca słowa z czasami (początek tekstu idzie jako `--prompt`) →
+  `LyricsAligner` wyrównuje słowa tekstu ze słowami transkrypcji (Needleman–Wunsch, porównanie
+  rozmyte Levenshteinem) i wyznacza czas każdej linii; linie bez rozpoznanych słów są interpolowane.
+  Wynik z pokryciem poniżej 25% słów jest odrzucany.
+- Wynik trafia do cache, więc każdy utwór jest rozpoznawany tylko raz. Zmiana utworu przerywa rozpoznawanie.
+
 ## Struktura
 
 | Ścieżka | Zawartość |
@@ -75,6 +104,11 @@ Narzędzie deweloperskie: `Nokturn.exe --tour <folder>` przechodzi po wszystkich
 | `src/youtube/YtMusicApi.*` | Klient InnerTube i parser odpowiedzi (utwory, playlisty, konto) |
 | `src/youtube/StreamResolver.*` | yt-dlp: pobieranie z weryfikacją SHA-256, adresy strumieni, cache |
 | `src/youtube/YouTubeService.*` | Singleton `YouTube` dla QML: stan konta, synchronizacja, cache biblioteki |
+| `src/audio/AudioEngine.*`, `src/audio/Equalizer.*` | Własny tor wyjściowy (bufor + `QAudioSink`) i 7-pasmowy korektor parametryczny |
+| `src/lyrics/Lyrics.*` | Struktura tekstu, parser LRC, (de)serializacja cache |
+| `src/lyrics/LyricsAligner.*` | Wyrównanie tekstu z transkrypcją (czasy linii) |
+| `src/lyrics/SpeechEngine.*` | whisper.cpp: pobieranie z weryfikacją SHA-256, dekodowanie do 16 kHz, transkrypcja, wykrywanie sprzętu |
+| `src/lyrics/LyricsService.*` | Singleton `Lyrics` dla QML: źródła tekstu, cache, bieżąca linia, dopasowanie (alpha) |
 | `qml/Theme.qml` | Paleta, czcionki, czasy animacji; akcent płynnie zmienia się wraz z okładką |
 | `qml/Nav.qml` | Nawigacja (historia wstecz/dalej), stan paneli, powiadomienia |
 | `qml/Icons.qml` | Wektorowe ikony (ścieżki SVG) |

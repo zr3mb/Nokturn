@@ -122,6 +122,86 @@ Item {
         }
 
         Reveal {
+            delay: 150
+            ColumnLayout {
+                width: parent.width
+                spacing: 8
+                Heading { text: "Teksty utworów" }
+                SettingRow {
+                    icon: "lyrics"
+                    title: "Teksty z YouTube Music"
+                    description: "Tekst odtwarzanego utworu (z synchronizacją, gdy jest dostępna) w panelu „Teraz odtwarzane” i w trybie pełnoekranowym. Dla plików lokalnych utwór jest wyszukiwany po wykonawcy i tytule; awaryjnie używany jest plik .lrc obok utworu albo tekst zapisany w tagach."
+                }
+                SettingRow {
+                    icon: "sparkle"
+                    title: "Automatyczne dopasowanie czasu (alpha)"
+                    description: Lyrics.hardwareOk
+                        ? "Gdy tekst nie ma znaczników czasu, Nokturn rozpozna śpiew w nagraniu (whisper.cpp, lokalnie na Twoim komputerze) i dopasuje do niego linie tekstu. Mocno obciąża procesor przez kilkadziesiąt sekund do kilku minut na utwór; wynik jest zapamiętywany. Twój sprzęt: " + Lyrics.hardwareSummary + "."
+                        : "Wymaga mocniejszego sprzętu (co najmniej 4 wątki procesora i 8 GB RAM). Twój sprzęt: " + Lyrics.hardwareSummary + "."
+                    Toggle {
+                        enabled: Lyrics.hardwareOk
+                        opacity: enabled ? 1 : 0.4
+                        checked: Lyrics.autoAlign
+                        onToggled: c => Lyrics.autoAlign = c
+                    }
+                }
+                SettingRow {
+                    visible: Lyrics.autoAlign
+                    icon: "tune"
+                    title: "Model rozpoznawania mowy"
+                    description: "Większy model lepiej rozpoznaje śpiew, ale działa wolniej. "
+                        + Lyrics.sttModel + ": " + Lyrics.modelSize(Lyrics.sttModel)
+                        + (Lyrics.sttModel === Lyrics.recommendedModel ? " · zalecany dla Twojego sprzętu" : " · zalecany: " + Lyrics.recommendedModel)
+                    SegmentedTabs {
+                        model: Lyrics.sttModels.map(m => m.charAt(0).toUpperCase() + m.slice(1))
+                        currentIndex: Lyrics.sttModels.indexOf(Lyrics.sttModel)
+                        onActivated: i => Lyrics.sttModel = Lyrics.sttModels[i]
+                    }
+                }
+                SettingRow {
+                    visible: Lyrics.autoAlign
+                    icon: Lyrics.sttReady ? "check" : "add"
+                    title: Lyrics.sttReady ? "Rozpoznawanie mowy jest gotowe" : "Pobierz składniki"
+                    description: Lyrics.sttDownloading
+                        ? "Pobieranie: " + Lyrics.sttDownloadLabel + "… " + Math.round(Lyrics.sttProgress * 100) + "%"
+                        : "Program whisper.cpp: " + (Lyrics.sttEngineReady ? "zainstalowany" : "brak (oficjalne wydanie z GitHuba)")
+                          + " · model " + Lyrics.sttModel + ": " + (Lyrics.sttModelReady ? "pobrany" : "brak (" + Lyrics.modelSize(Lyrics.sttModel) + ", Hugging Face)")
+                          + ". Pliki są sprawdzane sumą SHA-256."
+                    Row {
+                        spacing: 8
+                        PillButton {
+                            visible: Lyrics.sttDownloading
+                            kind: "ghost"
+                            icon: "close"
+                            text: "Przerwij"
+                            onClicked: Lyrics.cancelSttDownload()
+                        }
+                        PillButton {
+                            visible: !Lyrics.sttDownloading && !Lyrics.sttEngineReady
+                            kind: "primary"
+                            icon: "add"
+                            text: "Pobierz whisper.cpp"
+                            onClicked: Lyrics.downloadSttEngine()
+                        }
+                        PillButton {
+                            visible: !Lyrics.sttDownloading && Lyrics.sttEngineReady && !Lyrics.sttModelReady
+                            kind: "primary"
+                            icon: "add"
+                            text: "Pobierz model"
+                            onClicked: Lyrics.downloadSttModel()
+                        }
+                        PillButton {
+                            visible: !Lyrics.sttDownloading && Lyrics.sttModelReady
+                            kind: "ghost"
+                            text: "Usuń model"
+                            onClicked: Lyrics.removeSttModel(Lyrics.sttModel)
+                        }
+                    }
+                }
+            }
+        }
+
+        Reveal {
             delay: 180
             ColumnLayout {
                 width: parent.width

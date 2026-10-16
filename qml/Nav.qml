@@ -11,6 +11,8 @@ QtObject {
     property var forwardStack: []
 
     property bool queueOpen: true
+    property string panelTab: "queue"      // panel "Teraz odtwarzane": "queue" | "lyrics"
+    property bool immersiveLyrics: true    // tekst obok okładki w trybie pełnoekranowym
     property bool immersive: false
     property bool sidebarCompact: false
 

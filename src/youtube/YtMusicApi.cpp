@@ -164,13 +164,31 @@ QString clientVersion()
 
 } // namespace
 
+YtMusicApi::Client YtMusicApi::webClient()
+{
+    return { QStringLiteral("WEB_REMIX"), clientVersion(), "67", kUserAgent };
+}
+
+YtMusicApi::Client YtMusicApi::androidClient()
+{
+    const QString version = QStringLiteral("7.21.50");
+    return { QStringLiteral("ANDROID_MUSIC"), version, "21",
+             "com.google.android.apps.youtube.music/" + version.toLatin1() + " (Linux; U; Android 14) gzip" };
+}
+
 YtMusicApi::YtMusicApi(QObject *parent)
     : QObject(parent)
-    , m_clientVersion(clientVersion())
+    , m_web(webClient())
 {
 }
 
 void YtMusicApi::call(const QString &endpoint, QJsonObject body, JsonCallback callback, const QUrlQuery &query)
+{
+    callAs(m_web, endpoint, std::move(body), std::move(callback), query);
+}
+
+void YtMusicApi::callAs(const Client &client, const QString &endpoint, QJsonObject body, JsonCallback callback,
+                        const QUrlQuery &query)
 {
     QUrl url(kOrigin + QStringLiteral("/youtubei/v1/") + endpoint);
     QUrlQuery q = query;
@@ -179,20 +197,20 @@ void YtMusicApi::call(const QString &endpoint, QJsonObject body, JsonCallback ca
 
     body.insert("context", QJsonObject {
         { "client", QJsonObject {
-            { "clientName", "WEB_REMIX" }, { "clientVersion", m_clientVersion },
+            { "clientName", client.name }, { "clientVersion", client.version },
             { "hl", "pl" }, { "gl", "PL" } } },
         { "user", QJsonObject {} },
     });
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setHeader(QNetworkRequest::UserAgentHeader, kUserAgent);
+    request.setHeader(QNetworkRequest::UserAgentHeader, client.userAgent);
     request.setRawHeader("Origin", kOrigin.toLatin1());
     request.setRawHeader("X-Origin", kOrigin.toLatin1());
     request.setRawHeader("Referer", (kOrigin + '/').toLatin1());
     request.setRawHeader("Accept-Language", "pl-PL,pl;q=0.9");
-    request.setRawHeader("X-Youtube-Client-Name", "67");
-    request.setRawHeader("X-Youtube-Client-Version", m_clientVersion.toLatin1());
+    request.setRawHeader("X-Youtube-Client-Name", client.id);
+    request.setRawHeader("X-Youtube-Client-Version", client.version.toLatin1());
     if (m_cookies.isLoggedIn()) {
         request.setRawHeader("Cookie", m_cookies.headerFor(url));
         request.setRawHeader("Authorization", m_cookies.authorization(kOrigin));
@@ -351,4 +369,94 @@ void YtMusicApi::setLiked(const QString &videoId, bool liked)
     call(liked ? QStringLiteral("like/like") : QStringLiteral("like/removelike"),
          { { "target", QJsonObject { { "videoId", videoId } } } },
          [](const QJsonObject &, const QString &) {});
+}
+
+// ---- teksty utworów -----------------------------------------------------------
+
+Lyrics YtMusicApi::parseTimedLyrics(const QJsonValue &root)
+{
+    // Klient mobilny: ...timedLyricsModel.lyricsData.{timedLyricsData[], sourceMessage}
+    QList<QJsonObject> models;
+    collect(root, QStringLiteral("timedLyricsModel"), models);
+    Lyrics out;
+    if (models.isEmpty())
+        return out;
+    const QJsonObject data = models.first().value("lyricsData").toObject();
+    for (const QJsonValue &v : data.value("timedLyricsData").toArray()) {
+        const QJsonObject o = v.toObject();
+        const QJsonObject cue = o.value("cueRange").toObject();
+        const qint64 start = cue.value("startTimeMilliseconds").toVariant().toLongLong();
+        const qint64 end = cue.value("endTimeMilliseconds").toVariant().toLongLong();
+        const QString text = o.value("lyricLine").toString().trimmed();
+        // Linie "♪" oznaczają przerwę instrumentalną.
+        if (text.isEmpty() || text == QStringLiteral("\u266A")) {
+            if (!out.lines.isEmpty() && !out.lines.last().text.isEmpty())
+                out.lines << LyricLine {};
+            continue;
+        }
+        out.lines << LyricLine { start, end > start ? end : -1, text };
+    }
+    while (!out.lines.isEmpty() && out.lines.last().text.isEmpty())
+        out.lines.removeLast();
+    if (out.isEmpty())
+        return {};
+    out.synced = true;
+    out.source = data.value("sourceMessage").toString();
+    out.origin = QStringLiteral("youtube");
+    out.fillEnds();
+    return out;
+}
+
+Lyrics YtMusicApi::parsePlainLyrics(const QJsonValue &root)
+{
+    QList<QJsonObject> shelves;
+    collect(root, QStringLiteral("musicDescriptionShelfRenderer"), shelves);
+    if (shelves.isEmpty())
+        return {};
+    Lyrics out = Lyrics::fromPlainText(runsText(shelves.first().value("description")));
+    if (out.isEmpty())
+        return {};
+    out.source = runsText(shelves.first().value("footer")).trimmed();
+    out.origin = QStringLiteral("youtube");
+    return out;
+}
+
+void YtMusicApi::fetchLyrics(const QString &videoId, LyricsCallback callback)
+{
+    // 1) "next" zwraca zakładki odtwarzacza; zakładka "Tekst" wskazuje browseId zaczynające się od "MPLY".
+    const QJsonObject body { { "videoId", videoId }, { "isAudioOnly", true } };
+    call(QStringLiteral("next"), body, [this, callback](const QJsonObject &json, const QString &error) {
+        if (!error.isEmpty()) {
+            callback({}, error);
+            return;
+        }
+        QList<QJsonObject> endpoints;
+        collect(json, QStringLiteral("browseEndpoint"), endpoints);
+        QString browseId;
+        for (const QJsonObject &e : std::as_const(endpoints)) {
+            const QString id = e.value("browseId").toString();
+            if (id.startsWith(QLatin1String("MPLY"))) {
+                browseId = id;
+                break;
+            }
+        }
+        if (browseId.isEmpty()) {
+            callback({}, QString());
+            return;
+        }
+
+        // 2) Wersja z czasami (jak w aplikacji na telefon), 3) awaryjnie zwykły tekst.
+        const QJsonObject browse { { "browseId", browseId } };
+        callAs(androidClient(), QStringLiteral("browse"), browse,
+               [this, browse, callback](const QJsonObject &timedJson, const QString &) {
+            const Lyrics timed = parseTimedLyrics(timedJson);
+            if (!timed.isEmpty()) {
+                callback(timed, QString());
+                return;
+            }
+            call(QStringLiteral("browse"), browse, [callback](const QJsonObject &plainJson, const QString &plainError) {
+                callback(plainError.isEmpty() ? parsePlainLyrics(plainJson) : Lyrics(), plainError);
+            });
+        });
+    });
 }

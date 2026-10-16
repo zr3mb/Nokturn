@@ -11,6 +11,7 @@ Panel {
     tint: Theme.alpha(Theme.surface, 0.55)
 
     readonly property var upNext: Player.upNext
+    readonly property bool lyricsTab: Nav.panelTab === "lyrics"
 
     Connections {
         target: Player
@@ -267,22 +268,35 @@ Panel {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Text {
-                        Layout.fillWidth: true
-                        text: "Następne w kolejce"
-                        color: Theme.text
-                        font.pixelSize: 14
-                        font.weight: Font.DemiBold
+                    SegmentedTabs {
+                        model: ["Kolejka", "Tekst"]
+                        currentIndex: Nav.panelTab === "lyrics" ? 1 : 0
+                        onActivated: i => Nav.panelTab = i === 1 ? "lyrics" : "queue"
                     }
+                    Item { Layout.fillWidth: true }
                     Text {
+                        visible: !root.lyricsTab
                         text: Player.shuffle ? "Losowo" : "Po kolei"
                         color: Theme.textFaint
                         font.pixelSize: 12
                     }
+                    Spinner {
+                        visible: root.lyricsTab && (Lyrics.state === "loading" || Lyrics.aligning)
+                        size: 14
+                        color: Theme.textDim
+                    }
+                }
+
+                LyricsView {
+                    visible: root.lyricsTab
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.max(300, flick.height - 120)
+                    fontSize: 17
+                    lineSpacing: 8
                 }
 
                 Text {
-                    visible: root.upNext.length === 0
+                    visible: !root.lyricsTab && root.upNext.length === 0
                     Layout.fillWidth: true
                     text: Player.hasTrack ? "To już koniec kolejki" : "Kolejka jest pusta — wybierz coś z biblioteki"
                     color: Theme.textFaint
@@ -291,7 +305,7 @@ Panel {
                 }
 
                 Repeater {
-                    model: root.upNext
+                    model: root.lyricsTab ? [] : root.upNext
 
                     Item {
                         id: q

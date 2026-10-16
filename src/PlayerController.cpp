@@ -4,6 +4,7 @@
 #include "Library.h"
 #include "TrackModel.h"
 #include "audio/Equalizer.h"
+#include "lyrics/LyricsService.h"
 #include "youtube/YouTubeService.h"
 
 #include <QAudioFormat>
@@ -304,6 +305,7 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
 
 void PlayerController::emitTrackChanged()
 {
+    LyricsService::instance()->setTrack(current());
     emit currentChanged();
     emit colorsChanged();
     emit durationChanged();
@@ -517,6 +519,7 @@ void PlayerController::onModelReset()
                                    [this](const QString &id) { return m_tracks->rowOf(id) < 0; }),
                     m_history.end());
 
+    LyricsService::instance()->setTrack(current());
     emit currentChanged();
     emit colorsChanged();
     emit durationChanged();

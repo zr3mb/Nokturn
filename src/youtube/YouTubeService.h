@@ -71,6 +71,7 @@ public:
 
     // Dla Library / Player
     StreamResolver *resolver() { return &m_resolver; }
+    YtMusicApi *api() { return &m_api; }
     QList<Track> tracks() const;
     const QStringList &likedIds() const { return m_liked; }
     QVariantList playlists() const { return m_playlists; }

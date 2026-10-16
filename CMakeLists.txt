@@ -42,6 +42,10 @@ qt_add_qml_module(Nokturn
         src/youtube/YtMusicApi.h      src/youtube/YtMusicApi.cpp
         src/youtube/StreamResolver.h  src/youtube/StreamResolver.cpp
         src/youtube/YouTubeService.h  src/youtube/YouTubeService.cpp
+        src/lyrics/Lyrics.h           src/lyrics/Lyrics.cpp
+        src/lyrics/LyricsAligner.h    src/lyrics/LyricsAligner.cpp
+        src/lyrics/SpeechEngine.h     src/lyrics/SpeechEngine.cpp
+        src/lyrics/LyricsService.h    src/lyrics/LyricsService.cpp
     QML_FILES
         qml/Main.qml
         qml/Theme.qml
@@ -59,6 +63,7 @@ qt_add_qml_module(Nokturn
         qml/components/Icon.qml
         qml/components/IconButton.qml
         qml/components/InputField.qml
+        qml/components/LyricsView.qml
         qml/components/LogoMark.qml
         qml/components/PageFlick.qml
         qml/components/Panel.qml
@@ -105,7 +110,7 @@ set_target_properties(Nokturn PROPERTIES
     MACOSX_BUNDLE TRUE
 )
 
-target_include_directories(Nokturn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio)
+target_include_directories(Nokturn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio ${CMAKE_CURRENT_SOURCE_DIR}/src/lyrics)
 target_link_libraries(Nokturn PRIVATE
     Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia Qt6::Concurrent Qt6::Network Qt6::WebSockets
     TagLib::tag

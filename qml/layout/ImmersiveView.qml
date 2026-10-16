@@ -85,19 +85,30 @@ Item {
             }
         }
 
+        IconButton {
+            anchors { right: windowControls.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            icon: "lyrics"
+            iconSize: 22
+            active: Nav.immersiveLyrics
+            onClicked: Nav.immersiveLyrics = !Nav.immersiveLyrics
+        }
+
         WindowControls {
+            id: windowControls
             anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
         }
     }
 
+    readonly property bool showLyrics: Nav.immersiveLyrics && root.width > 1100 && Lyrics.state !== "none"
+
     RowLayout {
         anchors.centerIn: parent
         anchors.verticalCenterOffset: -30
-        spacing: Math.min(90, root.width * 0.06)
+        spacing: Math.min(root.showLyrics ? 60 : 90, root.width * 0.05)
 
         Item {
             id: coverBox
-            readonly property real s: Math.min(root.height * 0.52, root.width * 0.34, 500)
+            readonly property real s: Math.min(root.height * 0.52, root.width * (root.showLyrics ? 0.24 : 0.34), 500)
             Layout.preferredWidth: s
             Layout.preferredHeight: s
             transform: Translate { y: root.enter * 60 }
@@ -122,7 +133,7 @@ Item {
         }
 
         ColumnLayout {
-            Layout.preferredWidth: Math.min(540, root.width * 0.4)
+            Layout.preferredWidth: Math.min(540, root.width * (root.showLyrics ? 0.3 : 0.4))
             spacing: 10
             opacity: 1 - root.enter
             transform: Translate { x: root.enter * 40 }
@@ -256,6 +267,17 @@ Item {
                     onMoved: v => { Player.muted = false; Player.volume = v }
                 }
             }
+        }
+
+        LyricsView {
+            visible: root.showLyrics
+            Layout.preferredWidth: Math.min(520, root.width * 0.3)
+            Layout.preferredHeight: Math.min(root.height * 0.66, 640)
+            opacity: 1 - root.enter
+            transform: Translate { x: root.enter * 60 }
+            large: true
+            fontSize: Math.max(20, Math.min(30, root.width / 56))
+            lineSpacing: 14
         }
     }
 }

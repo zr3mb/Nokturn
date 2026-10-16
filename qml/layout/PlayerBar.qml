@@ -218,9 +218,29 @@ Item {
         }
         IconButton {
             anchors.verticalCenter: parent.verticalCenter
+            icon: "lyrics"
+            active: Nav.queueOpen && Nav.panelTab === "lyrics"
+            onClicked: {
+                if (Nav.queueOpen && Nav.panelTab === "lyrics") {
+                    Nav.queueOpen = false
+                } else {
+                    Nav.panelTab = "lyrics"
+                    Nav.queueOpen = true
+                }
+            }
+        }
+        IconButton {
+            anchors.verticalCenter: parent.verticalCenter
             icon: "queue"
-            active: Nav.queueOpen
-            onClicked: Nav.queueOpen = !Nav.queueOpen
+            active: Nav.queueOpen && Nav.panelTab === "queue"
+            onClicked: {
+                if (Nav.queueOpen && Nav.panelTab === "queue") {
+                    Nav.queueOpen = false
+                } else {
+                    Nav.panelTab = "queue"
+                    Nav.queueOpen = true
+                }
+            }
         }
         IconButton {
             anchors.verticalCenter: parent.verticalCenter
