@@ -232,6 +232,7 @@ private:
     int m_mixRevision = 0;
     int m_plannedPos = -1;             // pozycja w kolejce utworu załadowanego na drugi deck
     QString m_plannedId;
+    QString m_shuffleNextId;           // wylosowany z wyprzedzeniem następny utwór (prefetch adresu)
     double m_silence = 0;              // jak długo bieżący utwór milczy (s) — inteligentne przejścia
     double m_quiet = 0;                // jak długo bieżący utwór jest wyraźnie wyciszony (s)
     QString m_transitionLabel;

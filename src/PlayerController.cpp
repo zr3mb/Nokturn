@@ -400,9 +400,17 @@ void PlayerController::emitTrackChanged()
 void PlayerController::prefetchNext()
 {
     // Adres następnego utworu z YouTube przygotowujemy zawczasu — przejście jest wtedy natychmiastowe.
-    if (m_queue.isEmpty() || m_shuffle)
+    if (m_queue.isEmpty())
         return;
-    const int next = m_queuePos + 1 < m_queue.size() ? m_queuePos + 1 : (m_repeat == 1 ? 0 : -1);
+    int next;
+    if (m_shuffle && m_queue.size() > 1) {
+        // Przy losowaniu wybieramy następny utwór już teraz, żeby zdążyć przygotować jego adres.
+        if (!m_queue.contains(m_shuffleNextId) || m_shuffleNextId == m_currentId)
+            m_shuffleNextId = m_queue.at(nextQueuePos());
+        next = int(m_queue.indexOf(m_shuffleNextId));
+    } else {
+        next = m_queuePos + 1 < m_queue.size() ? m_queuePos + 1 : (m_repeat == 1 ? 0 : -1);
+    }
     if (next < 0)
         return;
     const int row = m_tracks->rowOf(m_queue.at(next));
@@ -503,6 +511,8 @@ int PlayerController::nextQueuePos() const
     if (m_queue.isEmpty())
         return -1;
     if (m_shuffle && m_queue.size() > 1) {
+        if (const int planned = int(m_queue.indexOf(m_shuffleNextId)); planned >= 0 && planned != m_queuePos)
+            return planned;   // ten, którego adres już przygotowaliśmy
         int pos;
         do {
             pos = int(QRandomGenerator::global()->bounded(int(m_queue.size())));
@@ -540,6 +550,7 @@ void PlayerController::advance(bool userInitiated)
     }
     m_queuePos = pos;
     m_pendingSeek = -1;
+    m_shuffleNextId.clear();
     load(m_queue.at(pos), true, userInitiated);
 }
 
