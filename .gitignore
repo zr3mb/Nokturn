@@ -2,3 +2,5 @@ build/
 dist/
 *.user
 *.AppImage
+installer/
+packaging/windows/assets/
