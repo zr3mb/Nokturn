@@ -34,6 +34,7 @@ class PlayerController : public QObject
     Q_PROPERTY(int currentIndex READ currentIndex NOTIFY currentChanged)
     Q_PROPERTY(QString title READ title NOTIFY currentChanged)
     Q_PROPERTY(QString artist READ artist NOTIFY currentChanged)
+    Q_PROPERTY(QString artistId READ artistId NOTIFY currentChanged)   // YouTube Music channel, "" for local files
     Q_PROPERTY(QString album READ album NOTIFY currentChanged)
     Q_PROPERTY(QString albumKey READ albumKey NOTIFY currentChanged)
     Q_PROPERTY(QString source READ source NOTIFY currentChanged)
@@ -77,6 +78,7 @@ public:
     int currentIndex() const { return m_index; }
     QString title() const;
     QString artist() const;
+    QString artistId() const;
     QString album() const;
     QString albumKey() const;
     QString source() const;

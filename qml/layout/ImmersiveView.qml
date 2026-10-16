@@ -157,10 +157,11 @@ Item {
                 elide: Text.ElideRight
                 lineHeight: 0.95
             }
-            Text {
+            ArtistLink {
                 Layout.fillWidth: true
                 text: Player.artist
-                color: Theme.textDim
+                artistId: Player.artistId
+                linkEnabled: Player.hasTrack
                 font.pixelSize: 22
                 elide: Text.ElideRight
             }

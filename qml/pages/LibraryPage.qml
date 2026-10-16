@@ -233,7 +233,7 @@ Item {
                 cover: artistCell.modelData.cover
                 playing: Player.playing && Player.artist === artistCell.modelData.name
                 revealDelay: artistCell.index < 12 ? artistCell.index * 45 : 0
-                onClicked: Nav.navigate("playlist", { kind: "artist", artist: artistCell.modelData.name })
+                onClicked: Nav.openArtist(artistCell.modelData.name, "")
                 onPlayClicked: {
                     if (playing) { Player.toggle(); return }
                     const rows = Library.tracksOfArtist(artistCell.modelData.name)

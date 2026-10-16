@@ -211,6 +211,11 @@ QString PlayerController::artist() const
     return current() ? current()->artist : tr("Pick a track from the library");
 }
 
+QString PlayerController::artistId() const
+{
+    return current() ? current()->artistId : QString();
+}
+
 QString PlayerController::album() const    { return current() ? current()->album : QString(); }
 QString PlayerController::albumKey() const { return current() ? TrackModel::albumKey(*current()) : QString(); }
 QString PlayerController::source() const   { return current() ? current()->source : QString(); }

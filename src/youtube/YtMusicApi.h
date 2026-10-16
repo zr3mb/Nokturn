@@ -20,6 +20,14 @@ class YtMusicApi : public QObject
 
 public:
     struct Account { QString name; QString handle; QString photo; };
+    // An artist's YouTube Music page: header, top songs and the carousels (albums, singles,
+    // "featured on" playlists, related artists) as QML-ready maps.
+    struct Artist {
+        QString browseId, name, description, subscribers, photo;
+        QList<Track> songs;          // "Top songs"
+        QString songsPlaylistId;     // the full song list ("See all")
+        QVariantList sections;       // [{ title, kind: "albums"|"playlists"|"artists", items: [...] }]
+    };
 
     using JsonCallback = std::function<void(const QJsonObject &response, const QString &error)>;
     using TracksCallback = std::function<void(const QList<Track> &tracks, const QString &error)>;
@@ -45,6 +53,11 @@ public:
     void fetchAccount(std::function<void(const Account &, const QString &error)> callback);
     void fetchLibraryPlaylists(std::function<void(const QVariantList &, const QString &error)> callback);
     void search(const QString &query, TracksCallback callback);
+    void fetchArtist(const QString &browseId, std::function<void(const Artist &, const QString &error)> callback);
+    // Finds the artist's channel by name (exact, case-insensitive match in the search results);
+    // an empty id without an error = not found.
+    void findArtistId(const QString &name, std::function<void(const QString &browseId, const QString &error)> callback);
+    static Artist parseArtist(const QJsonObject &root);
     void setLiked(const QString &videoId, bool liked);
     // Lyrics: the timed version first (mobile client), then plain text.
     // An empty result without an error = YouTube Music has no lyrics for this track.

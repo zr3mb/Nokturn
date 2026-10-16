@@ -55,5 +55,9 @@
   "%n CPU threads": [
     "%n CPU thread",
     "%n CPU threads"
+  ],
+  "%n tracks in your library": [
+    "%n track in your library",
+    "%n tracks in your library"
   ]
 }

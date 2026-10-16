@@ -66,6 +66,7 @@ qt_add_qml_module(Nokturn
         qml/DevTour.qml
 
         qml/components/AmbientBackground.qml
+        qml/components/ArtistLink.qml
         qml/components/AlbumCard.qml
         qml/components/ArtCover.qml
         qml/components/EqGraph.qml
@@ -114,6 +115,7 @@ qt_add_qml_module(Nokturn
         qml/pages/EqualizerPage.qml
         qml/pages/LibraryPage.qml
         qml/pages/PlaylistPage.qml
+        qml/pages/ArtistPage.qml
         qml/pages/SourcesPage.qml
         qml/pages/SettingsPage.qml
 

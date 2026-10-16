@@ -115,11 +115,12 @@ Item {
                         }
                     }
                 }
-                Text {
+                ArtistLink {
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.max(0, parent.width - x)
                     text: Player.artist
-                    color: Theme.textDim
+                    artistId: Player.artistId
+                    linkEnabled: Player.hasTrack
                     font.pixelSize: 13
                     elide: Text.ElideRight
                 }

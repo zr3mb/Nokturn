@@ -131,6 +131,7 @@ ApplicationWindow {
     Component { id: searchPage; SearchPage {} }
     Component { id: libraryPage; LibraryPage {} }
     Component { id: playlistPage; PlaylistPage {} }
+    Component { id: artistPage; ArtistPage {} }
     Component { id: sourcesPage; SourcesPage {} }
     Component { id: settingsPage; SettingsPage {} }
     Component { id: equalizerPage; EqualizerPage {} }
@@ -140,6 +141,7 @@ ApplicationWindow {
         case "search": return searchPage
         case "library": return libraryPage
         case "playlist": return playlistPage
+        case "artist": return artistPage
         case "sources": return sourcesPage
         case "settings": return settingsPage
         case "equalizer": return equalizerPage

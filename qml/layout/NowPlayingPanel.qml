@@ -201,10 +201,11 @@ Panel {
                                 font.weight: Font.Bold
                                 elide: Text.ElideRight
                             }
-                            Text {
+                            ArtistLink {
                                 Layout.fillWidth: true
                                 text: Player.artist
-                                color: Theme.textDim
+                                artistId: Player.artistId
+                                linkEnabled: Player.hasTrack
                                 font.pixelSize: 14
                                 elide: Text.ElideRight
                             }

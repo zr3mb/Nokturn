@@ -590,10 +590,26 @@ QString Library::playlistName(int index) const
     return m_playlists.value(index).toMap().value("name").toString();
 }
 
+QVariantList Library::artistSongRows(const QString &browseId) const
+{
+    return rowsOfIds(YouTubeService::instance()->artistSongIds(browseId));
+}
+
+QVariantList Library::collectionRows(const QString &playlistId)
+{
+    YouTubeService *yt = YouTubeService::instance();
+    yt->ensureCollection(playlistId);
+    return rowsOfIds(yt->collectionTrackIds(playlistId));
+}
+
 QVariantList Library::rowsForContext(const QString &context)
 {
     if (context == QLatin1String("library"))
         return libraryRows();
+    if (context.startsWith(QLatin1String("ytartist:")))
+        return artistSongRows(context.mid(9));
+    if (context.startsWith(QLatin1String("ytc:")))
+        return collectionRows(context.mid(4));
     if (context.startsWith(QLatin1String("album:")))
         return tracksOfAlbum(context.mid(6));
     if (context.startsWith(QLatin1String("artist:")))

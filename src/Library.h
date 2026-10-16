@@ -62,8 +62,11 @@ public:
     Q_INVOKABLE QVariantList recentlyAdded(int limit = 50) const;
     Q_INVOKABLE QVariantList playlistRows(int index);       // YouTube playlists are loaded in the background
     Q_INVOKABLE bool playlistLoading(int index) const;
+    Q_INVOKABLE QVariantList artistSongRows(const QString &browseId) const;   // top songs from YouTube Music
+    Q_INVOKABLE QVariantList collectionRows(const QString &playlistId);       // album / playlist opened from an artist
 
-    // Queue contexts: "playlist:<kind>", "yt:<playlist id>", "album:<key>", "artist:<name>", "library".
+    // Queue contexts: "playlist:<kind>", "yt:<playlist id>", "album:<key>", "artist:<name>", "library",
+    // "ytartist:<browseId>" (top songs), "ytc:<playlist id>" (album / playlist from an artist page).
     QString playlistContext(int index) const;
     int playlistIndex(const QString &context) const;   // -1 when the context isn't a playlist
     QString playlistName(int index) const;

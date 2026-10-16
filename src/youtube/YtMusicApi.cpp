@@ -137,8 +137,11 @@ std::optional<Track> parseItem(const QJsonObject &r)
             const QString text = run.value("text").toString();
             const QString pageType = dig(run, "navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs"
                                               ".browseEndpointContextMusicConfig.pageType").toString();
-            if (pageType == QLatin1String("MUSIC_PAGE_TYPE_ARTIST") || pageType == QLatin1String("MUSIC_PAGE_TYPE_USER_CHANNEL"))
+            if (pageType == QLatin1String("MUSIC_PAGE_TYPE_ARTIST") || pageType == QLatin1String("MUSIC_PAGE_TYPE_USER_CHANNEL")) {
                 artists << text;
+                if (t.artistId.isEmpty())
+                    t.artistId = dig(run, "navigationEndpoint.browseEndpoint.browseId").toString();
+            }
             else if (pageType == QLatin1String("MUSIC_PAGE_TYPE_ALBUM"))
                 t.album = text;
             else if (const int d = parseDuration(text); d >= 0)
@@ -373,6 +376,146 @@ void YtMusicApi::search(const QString &query, TracksCallback callback)
 {
     call(QStringLiteral("search"), { { "query", query } }, [callback](const QJsonObject &json, const QString &error) {
         callback(error.isEmpty() ? parseTracks(json) : QList<Track>(), error);
+    });
+}
+
+// ---- artists --------------------------------------------------------------------
+
+namespace {
+
+QString lastThumbnail(const QJsonValue &thumbnails)
+{
+    const QJsonArray arr = thumbnails.toArray();
+    return arr.isEmpty() ? QString() : arr.last().toObject().value("url").toString();
+}
+
+QString pageTypeOf(const QJsonObject &browseEndpoint)
+{
+    return dig(browseEndpoint, "browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType").toString();
+}
+
+// One card of a carousel (album, single, playlist, related artist); empty for videos and other items.
+QVariantMap parseCard(const QJsonObject &r)
+{
+    QJsonObject browse = dig(r, "navigationEndpoint.browseEndpoint").toObject();
+    if (browse.isEmpty())
+        browse = dig(r, "title.runs.0.navigationEndpoint.browseEndpoint").toObject();
+    const QString browseId = browse.value("browseId").toString();
+    const QString type = pageTypeOf(browse);
+    QString kind;
+    if (type == QLatin1String("MUSIC_PAGE_TYPE_ALBUM"))
+        kind = QStringLiteral("album");
+    else if (type == QLatin1String("MUSIC_PAGE_TYPE_PLAYLIST"))
+        kind = QStringLiteral("playlist");
+    else if (type == QLatin1String("MUSIC_PAGE_TYPE_ARTIST") || type == QLatin1String("MUSIC_PAGE_TYPE_USER_CHANNEL"))
+        kind = QStringLiteral("artist");
+    if (kind.isEmpty() || browseId.isEmpty())
+        return {};
+    // Albums carry their track list as a playlist ("OLAK5uy_…") on the play button; playlists are "VL<id>".
+    QString playlistId = dig(r, "thumbnailOverlay.musicItemThumbnailOverlayRenderer.content.musicPlayButtonRenderer"
+                                ".playNavigationEndpoint.watchPlaylistEndpoint.playlistId").toString();
+    if (playlistId.isEmpty() && kind == QLatin1String("playlist") && browseId.startsWith(QLatin1String("VL")))
+        playlistId = browseId.mid(2);
+    return {
+        { "kind", kind }, { "browseId", browseId }, { "playlistId", playlistId },
+        { "title", runsText(r.value("title")) }, { "subtitle", runsText(r.value("subtitle")) },
+        { "cover", lastThumbnail(dig(r, "thumbnailRenderer.musicThumbnailRenderer.thumbnail.thumbnails")) },
+    };
+}
+
+} // namespace
+
+YtMusicApi::Artist YtMusicApi::parseArtist(const QJsonObject &root)
+{
+    Artist a;
+    QJsonObject header = dig(root, "header.musicImmersiveHeaderRenderer").toObject();
+    if (header.isEmpty())
+        header = dig(root, "header.musicVisualHeaderRenderer").toObject();
+    a.name = runsText(header.value("title"));
+    a.description = runsText(header.value("description")).trimmed();
+    a.subscribers = runsText(dig(header, "subscriptionButton.subscribeButtonRenderer.longSubscriberCountText"));
+    if (a.subscribers.isEmpty())
+        a.subscribers = runsText(dig(header, "subscriptionButton.subscribeButtonRenderer.subscriberCountText"));
+    a.photo = lastThumbnail(dig(header, "thumbnail.musicThumbnailRenderer.thumbnail.thumbnails"));
+    if (a.photo.isEmpty())
+        a.photo = lastThumbnail(dig(header, "foregroundThumbnail.musicThumbnailRenderer.thumbnail.thumbnails"));
+
+    const QJsonArray sections = dig(root, "contents.singleColumnBrowseResultsRenderer.tabs.0.tabRenderer.content"
+                                          ".sectionListRenderer.contents").toArray();
+    for (const QJsonValue &sv : sections) {
+        const QJsonObject s = sv.toObject();
+        if (s.contains("musicShelfRenderer")) {
+            const QJsonObject shelf = s.value("musicShelfRenderer").toObject();
+            if (a.songs.isEmpty())
+                a.songs = parseTracks(shelf);
+            const QString all = dig(shelf, "bottomEndpoint.browseEndpoint.browseId").toString();
+            if (a.songsPlaylistId.isEmpty() && all.startsWith(QLatin1String("VL")))
+                a.songsPlaylistId = all.mid(2);
+        } else if (s.contains("musicCarouselShelfRenderer")) {
+            const QJsonObject shelf = s.value("musicCarouselShelfRenderer").toObject();
+            QVariantList items;
+            QString kind;
+            for (const QJsonValue &iv : shelf.value("contents").toArray()) {
+                const QVariantMap card = parseCard(iv.toObject().value("musicTwoRowItemRenderer").toObject());
+                if (card.isEmpty())
+                    continue;
+                items << card;
+                const QString k = card.value("kind").toString();
+                if (kind.isEmpty())
+                    kind = k == QLatin1String("album") ? QStringLiteral("albums")
+                         : k == QLatin1String("artist") ? QStringLiteral("artists") : QStringLiteral("playlists");
+            }
+            if (items.isEmpty())
+                continue;   // videos, live performances…
+            a.sections << QVariantMap {
+                { "title", runsText(dig(shelf, "header.musicCarouselShelfBasicHeaderRenderer.title")) },
+                { "kind", kind }, { "items", items } };
+        }
+    }
+    return a;
+}
+
+void YtMusicApi::fetchArtist(const QString &browseId, std::function<void(const Artist &, const QString &)> callback)
+{
+    call(QStringLiteral("browse"), { { "browseId", browseId } },
+         [browseId, callback](const QJsonObject &json, const QString &error) {
+        if (!error.isEmpty()) {
+            callback({}, error);
+            return;
+        }
+        Artist a = parseArtist(json);
+        a.browseId = browseId;
+        callback(a, a.name.isEmpty() ? tr("No artist data") : QString());
+    });
+}
+
+void YtMusicApi::findArtistId(const QString &name, std::function<void(const QString &, const QString &)> callback)
+{
+    call(QStringLiteral("search"), { { "query", name } }, [name, callback](const QJsonObject &json, const QString &error) {
+        if (!error.isEmpty()) {
+            callback({}, error);
+            return;
+        }
+        // Every run that links to an artist page — the first one named exactly like the artist wins.
+        std::function<QString(const QJsonValue &)> walk = [&](const QJsonValue &v) -> QString {
+            if (v.isObject()) {
+                const QJsonObject o = v.toObject();
+                const QJsonObject browse = dig(o, "navigationEndpoint.browseEndpoint").toObject();
+                const QString type = pageTypeOf(browse);
+                if ((type == QLatin1String("MUSIC_PAGE_TYPE_ARTIST") || type == QLatin1String("MUSIC_PAGE_TYPE_USER_CHANNEL"))
+                    && o.value("text").toString().compare(name, Qt::CaseInsensitive) == 0)
+                    return browse.value("browseId").toString();
+                for (auto it = o.begin(); it != o.end(); ++it)
+                    if (const QString id = walk(it.value()); !id.isEmpty())
+                        return id;
+            } else if (v.isArray()) {
+                for (const QJsonValue &item : v.toArray())
+                    if (const QString id = walk(item); !id.isEmpty())
+                        return id;
+            }
+            return {};
+        };
+        callback(walk(json), QString());
     });
 }
 

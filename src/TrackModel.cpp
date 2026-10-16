@@ -40,6 +40,7 @@ QVariant TrackModel::data(const QModelIndex &index, int role) const
     case LikedRole:        return t.liked;
     case DemoRole:         return t.demo;
     case RowRole:          return index.row();
+    case ArtistIdRole:     return t.artistId;
     default:               return {};
     }
 }
@@ -51,6 +52,7 @@ QHash<int, QByteArray> TrackModel::roleNames() const
         { PathRole, "path" },
         { TitleRole, "title" },
         { ArtistRole, "artist" },
+        { ArtistIdRole, "artistId" },
         { AlbumArtistRole, "albumArtist" },
         { AlbumRole, "album" },
         { AlbumKeyRole, "albumKey" },

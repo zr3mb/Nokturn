@@ -39,6 +39,7 @@ class YouTubeService : public QObject
     Q_PROPERTY(QString engineVersion READ engineVersion NOTIFY engineChanged)
     Q_PROPERTY(bool engineDownloading READ engineDownloading NOTIFY engineChanged)
     Q_PROPERTY(qreal engineProgress READ engineProgress NOTIFY engineChanged)
+    Q_PROPERTY(int artistsRevision READ artistsRevision NOTIFY artistsChanged)   // bumps when an artist page loads
 
 public:
     static YouTubeService *instance();
@@ -69,6 +70,20 @@ public:
     Q_INVOKABLE void downloadEngine();
     Q_INVOKABLE void search(const QString &query);
 
+    // Artist profiles (YouTube Music). `artist()` returns { browseId, name, description, subscribers, photo,
+    // songsPlaylistId, sections, loading, error }; songs are in Library.artistSongRows(browseId).
+    Q_INVOKABLE void loadArtist(const QString &browseId);
+    Q_INVOKABLE QVariantMap artist(const QString &browseId) const;
+    int artistsRevision() const { return m_artistsRevision; }
+    // Finds the channel of an artist known only by name (local files); the result comes as artistFound().
+    Q_INVOKABLE void findArtist(const QString &name);
+    Q_INVOKABLE QString knownArtistId(const QString &name) const { return m_artistIdByName.value(name.toLower()); }
+    // Albums / playlists opened from an artist page — kept in memory only, not added to the library.
+    Q_INVOKABLE void ensureCollection(const QString &playlistId);
+    Q_INVOKABLE bool collectionLoading(const QString &playlistId) const { return m_loadingCollections.contains(playlistId); }
+    QStringList collectionTrackIds(const QString &playlistId) const { return m_collections.value(playlistId); }
+    QStringList artistSongIds(const QString &browseId) const { return m_artistSongs.value(browseId); }
+
     // For Library / Player
     StreamResolver *resolver() { return &m_resolver; }
     YtMusicApi *api() { return &m_api; }
@@ -91,6 +106,8 @@ signals:
     void searchingChanged();
     void engineChanged();
     void notice(const QString &text, const QString &icon);
+    void artistsChanged();
+    void artistFound(const QString &name, const QString &browseId);
 
 private:
     explicit YouTubeService(QObject *parent = nullptr);
@@ -117,6 +134,13 @@ private:
     QSet<QString> m_loadingPlaylists;
     QSet<QString> m_refreshedPlaylists;
     QStringList m_search;
+    QHash<QString, QVariantMap> m_artists;        // browseId -> artist page
+    QHash<QString, QStringList> m_artistSongs;    // browseId -> top song ids
+    QSet<QString> m_loadingArtists;
+    int m_artistsRevision = 0;
+    QHash<QString, QString> m_artistIdByName;     // lower-case name -> browseId ("" = not on YouTube Music)
+    QHash<QString, QStringList> m_collections;    // playlistId -> track ids (albums, "all songs")
+    QSet<QString> m_loadingCollections;
     quint64 m_searchSerial = 0;
     bool m_searching = false;
     int m_pendingSync = 0;

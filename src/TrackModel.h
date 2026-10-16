@@ -11,6 +11,7 @@ struct Track
     QString path;        // path to the audio file, videoId (YouTube) or empty (demo)
     QString title;
     QString artist;
+    QString artistId;    // YouTube Music artist channel (browseId); empty for local files
     QString albumArtist;
     QString album;
     QString genre;
@@ -62,6 +63,7 @@ public:
         LikedRole,
         DemoRole,
         RowRole,
+        ArtistIdRole,
     };
     Q_ENUM(Role)
 

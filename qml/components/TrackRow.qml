@@ -123,10 +123,11 @@ Item {
                 elide: Text.ElideRight
                 Behavior on color { ColorAnimation { duration: Theme.normal } }
             }
-            Text {
+            ArtistLink {
                 Layout.fillWidth: true
                 text: root.t.artist
-                color: Theme.textDim
+                artistId: root.t.artistId || ""
+                linkEnabled: !root.t.demo
                 font.pixelSize: 13
                 elide: Text.ElideRight
             }

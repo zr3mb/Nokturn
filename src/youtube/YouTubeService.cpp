@@ -20,7 +20,7 @@ QString browserProfile() { return AppPaths::dataDir() + QStringLiteral("/browser
 QJsonObject trackToJson(const Track &t)
 {
     return {
-        { "id", t.path }, { "title", t.title }, { "artist", t.artist }, { "album", t.album },
+        { "id", t.path }, { "title", t.title }, { "artist", t.artist }, { "artistId", t.artistId }, { "album", t.album },
         { "duration", t.duration }, { "cover", t.cover },
         { "colorA", t.colorA.name() }, { "colorB", t.colorB.name() }, { "seed", t.seed },
     };
@@ -33,6 +33,7 @@ Track trackFromJson(const QJsonObject &o)
     t.id = QStringLiteral("yt:") + t.path;
     t.title = o.value("title").toString();
     t.artist = o.value("artist").toString();
+    t.artistId = o.value("artistId").toString();
     t.album = o.value("album").toString();
     t.duration = o.value("duration").toInt();
     t.cover = o.value("cover").toString();
@@ -294,6 +295,81 @@ void YouTubeService::search(const QString &query)
     });
 }
 
+// ---- artists and collections ------------------------------------------------------
+
+void YouTubeService::loadArtist(const QString &browseId)
+{
+    if (browseId.isEmpty() || m_artists.contains(browseId) || m_loadingArtists.contains(browseId))
+        return;
+    m_loadingArtists.insert(browseId);
+    QTimer::singleShot(0, this, [this] { ++m_artistsRevision; emit artistsChanged(); });   // may be called from a QML binding
+    m_api.fetchArtist(browseId, [this, browseId](const YtMusicApi::Artist &a, const QString &error) {
+        m_loadingArtists.remove(browseId);
+        if (!error.isEmpty()) {
+            m_artists.insert(browseId, { { "browseId", browseId }, { "error", error } });
+            ++m_artistsRevision;
+        emit artistsChanged();
+            return;
+        }
+        storeTracks(a.songs, true);
+        QStringList ids;
+        for (const Track &t : a.songs)
+            ids << t.id;
+        m_artistSongs.insert(browseId, ids);
+        m_artistIdByName.insert(a.name.toLower(), browseId);
+        m_artists.insert(browseId, {
+            { "browseId", browseId }, { "name", a.name }, { "description", a.description },
+            { "subscribers", a.subscribers }, { "photo", a.photo }, { "songsPlaylistId", a.songsPlaylistId },
+            { "sections", a.sections } });
+        emit dataChanged();   // the top songs join the track model, so they can be played
+        ++m_artistsRevision;
+        emit artistsChanged();
+    });
+}
+
+QVariantMap YouTubeService::artist(const QString &browseId) const
+{
+    QVariantMap a = m_artists.value(browseId);
+    a.insert("loading", m_loadingArtists.contains(browseId));
+    return a;
+}
+
+void YouTubeService::findArtist(const QString &name)
+{
+    const QString key = name.trimmed().toLower();
+    if (key.isEmpty())
+        return;
+    if (m_artistIdByName.contains(key)) {
+        const QString id = m_artistIdByName.value(key);
+        QTimer::singleShot(0, this, [this, name, id] { emit artistFound(name, id); });
+        return;
+    }
+    m_api.findArtistId(name.trimmed(), [this, name, key](const QString &browseId, const QString &error) {
+        if (error.isEmpty())
+            m_artistIdByName.insert(key, browseId);   // "" = not on YouTube Music, don't ask again
+        emit artistFound(name, browseId);
+    });
+}
+
+void YouTubeService::ensureCollection(const QString &playlistId)
+{
+    if (playlistId.isEmpty() || m_collections.contains(playlistId) || m_loadingCollections.contains(playlistId))
+        return;
+    m_loadingCollections.insert(playlistId);
+    QTimer::singleShot(0, this, &YouTubeService::dataChanged);
+    m_api.browseTracks(QStringLiteral("VL") + playlistId, [this, playlistId](const QList<Track> &tracks, const QString &error) {
+        m_loadingCollections.remove(playlistId);
+        if (!error.isEmpty() && tracks.isEmpty())
+            emit notice(tr("Couldn't load the playlist: %1").arg(error), QStringLiteral("close"));
+        storeTracks(tracks, true);
+        QStringList ids;
+        for (const Track &t : tracks)
+            ids << t.id;
+        m_collections.insert(playlistId, ids);
+        emit dataChanged();
+    }, 10);
+}
+
 // ---- data -------------------------------------------------------------------------
 
 void YouTubeService::storeTracks(const QList<Track> &tracks, bool transient)
@@ -341,6 +417,12 @@ QList<Track> YouTubeService::tracks() const
             add(id);
     for (const QString &id : m_search)
         add(id);
+    for (const QStringList &ids : m_artistSongs)
+        for (const QString &id : ids)
+            add(id);
+    for (const QStringList &ids : m_collections)
+        for (const QString &id : ids)
+            add(id);
     return out;
 }
 

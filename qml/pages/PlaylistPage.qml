@@ -27,6 +27,13 @@ Item {
                      cover: ar.cover || "", icon: "", round: true,
                      rows: Library.tracksOfArtist(a.artist) }
         }
+        if (a.kind === "ytcollection") {
+            // An album / playlist opened from an artist profile — loaded from YouTube Music, not in the library.
+            return { label: a.label || qsTr("ALBUM"), title: a.title || "", meta: a.subtitle ? [a.subtitle] : [],
+                     colorA: Theme.accent, colorB: Theme.accent2, seed: 0, cover: a.cover || "", icon: "",
+                     round: a.round === true, rows: Library.collectionRows(a.playlistId),
+                     loading: YouTube.collectionLoading(a.playlistId) }
+        }
         const index = a.index || 0
         const p = Library.playlists[index]
         if (!p)
@@ -45,6 +52,7 @@ Item {
         const a = args || {}
         if (a.kind === "album") return "album:" + a.key
         if (a.kind === "artist") return "artist:" + a.artist
+        if (a.kind === "ytcollection") return "ytc:" + a.playlistId
         const p = Library.playlists[a.index || 0]
         if (!p) return ""
         return p.kind === "ytplaylist" ? "yt:" + p.ytId : "playlist:" + p.kind

@@ -551,5 +551,19 @@
   "The stream stopped responding": "Strumień przestał odpowiadać",
   "Installing the update — Nokturn will restart in a moment…": "Instaluję aktualizację — Nokturn za chwilę uruchomi się ponownie…",
   "Couldn't replace the AppImage": "Nie udało się podmienić pliku AppImage",
-  "Couldn't start the new version — start Nokturn again": "Nie udało się uruchomić nowej wersji — uruchom Nokturna ponownie"
+  "Couldn't start the new version — start Nokturn again": "Nie udało się uruchomić nowej wersji — uruchom Nokturna ponownie",
+  "This can't be opened yet": "Tego nie da się jeszcze otworzyć",
+  "%n tracks in your library": [
+    "%n utwór w Twojej bibliotece",
+    "%n utwory w Twojej bibliotece",
+    "%n utworów w Twojej bibliotece"
+  ],
+  "Couldn't load the artist from YouTube Music: %1": "Nie udało się wczytać wykonawcy z YouTube Music: %1",
+  "This artist wasn't found on YouTube Music.": "Nie znaleziono tego wykonawcy w YouTube Music.",
+  "Show less": "Pokaż mniej",
+  "Show more": "Pokaż więcej",
+  "Popular": "Popularne",
+  "All songs": "Wszystkie utwory",
+  "In your library": "W Twojej bibliotece",
+  "No artist data": "Brak danych wykonawcy"
 }
