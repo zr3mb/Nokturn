@@ -418,6 +418,12 @@ void PlayerController::prefetchNext()
         YouTubeService::instance()->resolver()->prefetch(m_tracks->at(row).path);
 }
 
+void PlayerController::prefetch(int row)
+{
+    if (m_tracks->isValidRow(row) && m_tracks->at(row).source == QLatin1String("youtube") && !m_tracks->at(row).demo)
+        YouTubeService::instance()->resolver()->prefetch(m_tracks->at(row).path);
+}
+
 void PlayerController::playFrom(const QVariantList &rows, int row, const QString &context)
 {
     if (!canPlay(row, true))

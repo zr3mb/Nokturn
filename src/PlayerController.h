@@ -123,6 +123,8 @@ public:
     Q_INVOKABLE void playIndex(int row);
     // Przeskakuje do utworu w bieżącej kolejce (np. kliknięcie w "Następne").
     Q_INVOKABLE void jumpTo(int row);
+    // Przygotowuje adres utworu z YouTube zawczasu (np. po najechaniu na wiersz).
+    Q_INVOKABLE void prefetch(int row);
     Q_INVOKABLE void play();
     Q_INVOKABLE void pause();
     Q_INVOKABLE void toggle();

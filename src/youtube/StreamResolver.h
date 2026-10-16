@@ -46,6 +46,7 @@ private:
     void run(const QString &videoId, bool withCookies);
     void readVersion();
     void finishDownload(const QByteArray &binary, const QByteArray &sums);
+    void report(const QString &text, const QString &icon);
 
     QString m_enginePath;
     QString m_version;
@@ -54,5 +55,6 @@ private:
     QHash<QString, QProcess *> m_running;
     QNetworkAccessManager m_net;
     bool m_downloading = false;
+    bool m_quiet = false;              // trwa ciche uaktualnienie (bez powiadomień)
     qreal m_progress = 0;
 };

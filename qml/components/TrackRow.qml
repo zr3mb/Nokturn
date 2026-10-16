@@ -42,6 +42,14 @@ Item {
 
     HoverHandler { id: hover }
 
+    // Chwila zatrzymania kursora nad utworem z YouTube — przygotowujemy jego adres, zanim padnie kliknięcie
+    // (opóźnienie, żeby szybkie przesuwanie myszą po liście nie uruchamiało yt-dlp dla każdego wiersza).
+    Timer {
+        interval: 200
+        running: hover.hovered && !root.current
+        onTriggered: Player.prefetch(root.trackIndex)
+    }
+
     MouseArea {
         anchors.fill: parent
         onDoubleClicked: root.current ? Player.play() : root.play()
