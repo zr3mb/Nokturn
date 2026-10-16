@@ -1,6 +1,7 @@
 #include "Library.h"
 
 #include "AppPaths.h"
+#include "Language.h"
 #include "youtube/YouTubeService.h"
 
 #include <QCollator>
@@ -48,26 +49,13 @@ Library::Library(QObject *parent)
     : QObject(parent)
     , m_tracks(new TrackModel(this))
 {
-    m_sources = {
-        QVariantMap { { "id", "local" }, { "name", "Pliki lokalne" },
-                      { "description", "Foldery z muzyką na tym komputerze — FLAC, ALAC, MP3, OGG, OPUS, WAV." },
-                      { "icon", "folder" }, { "status", "connected" }, { "color", QColor("#9fbfa8") } },
-        QVariantMap { { "id", "youtube" }, { "name", "YouTube Music" },
-                      { "description", "Polubione i playlisty z Twojego konta — logujesz się normalnie w przeglądarce." },
-                      { "icon", "playCircle" }, { "status", "disconnected" }, { "color", QColor("#cf9d9d") } },
-        QVariantMap { { "id", "radio" }, { "name", "Radio internetowe" },
-                      { "description", "Stacje strumieniowe Icecast / SHOUTcast i zapisane ulubione." },
-                      { "icon", "radio" }, { "status", "available" }, { "color", QColor("#cdb68e") } },
-        QVariantMap { { "id", "stream" }, { "name", "Własny strumień" },
-                      { "description", "Dowolny adres URL pliku audio albo playlisty M3U / PLS." },
-                      { "icon", "link" }, { "status", "available" }, { "color", QColor("#93a8c3") } },
-    };
+    buildSources();
 
     auto settings = AppPaths::settings();
     if (settings->contains("library/folders")) {
         m_folders = settings->value("library/folders").toStringList();
     } else {
-        // Pierwsze uruchomienie: zacznij od systemowego folderu Muzyka.
+        // First run: start with the system Music folder.
         const QString music = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
         if (!music.isEmpty() && QDir(music).exists())
             m_folders << QDir::cleanPath(music);
@@ -80,7 +68,7 @@ Library::Library(QObject *parent)
         const Track &track = m_tracks->at(row);
         const QString id = track.id;
         if (track.source == QLatin1String("youtube") && !track.demo) {
-            YouTubeService::instance()->setTrackLiked(id, liked);   // serduszko trafia też na konto
+            YouTubeService::instance()->setTrackLiked(id, liked);   // the heart also goes to the account
             return;
         }
         if (liked)
@@ -101,13 +89,37 @@ Library::Library(QObject *parent)
 
     connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &Library::rebuildModel);
     connect(YouTubeService::instance(), &YouTubeService::accountChanged, this, &Library::rebuildModel);
+    // Source and playlist names, demo tracks — everything built here follows the interface language.
+    connect(Language::instance(), &Language::changed, this, [this] {
+        buildSources();
+        emit sourcesChanged();
+        applyLocalTracks(m_local);   // relabels "Unknown artist" and rebuilds the model
+    });
 
     loadCache();
-    // Po starcie dociągnij zmiany z dysku (skan przyrostowy — niezmienione pliki idą z cache).
+    // After startup pull in changes from disk (incremental scan — unchanged files come from the cache).
     QTimer::singleShot(600, this, [this] { rescan(false); });
 }
 
-// ---- foldery i skanowanie ------------------------------------------------------
+void Library::buildSources()
+{
+    m_sources = {
+        QVariantMap { { "id", "local" }, { "name", tr("Local files") },
+                      { "description", tr("Music folders on this computer — FLAC, ALAC, MP3, OGG, OPUS, WAV.") },
+                      { "icon", "folder" }, { "status", "connected" }, { "color", QColor("#9fbfa8") } },
+        QVariantMap { { "id", "youtube" }, { "name", "YouTube Music" },
+                      { "description", tr("Liked songs and playlists from your account — you sign in as usual in the browser.") },
+                      { "icon", "playCircle" }, { "status", "disconnected" }, { "color", QColor("#cf9d9d") } },
+        QVariantMap { { "id", "radio" }, { "name", tr("Internet radio") },
+                      { "description", tr("Icecast / SHOUTcast streaming stations and saved favorites.") },
+                      { "icon", "radio" }, { "status", "available" }, { "color", QColor("#cdb68e") } },
+        QVariantMap { { "id", "stream" }, { "name", tr("Custom stream") },
+                      { "description", tr("Any URL of an audio file or an M3U / PLS playlist.") },
+                      { "icon", "link" }, { "status", "available" }, { "color", QColor("#93a8c3") } },
+    };
+}
+
+// ---- folders and scanning ------------------------------------------------------
 
 QVariantList Library::folders() const
 {
@@ -133,8 +145,8 @@ QString Library::scanStatus() const
         return {};
     const int max = m_watcher.progressMaximum();
     if (max <= 0)
-        return QStringLiteral("Szukam plików…");
-    return QStringLiteral("Skanowanie… %1 / %2").arg(m_watcher.progressValue()).arg(max);
+        return tr("Looking for files…");
+    return tr("Scanning… %1 / %2").arg(m_watcher.progressValue()).arg(max);
 }
 
 void Library::addFolder(const QUrl &url)
@@ -144,11 +156,11 @@ void Library::addFolder(const QUrl &url)
         return;
     for (const QString &f : std::as_const(m_folders)) {
         if (Scanner::isUnder(path, f)) {
-            emit notice(QStringLiteral("Ten folder jest już w bibliotece"), QStringLiteral("folder"));
+            emit notice(tr("This folder is already in the library"), QStringLiteral("folder"));
             return;
         }
     }
-    // Nowy folder może obejmować dotychczasowe podfoldery — usuń je, żeby nie dublować.
+    // A new folder may contain existing subfolders — remove them so nothing is duplicated.
     m_folders.erase(std::remove_if(m_folders.begin(), m_folders.end(),
                                    [&](const QString &f) { return Scanner::isUnder(f, path); }),
                     m_folders.end());
@@ -172,7 +184,7 @@ void Library::removeFolder(const QString &nativePath)
     applyLocalTracks(remaining);
     saveCache();
     emit foldersChanged();
-    emit notice(QStringLiteral("Usunięto folder z biblioteki"), QStringLiteral("folder"));
+    emit notice(tr("Removed the folder from the library"), QStringLiteral("folder"));
 }
 
 void Library::rescan(bool manual)
@@ -213,10 +225,10 @@ void Library::onScanFinished()
 
         if (m_manualScan || added > 0 || removed > 0) {
             QString text = added > 0
-                ? QStringLiteral("Dodano do biblioteki: %1").arg(added)
-                : QStringLiteral("Biblioteka jest aktualna");
+                ? tr("Added to the library: %1").arg(added)
+                : tr("The library is up to date");
             if (removed > 0)
-                text += QStringLiteral(" · usunięto: %1").arg(removed);
+                text += QStringLiteral(" · ") + tr("removed: %1").arg(removed);
             emit notice(text, QStringLiteral("check"));
         }
     }
@@ -264,7 +276,7 @@ void Library::saveFolders() const
     AppPaths::settings()->setValue("library/folders", m_folders);
 }
 
-// ---- budowanie kolekcji ---------------------------------------------------------
+// ---- building collections ---------------------------------------------------------
 
 void Library::applyLocalTracks(QList<Track> local)
 {
@@ -281,6 +293,9 @@ void Library::applyLocalTracks(QList<Track> local)
     });
     for (Track &t : local)
         t.liked = m_liked.contains(t.id);
+    for (Track &t : local)
+        if (Scanner::isUnknownArtist(t.artist))
+            t.artist = Scanner::unknownArtist();
 
     m_local = local;
     m_localCount = int(local.size());
@@ -293,7 +308,7 @@ void Library::rebuildModel()
     QList<Track> all = m_local;
     all << yt->tracks();
     for (const Track &t : demoTracks()) {
-        // Przykładowe utwory YouTube znikają, gdy konto jest podłączone.
+        // Sample YouTube tracks disappear once the account is connected.
         if (t.source == QLatin1String("youtube") && yt->connected())
             continue;
         all << t;
@@ -308,11 +323,11 @@ void Library::rebuildPlaylists()
 {
     YouTubeService *yt = YouTubeService::instance();
     m_playlists = {
-        QVariantMap { { "name", "Ulubione" }, { "kind", "liked" }, { "icon", "heart" },
+        QVariantMap { { "name", tr("Liked") }, { "kind", "liked" }, { "icon", "heart" },
                       { "colorA", QColor("#c9a0a8") }, { "colorB", QColor("#4d3440") }, { "seed", 1 } },
-        QVariantMap { { "name", "Ostatnio dodane" }, { "kind", "recent" }, { "icon", "clock" },
+        QVariantMap { { "name", tr("Recently added") }, { "kind", "recent" }, { "icon", "clock" },
                       { "colorA", QColor("#9fb3c8") }, { "colorB", QColor("#34425a") }, { "seed", 2 } },
-        QVariantMap { { "name", yt->connected() ? "Polubione w YouTube Music" : "Odkryte na YouTube" },
+        QVariantMap { { "name", yt->connected() ? tr("Liked on YouTube Music") : tr("Discovered on YouTube") },
                       { "kind", "youtube" }, { "icon", "playCircle" },
                       { "colorA", QColor("#d0b29a") }, { "colorB", QColor("#5c4334") }, { "seed", 3 } },
     };
@@ -328,7 +343,7 @@ void Library::rebuildPlaylists()
 
 void Library::ensurePalette(int row)
 {
-    // Utwory z YouTube mają okładki z sieci — kolor akcentu liczymy, gdy pierwszy raz zagrają.
+    // Tracks from YouTube have covers from the web — the accent color is computed when they first play.
     if (!m_tracks->isValidRow(row))
         return;
     const Track &t = m_tracks->at(row);
@@ -364,7 +379,7 @@ void Library::rebuildCollections()
             continue;
         const QString key = TrackModel::albumKey(t);
         const QString artist = t.albumArtist.isEmpty() ? t.artist : t.albumArtist;
-        // Utwór bez albumu (np. teledysk z YouTube) nie tworzy osobnego "albumu".
+        // A track without an album (e.g. a music video from YouTube) doesn't create a separate "album".
         if (!t.album.isEmpty()) {
             if (!albums.contains(key)) {
                 albumOrder << key;
@@ -406,7 +421,7 @@ void Library::rebuildCollections()
     std::stable_sort(byDate.begin(), byDate.end(), [](const Album &a, const Album &b) {
         const bool al = a.data.value("source") == QLatin1String("local");
         const bool bl = b.data.value("source") == QLatin1String("local");
-        if (al != bl) return al;   // najpierw własna muzyka
+        if (al != bl) return al;   // own music first
         return a.added > b.added;
     });
     m_recentAlbums.clear();
@@ -432,19 +447,19 @@ QList<Track> Library::demoTracks() const
         { "Half Light",     "Marlow & Vey",   "Low Light",        238, "youtube", "#ab9fc3", "#463d5c", 3 },
         { "Velvet Static",  "Odessa Grey",    "Velvet Static",    219, "youtube", "#cda2a6", "#5c3a42", 2 },
         { "Paper Lanterns", "Mira Sol",       "Lanterns EP",      192, "youtube", "#c5bd95", "#545035", 0 },
-        { "Nocny Jazz",     "Radio internetowe", "Ambient Waves FM", 0,  "radio",   "#b9a889", "#4a4232", 0 },
+        { QT_TR_NOOP("Night Jazz"), QT_TR_NOOP("Internet radio"), "Ambient Waves FM", 0,  "radio",   "#b9a889", "#4a4232", 0 },
     };
 
     QList<Track> out;
     for (const D &d : defs) {
         Track t;
-        t.title = QString::fromUtf8(d.title);
-        t.artist = QString::fromUtf8(d.artist);
+        t.title = tr(d.title);
+        t.artist = tr(d.artist);
         t.album = QString::fromUtf8(d.album);
-        t.id = QStringLiteral("demo:") + t.title;
+        t.id = QStringLiteral("demo:") + QString::fromUtf8(d.title);   // stable regardless of the language
         t.duration = d.duration;
         t.source = QString::fromLatin1(d.source);
-        t.quality = t.source == QLatin1String("radio") ? QStringLiteral("MP3 · 128 kbps · na żywo")
+        t.quality = t.source == QLatin1String("radio") ? tr("MP3 · 128 kbps · live")
                                                        : QStringLiteral("Opus · 160 kbps");
         t.colorA = QColor(d.color);
         t.colorB = QColor(d.dark);
@@ -456,7 +471,7 @@ QList<Track> Library::demoTracks() const
     return out;
 }
 
-// ---- zapytania ----------------------------------------------------------------
+// ---- queries ------------------------------------------------------------------
 
 QVariantList Library::search(const QString &query, const QString &source, int limit) const
 {

@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Karta wyboru w kreatorze: podgląd (np. LayoutPreview) + tytuł + opis, zaznaczenie akcentem.
+// Choice card in the wizard: a preview (e.g. LayoutPreview) + title + description, selected with the accent.
 Item {
     id: root
     property bool selected: false
@@ -46,7 +46,7 @@ Item {
             Layout.leftMargin: 4
             spacing: 10
 
-            // znacznik wyboru
+            // selection mark
             Rectangle {
                 width: 20; height: 20
                 radius: 10

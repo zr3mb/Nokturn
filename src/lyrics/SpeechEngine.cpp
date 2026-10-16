@@ -58,8 +58,8 @@ void hideConsole(QProcess *process)
 #endif
 }
 
-// Bufor z dekodera -> 16 kHz mono int16. Backend FFmpeg zwykle sam konwertuje do żądanego formatu,
-// ale gdyby tego nie zrobił, przeliczamy tu (uśrednienie kanałów + interpolacja liniowa).
+// Decoder buffer -> 16 kHz mono int16. The FFmpeg backend usually converts to the requested format itself,
+// but in case it doesn't, we convert here (channel averaging + linear interpolation).
 void appendConverted(const QAudioBuffer &buffer, QByteArray &out, double &resamplePos)
 {
     const QAudioFormat f = buffer.format();
@@ -143,7 +143,7 @@ SpeechEngine::~SpeechEngine()
     cancel();
 }
 
-// ---- sprzęt ---------------------------------------------------------------------
+// ---- hardware -------------------------------------------------------------------
 
 SpeechEngine::Hardware SpeechEngine::detectHardware()
 {
@@ -161,8 +161,8 @@ SpeechEngine::Hardware SpeechEngine::detectHardware()
         hw.memoryGb = double(pages) * pageSize / (1024.0 * 1024.0 * 1024.0);
 #endif
     const bool memKnown = hw.memoryGb > 0;
-    // Whisper na CPU: "base" potrzebuje ~0,5 GB RAM, "small" ~1 GB, "medium" ~2,5 GB, a czas
-    // rozpoznawania 4-minutowego utworu rośnie z rozmiarem modelu — stąd próg 4 wątków i 7,5 GB.
+    // Whisper on the CPU: "base" needs ~0.5 GB of RAM, "small" ~1 GB, "medium" ~2.5 GB, and the time
+    // to recognize a 4-minute track grows with the model size — hence the 4 threads and 7.5 GB threshold.
     hw.sufficient = hw.threads >= 4 && (!memKnown || hw.memoryGb >= 7.5);
     if (hw.threads >= 16 && (!memKnown || hw.memoryGb >= 15.5))
         hw.recommendedModel = QStringLiteral("medium");
@@ -170,9 +170,9 @@ SpeechEngine::Hardware SpeechEngine::detectHardware()
         hw.recommendedModel = QStringLiteral("small");
     else
         hw.recommendedModel = QStringLiteral("base");
-    hw.summary = QStringLiteral("%1 wątków procesora").arg(hw.threads);
+    hw.summary = tr("%n CPU threads", "", hw.threads);
     if (memKnown)
-        hw.summary += QStringLiteral(" · %1 GB RAM").arg(qRound(hw.memoryGb));
+        hw.summary += QStringLiteral(" · ") + tr("%1 GB RAM").arg(qRound(hw.memoryGb));
     return hw;
 }
 
@@ -183,11 +183,11 @@ QString SpeechEngine::modelSize(const QString &model)
     if (model == QLatin1String("small"))
         return QStringLiteral("466 MB");
     if (model == QLatin1String("medium"))
-        return QStringLiteral("1,5 GB");
+        return tr("1.5 GB");
     return {};
 }
 
-// ---- pliki ----------------------------------------------------------------------
+// ---- files ----------------------------------------------------------------------
 
 QString SpeechEngine::toolsDir() const
 {
@@ -223,7 +223,7 @@ void SpeechEngine::detect()
         const QString local = QCoreApplication::applicationDirPath() + QChar('/') + engineFileName();
         if (QFile::exists(local))
             m_enginePath = local;
-        // Pakiety dystrybucji: "whisper-cli" (Arch, Fedora, Homebrew), "whisper-cpp" (Nix, część innych).
+        // Distribution packages: "whisper-cli" (Arch, Fedora, Homebrew), "whisper-cpp" (Nix, some others).
         for (const char *name : { "whisper-cli", "whisper-cpp" }) {
             if (!m_enginePath.isEmpty())
                 break;
@@ -240,7 +240,7 @@ void SpeechEngine::removeModel(const QString &model)
     emit stateChanged();
 }
 
-// ---- pobieranie -----------------------------------------------------------------
+// ---- downloading ----------------------------------------------------------------
 
 void SpeechEngine::finishDownloadError(const QString &message)
 {
@@ -262,7 +262,7 @@ void SpeechEngine::fetchVerified(const QUrl &url, const QString &target, const Q
 {
     auto file = std::make_shared<QSaveFile>(target);
     if (!file->open(QIODevice::WriteOnly)) {
-        finishDownloadError(QStringLiteral("Nie można zapisać pliku: ") + target);
+        finishDownloadError(tr("Can't write the file: %1").arg(target));
         return;
     }
     auto hash = std::make_shared<QCryptographicHash>(QCryptographicHash::Sha256);
@@ -284,8 +284,8 @@ void SpeechEngine::fetchVerified(const QUrl &url, const QString &target, const Q
         if (reply->error() != QNetworkReply::NoError) {
             file->cancelWriting();
             finishDownloadError(reply->error() == QNetworkReply::OperationCanceledError
-                                    ? QStringLiteral("Pobieranie przerwane")
-                                    : QStringLiteral("Błąd pobierania: ") + reply->errorString());
+                                    ? tr("Download cancelled")
+                                    : tr("Download error: %1").arg(reply->errorString()));
             return;
         }
         const QByteArray rest = reply->readAll();
@@ -293,11 +293,11 @@ void SpeechEngine::fetchVerified(const QUrl &url, const QString &target, const Q
         file->write(rest);
         if (hash->result().toHex() != sha256Hex.toLower()) {
             file->cancelWriting();
-            finishDownloadError(QStringLiteral("Pobrany plik nie zgadza się z sumą kontrolną — przerwano"));
+            finishDownloadError(tr("The downloaded file doesn't match the checksum — aborted"));
             return;
         }
         if (!file->commit()) {
-            finishDownloadError(QStringLiteral("Nie udało się zapisać pobranego pliku"));
+            finishDownloadError(tr("Couldn't save the downloaded file"));
             return;
         }
         done(true);
@@ -307,8 +307,8 @@ void SpeechEngine::fetchVerified(const QUrl &url, const QString &target, const Q
 void SpeechEngine::downloadEngine()
 {
 #ifndef Q_OS_WIN
-    // Gotowe paczki whisper.cpp na GitHubie są tylko dla Windows.
-    emit notice(QStringLiteral("Zainstaluj whisper.cpp (polecenie whisper-cli) z menedżera pakietów"), QStringLiteral("close"));
+    // Ready-made whisper.cpp packages on GitHub are for Windows only.
+    emit notice(tr("Install whisper.cpp (the whisper-cli command) from your package manager"), QStringLiteral("close"));
 #else
     if (m_downloading)
         return;
@@ -317,7 +317,7 @@ void SpeechEngine::downloadEngine()
     m_downloadLabel = QStringLiteral("whisper.cpp");
     emit stateChanged();
 
-    // Opis najnowszego wydania: adres paczki i jej SHA-256 (pole "digest", liczone przez GitHuba).
+    // Description of the latest release: the package URL and its SHA-256 (the "digest" field, computed by GitHub).
     QNetworkRequest request(QUrl(QString::fromLatin1(kReleaseApi)));
     request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Nokturn"));
     request.setRawHeader("Accept", "application/vnd.github+json");
@@ -326,7 +326,7 @@ void SpeechEngine::downloadEngine()
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            finishDownloadError(QStringLiteral("Nie udało się pobrać informacji o whisper.cpp: ") + reply->errorString());
+            finishDownloadError(tr("Couldn't get information about whisper.cpp: %1").arg(reply->errorString()));
             return;
         }
         const QJsonObject release = QJsonDocument::fromJson(reply->readAll()).object();
@@ -342,12 +342,12 @@ void SpeechEngine::downloadEngine()
                 sha = digest.mid(7).toLatin1();
         }
         if (url.isEmpty() || sha.size() != 64) {
-            finishDownloadError(QStringLiteral("Wydanie whisper.cpp nie zawiera paczki z sumą kontrolną"));
+            finishDownloadError(tr("The whisper.cpp release has no package with a checksum"));
             return;
         }
         const QString zip = AppPaths::dataDir() + QStringLiteral("/tools/whisper.zip");
         fetchVerified(QUrl(url), zip, sha, [this, zip](bool) {
-            // Rozpakowanie wbudowanym w Windows 10/11 programem tar (bsdtar obsługuje ZIP).
+            // Unpacked with the tar program built into Windows 10/11 (bsdtar handles ZIP).
             QDir(toolsDir()).removeRecursively();
             const QString dir = toolsDir();
             auto *tar = new QProcess(this);
@@ -359,9 +359,9 @@ void SpeechEngine::downloadEngine()
                 m_reply.clear();
                 detect();
                 if (code == 0 && engineReady())
-                    emit notice(QStringLiteral("Rozpoznawanie mowy jest gotowe"), QStringLiteral("check"));
+                    emit notice(tr("Speech recognition is ready"), QStringLiteral("check"));
                 else
-                    emit notice(QStringLiteral("Nie udało się rozpakować whisper.cpp"), QStringLiteral("close"));
+                    emit notice(tr("Couldn't unpack whisper.cpp"), QStringLiteral("close"));
             });
             QString tarExe = qEnvironmentVariable("SystemRoot") + QStringLiteral("/System32/tar.exe");
             if (!QFile::exists(tarExe))
@@ -379,10 +379,10 @@ void SpeechEngine::downloadModel(const QString &model)
         return;
     m_downloading = true;
     m_progress = 0;
-    m_downloadLabel = QStringLiteral("model ") + model;
+    m_downloadLabel = tr("model %1").arg(model);
     emit stateChanged();
 
-    // Lista plików repozytorium zawiera SHA-256 każdego modelu (pole lfs.oid).
+    // The repository file list contains the SHA-256 of every model (the lfs.oid field).
     QNetworkRequest request{QUrl(QString::fromLatin1(kModelTreeApi))};
     request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Nokturn"));
     QNetworkReply *reply = m_net.get(request);
@@ -390,7 +390,7 @@ void SpeechEngine::downloadModel(const QString &model)
     connect(reply, &QNetworkReply::finished, this, [this, reply, model] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            finishDownloadError(QStringLiteral("Nie udało się pobrać listy modeli: ") + reply->errorString());
+            finishDownloadError(tr("Couldn't download the model list: %1").arg(reply->errorString()));
             return;
         }
         const QString file = QStringLiteral("ggml-%1.bin").arg(model);
@@ -401,29 +401,29 @@ void SpeechEngine::downloadModel(const QString &model)
                 sha = o.value("lfs").toObject().value("oid").toString().toLatin1();
         }
         if (sha.size() != 64) {
-            finishDownloadError(QStringLiteral("Nie znaleziono sumy kontrolnej modelu ") + model);
+            finishDownloadError(tr("Couldn't find the checksum of model %1").arg(model));
             return;
         }
         fetchVerified(QUrl(QString::fromLatin1(kModelBase) + file), modelPath(model), sha, [this, model](bool) {
             m_downloading = false;
             m_reply.clear();
             emit stateChanged();
-            emit notice(QStringLiteral("Model rozpoznawania mowy (%1) jest gotowy").arg(model), QStringLiteral("check"));
+            emit notice(tr("The speech recognition model (%1) is ready").arg(model), QStringLiteral("check"));
         });
     });
 }
 
-// ---- transkrypcja ---------------------------------------------------------------
+// ---- transcription --------------------------------------------------------------
 
 void SpeechEngine::transcribe(const QUrl &audio, const QString &model, const QString &prompt, WordsCallback callback)
 {
     cancel();
     if (!engineReady()) {
-        callback({}, QStringLiteral("Brak programu whisper.cpp"));
+        callback({}, tr("The whisper.cpp program is missing"));
         return;
     }
     if (!modelReady(model)) {
-        callback({}, QStringLiteral("Brak modelu rozpoznawania mowy"));
+        callback({}, tr("The speech recognition model is missing"));
         return;
     }
 
@@ -453,7 +453,7 @@ void SpeechEngine::transcribe(const QUrl &audio, const QString &model, const QSt
             appendConverted(decoder->read(), m_job->pcm, m_job->resamplePos);
         const qint64 duration = decoder->duration();
         if (duration > 0)
-            emit progress(0.15 * std::min(1.0, double(decoder->position()) / duration), QStringLiteral("Dekodowanie dźwięku"));
+            emit progress(0.15 * std::min(1.0, double(decoder->position()) / duration), tr("Decoding audio"));
     });
     connect(decoder, &QAudioDecoder::finished, this, [this, decoder] {
         if (!m_job || m_job->decoder != decoder)
@@ -468,22 +468,22 @@ void SpeechEngine::transcribe(const QUrl &audio, const QString &model, const QSt
         const QString message = decoder->errorString();
         m_job->decoder = nullptr;
         decoder->deleteLater();
-        finishJob({}, QStringLiteral("Nie udało się zdekodować dźwięku: ") + message);
+        finishJob({}, tr("Couldn't decode the audio: %1").arg(message));
     });
-    emit progress(0, QStringLiteral("Dekodowanie dźwięku"));
+    emit progress(0, tr("Decoding audio"));
     decoder->start();
 }
 
 void SpeechEngine::startWhisper()
 {
     if (m_job->pcm.size() < kSampleRate * 2) {
-        finishJob({}, QStringLiteral("Za mało dźwięku do rozpoznania"));
+        finishJob({}, tr("Not enough audio to recognize"));
         return;
     }
     const QString wav = m_job->dir->filePath(QStringLiteral("audio.wav"));
     const QString outBase = m_job->dir->filePath(QStringLiteral("words"));
     if (!writeWav(wav, m_job->pcm)) {
-        finishJob({}, QStringLiteral("Nie udało się zapisać pliku tymczasowego"));
+        finishJob({}, tr("Couldn't save the temporary file"));
         return;
     }
     m_job->pcm.clear();
@@ -495,7 +495,7 @@ void SpeechEngine::startWhisper()
         QStringLiteral("-f"), wav,
         QStringLiteral("-l"), QStringLiteral("auto"),
         QStringLiteral("-t"), QString::number(threads),
-        QStringLiteral("-ml"), QStringLiteral("1"),      // jeden wyraz na segment = czas każdego słowa
+        QStringLiteral("-ml"), QStringLiteral("1"),      // one word per segment = the time of every word
         QStringLiteral("-sow"),
         QStringLiteral("-oj"), QStringLiteral("-of"), outBase,
         QStringLiteral("-pp"),
@@ -513,7 +513,7 @@ void SpeechEngine::startWhisper()
         while (it.hasNext())
             last = it.next().captured(1).toInt();
         if (last >= 0)
-            emit progress(0.15 + 0.85 * last / 100.0, QStringLiteral("Rozpoznawanie śpiewu"));
+            emit progress(0.15 + 0.85 * last / 100.0, tr("Recognizing the singing"));
     });
     connect(process, &QProcess::finished, this, [this, process, outBase](int code, QProcess::ExitStatus status) {
         if (!m_job || m_job->process != process)
@@ -521,12 +521,12 @@ void SpeechEngine::startWhisper()
         m_job->process = nullptr;
         process->deleteLater();
         if (status != QProcess::NormalExit || code != 0) {
-            finishJob({}, QStringLiteral("whisper.cpp zakończył się błędem (kod %1)").arg(code));
+            finishJob({}, tr("whisper.cpp ended with an error (code %1)").arg(code));
             return;
         }
         QFile f(outBase + QStringLiteral(".json"));
         if (!f.open(QIODevice::ReadOnly)) {
-            finishJob({}, QStringLiteral("Brak wyniku rozpoznawania"));
+            finishJob({}, tr("No recognition result"));
             return;
         }
         QList<LyricsAligner::Word> words;
@@ -538,7 +538,7 @@ void SpeechEngine::startWhisper()
                 words << LyricsAligner::Word { text, offsets.value("from").toVariant().toLongLong(),
                                                offsets.value("to").toVariant().toLongLong() };
         }
-        finishJob(words, words.isEmpty() ? QStringLiteral("Nie rozpoznano żadnych słów") : QString());
+        finishJob(words, words.isEmpty() ? tr("No words were recognized") : QString());
     });
     process->start(m_enginePath, args);
 }

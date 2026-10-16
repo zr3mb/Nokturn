@@ -1,16 +1,15 @@
 import QtQuick
 import Nokturn
 
-// Status źródła z animowaną kropką (pulsuje, gdy połączono).
+// Source status with an animated dot (pulses when connected).
 Rectangle {
     id: root
     property string status: "available"   // connected | disconnected | connecting | available
-
     readonly property var info: ({
-        connected:    { label: "Połączono",    color: Theme.success },
-        disconnected: { label: "Niepołączono", color: Theme.danger },
-        connecting:   { label: "Łączenie…",    color: Theme.warning },
-        available:    { label: "Dostępne",     color: Theme.textDim }
+        connected:    { label: qsTr("Connected"),     color: Theme.success },
+        disconnected: { label: qsTr("Not connected"), color: Theme.danger },
+        connecting:   { label: qsTr("Connecting…"),   color: Theme.warning },
+        available:    { label: qsTr("Available"),     color: Theme.textDim }
     })[status] || { label: status, color: Theme.textDim }
 
     implicitWidth: row.implicitWidth + 22

@@ -7,12 +7,12 @@
 
 class PlayerController;
 
-// Windows: System Media Transport Controls (SMTC) — Nokturn w systemowym okienku multimediów
-// (przy regulacji głośności, w Szybkich ustawieniach, na ekranie blokady) z tytułem, wykonawcą,
-// okładką i osią czasu; przyciski Odtwórz/Pauza/Dalej/Wstecz/Stop i przewijanie z systemu.
-// Sprzętowe klawisze multimedialne trafiają do aktywnej sesji SMTC, więc działają też przy
-// zminimalizowanym oknie. Gdyby SMTC było niedostępne, klawisze są rejestrowane jako globalne
-// skróty (RegisterHotKey).
+// Windows: System Media Transport Controls (SMTC) — Nokturn in the system media flyout
+// (next to the volume control, in Quick Settings, on the lock screen) with the title, artist,
+// cover and timeline; Play/Pause/Next/Previous/Stop buttons and seeking from the system.
+// Hardware media keys go to the active SMTC session, so they work even with the window
+// minimized. If SMTC were unavailable, the keys are registered as global
+// hotkeys (RegisterHotKey).
 class WindowsMediaControls : public QObject, public QAbstractNativeEventFilter
 {
     Q_OBJECT
@@ -23,7 +23,7 @@ public:
 
     bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override;
 
-    // Wywoływane (w wątku GUI) z obsługi zdarzeń SMTC.
+    // Called (on the GUI thread) from the SMTC event handlers.
     void handleButton(int button);
     void handleSeek(qint64 positionMs);
 

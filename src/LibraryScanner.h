@@ -8,14 +8,14 @@
 #include <QPromise>
 #include <QStringList>
 
-// Skanowanie folderów z muzyką. Działa w wątku roboczym (QtConcurrent),
-// więc nie dotyka żadnych QObjectów — tylko czyta pliki i zwraca listę utworów.
+// Scanning music folders. Runs on a worker thread (QtConcurrent),
+// so it doesn't touch any QObjects — it only reads files and returns a list of tracks.
 namespace Scanner {
 
 struct Input
 {
     QStringList folders;
-    QHash<QString, Track> cache;   // poprzedni wynik, klucz = ścieżka pliku
+    QHash<QString, Track> cache;   // previous result, key = file path
     QString coverDir;
 };
 
@@ -29,12 +29,16 @@ void scan(QPromise<Result> &promise, const Input &input);
 QJsonObject toJson(const Track &t);
 Track fromJson(const QJsonObject &o);
 
-// Stonowana para kolorów dla albumu bez okładki (stała dla danego klucza).
+// A muted color pair for an album without a cover (stable for a given key).
 QPair<QColor, QColor> fallbackPalette(const QString &key);
-// Przygaszona para kolorów (jasny akcent + ciemne tło) wyliczona z okładki.
+// A muted color pair (light accent + dark background) computed from the cover.
 QPair<QColor, QColor> paletteFromImage(const QImage &image);
 int stableSeed(const QString &key);
 
 bool isUnder(const QString &path, const QString &folder);
+
+// Label for tracks without an artist tag — stored in the cache, relabeled when the language changes.
+QString unknownArtist();
+bool isUnknownArtist(const QString &artist);
 
 } // namespace Scanner

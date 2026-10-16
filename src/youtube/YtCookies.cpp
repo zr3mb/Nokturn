@@ -19,9 +19,9 @@
 namespace {
 
 #ifndef Q_OS_WIN
-// Linux/macOS: losowy klucz trzymany w systemowym magazynie haseł (Secret Service:
-// GNOME Keyring, KWallet) przez secret-tool, a plik szyfrowany strumieniem SHA-256 (tryb
-// licznikowy) z HMAC-SHA256. Bez magazynu haseł plik zostaje jawny, ale tylko z prawami 0600.
+// Linux/macOS: a random key kept in the system password store (Secret Service:
+// GNOME Keyring, KWallet) via secret-tool, and the file encrypted with a SHA-256 stream (counter
+// mode) with HMAC-SHA256. Without a password store the file stays in plain text, but only with 0600 permissions.
 const QByteArray kSealedMagic = "NKS1";
 const QByteArray kPlainMagic = "NKP1";
 
@@ -44,7 +44,7 @@ QByteArray keyringKey(bool create)
                                          reinterpret_cast<quint32 *>(key.data() + key.size()));
     QProcess store;
     store.start(QStringLiteral("secret-tool"),
-                QStringList { QStringLiteral("store"), QStringLiteral("--label=Nokturn (sesja YouTube Music)") } + attributes);
+                QStringList { QStringLiteral("store"), QStringLiteral("--label=Nokturn (YouTube Music session)") } + attributes);
     if (!store.waitForStarted(3000))
         return {};
     store.write(key.toBase64());
@@ -114,7 +114,7 @@ QByteArray unprotect(const QByteArray &data)
     if (data.startsWith(kPlainMagic))
         return data.mid(kPlainMagic.size());
     if (!data.startsWith(kSealedMagic))
-        return data;   // starszy, jawny zapis
+        return data;   // older, plain-text format
     if (data.size() < kSealedMagic.size() + 16 + 32)
         return {};
     const QByteArray key = keyringKey(false);
@@ -203,7 +203,7 @@ YtCookies YtCookies::fromCdp(const QJsonArray &cdpCookies)
         YtCookie c;
         c.domain = o.value("domain").toString();
         if (!c.domain.endsWith(QLatin1String("youtube.com")))
-            continue;   // potrzebujemy tylko ciasteczek YouTube
+            continue;   // we only need the YouTube cookies
         c.name = o.value("name").toString();
         c.value = o.value("value").toString();
         c.path = o.value("path").toString(QStringLiteral("/"));
@@ -253,7 +253,7 @@ bool YtCookies::save(const QString &file) const
     out.write(sealed);
     if (!out.commit())
         return false;
-    // To pełny dostęp do konta — tylko właściciel może czytać plik.
+    // This is full access to the account — only the owner can read the file.
     QFile::setPermissions(file, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
     return true;
 }

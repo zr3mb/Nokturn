@@ -1,5 +1,5 @@
-# Buduje instalator Nokturn dla Windows: kompilacja + dist\ + grafiki + Inno Setup.
-#   .\build-installer.ps1    — wynik w installer\Nokturn-<wersja>-setup.exe
+# Builds the Nokturn installer for Windows: build + dist\ + artwork + Inno Setup.
+#   .\build-installer.ps1    — result in installer\Nokturn-<version>-setup.exe
 param(
     [string]$Msys = 'C:\msys64\ucrt64'
 )
@@ -10,15 +10,15 @@ $iscc = @(
     "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) {
-    Write-Error "Nie znaleziono Inno Setup 6 (zainstaluj: winget install JRSoftware.InnoSetup)"
+    Write-Error "Inno Setup 6 not found (install: winget install JRSoftware.InnoSetup)"
     exit 1
 }
 
 & (Join-Path $root 'build.ps1') -Deploy -Msys $Msys
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-# Deno — środowisko JavaScript, którego yt-dlp potrzebuje do pełnej obsługi YouTube
-# (zwłaszcza po zalogowaniu). Pobierane raz do build\deno i dołączane obok Nokturn.exe.
+# Deno — the JavaScript runtime yt-dlp needs for full YouTube support
+# (especially when signed in). Downloaded once to build\deno and shipped next to Nokturn.exe.
 $denoDir = Join-Path $root 'build\deno'
 $denoExe = Join-Path $denoDir 'deno.exe'
 if (-not (Test-Path $denoExe)) {
@@ -26,11 +26,11 @@ if (-not (Test-Path $denoExe)) {
     $zip = Join-Path $denoDir 'deno.zip'
     $base = 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip'
     Invoke-WebRequest $base -OutFile $zip -UseBasicParsing
-    # Plik .sha256sum to bajty z tabelą Get-FileHash — wyłuskujemy 64-znakowy skrót.
+    # The .sha256sum file is bytes with a Get-FileHash table — we extract the 64-character hash.
     $sums = [Text.Encoding]::UTF8.GetString((Invoke-WebRequest "$base.sha256sum" -UseBasicParsing).Content)
     $expected = ([regex]::Match($sums, '[0-9A-Fa-f]{64}')).Value.ToLower()
     if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $expected) {
-        Write-Error 'Pobrany Deno nie zgadza się z sumą kontrolną'
+        Write-Error 'The downloaded Deno does not match its checksum'
         exit 1
     }
     Expand-Archive $zip $denoDir -Force

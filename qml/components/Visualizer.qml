@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Słupkowy wizualizer zasilany widmem z PlayerController.
+// Bar visualizer fed with the spectrum from PlayerController.
 Item {
     id: root
     property int bars: 32
@@ -9,8 +9,8 @@ Item {
     property real spacing: 2
     property real minHeight: 2
     property real gain: 1.0
-    property bool centered: false     // słupki rosną symetrycznie od środka w pionie
-    property bool symmetric: false    // bas na środku, wysokie częstotliwości na brzegach
+    property bool centered: false     // bars grow symmetrically from the vertical center
+    property bool symmetric: false    // bass in the middle, high frequencies at the edges
     property color colorTop: Theme.accent
     property color colorBottom: Theme.alpha(Theme.accent, 0.35)
     readonly property var spec: Player.spectrum

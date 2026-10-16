@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import Nokturn
 
-// Dolny pasek odtwarzacza.
+// Bottom player bar.
 Item {
     id: root
 
@@ -19,7 +19,7 @@ Item {
         NumberAnimation { target: infoShift; property: "x"; from: 16; to: 0; duration: 600; easing.type: Easing.OutQuint }
     }
 
-    // ---- Lewa część: bieżący utwór -------------------------------------------
+    // ---- Left: current track ------------------------------------------------
     Item {
         id: left
         anchors { left: parent.left; leftMargin: 22; verticalCenter: parent.verticalCenter }
@@ -93,7 +93,7 @@ Item {
                     showLabel: false
                     implicitHeight: 20
                 }
-                // W trakcie miksu: krótka informacja o przejściu
+                // During a mix: a short note about the transition
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: Player.transitioning
@@ -108,7 +108,7 @@ Item {
                         Icon { name: "mix"; size: 12; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: Player.transitionLabel || "Miks"
+                            text: Player.transitionLabel || qsTr("Mix")
                             color: Theme.accent
                             font.pixelSize: 11
                             font.weight: Font.DemiBold
@@ -135,12 +135,12 @@ Item {
             showDot: false
             onClicked: {
                 Player.toggleLiked()
-                Nav.toast(Player.liked ? "Dodano do Ulubionych" : "Usunięto z Ulubionych", "heart")
+                Nav.toast(Player.liked ? qsTr("Added to Liked") : qsTr("Removed from Liked"), "heart")
             }
         }
     }
 
-    // ---- Środek: sterowanie i postęp ---------------------------------------
+    // ---- Center: controls and progress ---------------------------------------
     ColumnLayout {
         anchors.centerIn: parent
         width: Math.min(640, root.width * 0.4)
@@ -206,7 +206,7 @@ Item {
             }
             Text {
                 Layout.preferredWidth: 44
-                text: Player.live ? "NA ŻYWO" : Theme.formatTime(Player.duration)
+                text: Player.live ? qsTr("LIVE") : Theme.formatTime(Player.duration)
                 color: Player.live ? Theme.warning : Theme.textDim
                 font.pixelSize: Player.live ? 11 : 12
                 font.weight: Player.live ? Font.DemiBold : Font.Normal
@@ -215,7 +215,7 @@ Item {
         }
     }
 
-    // ---- Prawa część: wizualizer, kolejka, głośność -------------------------
+    // ---- Right: visualizer, queue, volume -------------------------------------
     Row {
         anchors { right: parent.right; rightMargin: 22; verticalCenter: parent.verticalCenter }
         spacing: 4
@@ -235,7 +235,7 @@ Item {
         IconButton {
             anchors.verticalCenter: parent.verticalCenter
             icon: "equalizer"
-            active: Nav.page === "equalizer" || (Equalizer.enabled && Equalizer.preset !== "Płasko")
+            active: Nav.page === "equalizer" || (Equalizer.enabled && Equalizer.preset !== "Flat")
             onClicked: Nav.navigate("equalizer")
         }
         IconButton {

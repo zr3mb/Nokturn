@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Przyciski okna (minimalizuj / maksymalizuj / zamknij) dla okna bez ramki.
+// Window buttons (minimize / maximize / close) for the frameless window.
 Row {
     id: root
     readonly property var win: Window.window

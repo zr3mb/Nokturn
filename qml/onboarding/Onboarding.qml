@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Kreator pierwszego uruchomienia: powitanie → układ → kolory → muzyka (foldery, YouTube Music)
-// → odtwarzanie (miks, teksty) → integracje (Discord) → podsumowanie. Każdy wybór działa od razu
-// i jest zapamiętywany; kreator można pominąć i uruchomić ponownie z Ustawień.
+// First-run wizard: welcome → layout → colors → music (folders, YouTube Music)
+// → playback (mix, lyrics) → integrations (Discord) → summary. Every choice takes effect at once
+// and is remembered; the wizard can be skipped and run again from Settings.
 Item {
     id: root
     readonly property bool open: Nav.onboarding
@@ -14,13 +14,13 @@ Item {
     Behavior on opacity { NumberAnimation { duration: 520; easing.type: Easing.OutCubic } }
 
     readonly property var steps: [
-        { key: "welcome", label: "Powitanie" },
-        { key: "layout", label: "Układ" },
-        { key: "colors", label: "Kolory" },
-        { key: "music", label: "Muzyka" },
-        { key: "playback", label: "Odtwarzanie" },
-        { key: "integrations", label: "Integracje" },
-        { key: "done", label: "Gotowe" }
+        { key: "welcome", label: qsTr("Welcome") },
+        { key: "layout", label: qsTr("Layout") },
+        { key: "colors", label: qsTr("Colors") },
+        { key: "music", label: qsTr("Music") },
+        { key: "playback", label: qsTr("Playback") },
+        { key: "integrations", label: qsTr("Integrations") },
+        { key: "done", label: qsTr("Done") }
     ]
     readonly property int step: Nav.onboardingStep
     readonly property bool last: step === steps.length - 1
@@ -47,7 +47,7 @@ Item {
         boost: 1.6
     }
 
-    // Blokuje kliknięcia do aplikacji pod spodem
+    // Blocks clicks to the app underneath
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
@@ -55,7 +55,7 @@ Item {
         onWheel: wheel => wheel.accepted = true
     }
 
-    // ---- górny pasek: przeciąganie okna, logo, postęp ----
+    // ---- top bar: window dragging, logo, progress ----
     Item {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top }
@@ -81,14 +81,14 @@ Item {
             }
         }
 
-        // postęp: segmenty z nazwami kroków (można klikać w odwiedzone)
+        // progress: segments with step names (visited ones are clickable)
         Row {
             anchors.centerIn: parent
             spacing: 6
             opacity: root.step > 0 ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: 400 } }
             Repeater {
-                model: root.steps.length - 2   // bez powitania i podsumowania
+                model: root.steps.length - 2   // without the welcome and the summary
                 Item {
                     id: seg
                     required property int index
@@ -132,7 +132,7 @@ Item {
         }
     }
 
-    // ---- kroki ----
+    // ---- steps ----
     Item {
         id: stage
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
@@ -149,7 +149,7 @@ Item {
                 height: stage.height
                 anchors.horizontalCenter: parent.horizontalCenter
                 sourceComponent: modelData
-                // Wcześniej odwiedzone i następny krok zostają w pamięci (płynne przejście w obie strony).
+                // Previously visited steps and the next one stay in memory (smooth transitions both ways).
                 active: Math.abs(offset) <= 1 || item !== null
 
                 opacity: offset === 0 ? 1 : 0
@@ -163,7 +163,7 @@ Item {
         }
     }
 
-    // ---- dolny pasek ----
+    // ---- bottom bar ----
     Item {
         id: footer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -183,13 +183,13 @@ Item {
                 visible: root.step > 0
                 kind: "ghost"
                 icon: "chevronLeft"
-                text: "Wstecz"
+                text: qsTr("Back")
                 onClicked: root.go(root.step - 1)
             }
             Item { Layout.fillWidth: true }
             Text {
                 visible: !root.last
-                text: "Pomiń konfigurację"
+                text: qsTr("Skip setup")
                 color: skipMouse.containsMouse ? Theme.text : Theme.textDim
                 font.pixelSize: 13
                 font.underline: skipMouse.containsMouse
@@ -206,7 +206,7 @@ Item {
             PillButton {
                 kind: "primary"
                 icon: root.last ? "play" : "chevronRight"
-                text: root.step === 0 ? "Zaczynamy" : root.last ? "Zacznij słuchać" : "Dalej"
+                text: root.step === 0 ? qsTr("Let's start") : root.last ? qsTr("Start listening") : qsTr("Next")
                 implicitHeight: 46
                 fontSize: 15
                 onClicked: root.next()

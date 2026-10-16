@@ -1,6 +1,7 @@
 #include "LyricsService.h"
 
 #include "AppPaths.h"
+#include "Language.h"
 #include "LyricsAligner.h"
 #include "TagLibPath.h"
 #include "youtube/YouTubeService.h"
@@ -9,6 +10,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QJSEngine>
@@ -25,10 +27,10 @@
 
 namespace {
 
-constexpr qint64 kMissingRetryMs = 3LL * 24 * 3600 * 1000;   // brak tekstu sprawdzamy ponownie po 3 dniach
+constexpr qint64 kMissingRetryMs = 3LL * 24 * 3600 * 1000;   // missing lyrics are checked again after 3 days
 
-// Tekst z pliku: najpierw .lrc obok utworu (może mieć czasy), potem tag LYRICS / UNSYNCEDLYRICS.
-// Wykonywane w wątku roboczym.
+// Lyrics from the file: first an .lrc next to the track (may have timestamps), then the LYRICS / UNSYNCEDLYRICS tag.
+// Runs on a worker thread.
 Lyrics readLocalLyrics(const QString &path)
 {
     const QFileInfo fi(path);
@@ -42,7 +44,7 @@ Lyrics readLocalLyrics(const QString &path)
                 text = QString::fromLocal8Bit(data);
             Lyrics l = Lyrics::fromLrc(text);
             if (!l.isEmpty()) {
-                l.source = QStringLiteral("Plik ") + QFileInfo(lrc).fileName();
+                l.source = QCoreApplication::translate("LyricsService", "File %1").arg(QFileInfo(lrc).fileName());
                 l.origin = QStringLiteral("local");
                 return l;
             }
@@ -59,9 +61,9 @@ Lyrics readLocalLyrics(const QString &path)
         if (it == props.end() || it->second.isEmpty())
             continue;
         const QString text = QString::fromStdWString(it->second.front().toWString());
-        Lyrics l = Lyrics::fromLrc(text);   // niektóre programy zapisują w tagu format LRC
+        Lyrics l = Lyrics::fromLrc(text);   // some programs store the LRC format in the tag
         if (!l.isEmpty()) {
-            l.source = QStringLiteral("Tag w pliku");
+            l.source = QCoreApplication::translate("LyricsService", "Tag in the file");
             l.origin = QStringLiteral("local");
             return l;
         }
@@ -104,8 +106,12 @@ LyricsService::LyricsService(QObject *parent)
         m_alignStage = stage;
         emit alignChanged();
     });
-    // Po pobraniu silnika lub modelu od razu dopasuj bieżący utwór (jeśli funkcja jest włączona).
+    // After the engine or a model is downloaded, align the current track right away (if the feature is on).
     connect(&m_speech, &SpeechEngine::stateChanged, this, &LyricsService::maybeAutoAlign, Qt::QueuedConnection);
+    // The hardware summary is a translated label — rebuild it in the interface language.
+    connect(Language::instance(), &Language::changed, this, [this] {
+        m_hardware.summary = SpeechEngine::detectHardware().summary;
+    });
 
     StreamResolver *resolver = YouTubeService::instance()->resolver();
     connect(resolver, &StreamResolver::resolved, this, [this](const QString &videoId, const QUrl &url) {
@@ -122,7 +128,7 @@ LyricsService::LyricsService(QObject *parent)
     });
 }
 
-// ---- ustawienia -----------------------------------------------------------------
+// ---- settings -------------------------------------------------------------------
 
 void LyricsService::setAutoAlign(bool on)
 {
@@ -156,7 +162,7 @@ bool LyricsService::canAlign() const
            && !m_lyrics.synced && !aligning();
 }
 
-// ---- utwór i pobieranie ---------------------------------------------------------
+// ---- track and fetching ---------------------------------------------------------
 
 void LyricsService::setTrack(const Track *track)
 {
@@ -232,7 +238,7 @@ void LyricsService::fetch()
         return;
     }
 
-    // Plik lokalny: odszukaj utwór w YouTube Music po wykonawcy i tytule.
+    // Local file: look the track up on YouTube Music by artist and title.
     const QString query = (m_track.artist + QChar(' ') + m_track.title).trimmed();
     if (m_track.title.isEmpty()) {
         fetchLocal(serial, {}, {});
@@ -266,7 +272,7 @@ void LyricsService::fetchYouTube(const QString &videoId, quint64 serial,
 
 void LyricsService::fetchLocal(quint64 serial, const Lyrics &fromYouTube, const QString &ytError)
 {
-    // Tekst z YouTube z czasami wygrywa; inaczej sprawdzamy plik (może mieć .lrc z czasami).
+    // Lyrics from YouTube with timestamps win; otherwise we check the file (it may have an .lrc with timestamps).
     if (fromYouTube.synced) {
         apply(fromYouTube, true);
         setState(QStringLiteral("ready"));
@@ -335,7 +341,7 @@ int LyricsService::lineAt(double seconds) const
     return it == m_starts.cbegin() ? -1 : std::prev(it)->second;
 }
 
-// ---- dopasowanie czasów (alpha) -------------------------------------------------
+// ---- timing alignment (alpha) ---------------------------------------------------
 
 void LyricsService::maybeAutoAlign()
 {
@@ -349,7 +355,7 @@ void LyricsService::alignNow()
         return;
     m_alignTried.insert(m_track.id, true);
     m_alignProgress = 0;
-    m_alignStage = QStringLiteral("Przygotowanie");
+    m_alignStage = tr("Preparing");
     if (m_track.source == QLatin1String("youtube")) {
         StreamResolver *resolver = YouTubeService::instance()->resolver();
         const QUrl cached = resolver->cachedUrl(m_track.path);
@@ -367,7 +373,7 @@ void LyricsService::alignNow()
 
 void LyricsService::startAlign(const QUrl &audio)
 {
-    // Początek tekstu jako podpowiedź dla modelu (słownictwo, pisownia, język).
+    // The start of the lyrics as a hint for the model (vocabulary, spelling, language).
     QString prompt;
     for (const LyricLine &l : std::as_const(m_lyrics.lines)) {
         if (prompt.size() > 200)
@@ -385,12 +391,12 @@ void LyricsService::startAlign(const QUrl &audio)
         if (serial != m_serial)
             return;
         if (!error.isEmpty()) {
-            emit notice(QStringLiteral("Dopasowanie tekstu: ") + error, QStringLiteral("close"));
+            emit notice(tr("Lyrics alignment: %1").arg(error), QStringLiteral("close"));
             return;
         }
         const LyricsAligner::Result r = LyricsAligner::align(base, words, durationMs);
         if (r.coverage < 0.25 || r.anchoredLines < 2) {
-            emit notice(QStringLiteral("Nie udało się dopasować tekstu do nagrania (rozpoznano %1% słów)")
+            emit notice(tr("Couldn't align the lyrics to the recording (%1% of words recognized)")
                             .arg(qRound(r.coverage * 100)),
                         QStringLiteral("close"));
             return;
@@ -398,7 +404,7 @@ void LyricsService::startAlign(const QUrl &audio)
         Lyrics aligned = r.lyrics;
         aligned.source = base.source;
         apply(aligned, true);
-        emit notice(QStringLiteral("Dopasowano czas tekstu (%1% słów)").arg(qRound(r.coverage * 100)),
+        emit notice(tr("Aligned the lyrics timing (%1% of words)").arg(qRound(r.coverage * 100)),
                     QStringLiteral("check"));
     });
     emit alignChanged();
@@ -433,7 +439,7 @@ bool LyricsService::loadCached(const QString &trackId, Lyrics &out) const
         return false;
     out = Lyrics::fromJson(o);
     if (out.isEmpty()) {
-        // Zapamiętany brak tekstu — po kilku dniach sprawdzamy ponownie.
+        // Remembered missing lyrics — we check again after a few days.
         const qint64 at = qint64(o.value("fetched").toDouble());
         return QDateTime::currentMSecsSinceEpoch() - at < kMissingRetryMs;
     }

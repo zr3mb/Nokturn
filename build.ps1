@@ -1,7 +1,7 @@
-# Buduje Nokturn przy użyciu toolchainu MSYS2 UCRT64 (GCC + Qt 6).
-#   .\build.ps1          — kompilacja (Release)
-#   .\build.ps1 -Run     — kompilacja i uruchomienie
-#   .\build.ps1 -Deploy  — kompilacja + samodzielny folder dist\ z bibliotekami Qt
+# Builds Nokturn with the MSYS2 UCRT64 toolchain (GCC + Qt 6).
+#   .\build.ps1          — build (Release)
+#   .\build.ps1 -Run     — build and run
+#   .\build.ps1 -Deploy  — build + a standalone dist\ folder with the Qt libraries
 param(
     [switch]$Run,
     [switch]$Deploy,
@@ -9,7 +9,7 @@ param(
 )
 $bin = Join-Path $Msys 'bin'
 if (-not (Test-Path (Join-Path $bin 'cmake.exe'))) {
-    Write-Error "Nie znaleziono toolchainu MSYS2 w $Msys (zainstaluj: pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,qt6-base,qt6-declarative})"
+    Write-Error "MSYS2 toolchain not found in $Msys (install: pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,qt6-base,qt6-declarative})"
     exit 1
 }
 $env:PATH = "$bin;$env:PATH"
@@ -29,8 +29,8 @@ if ($Deploy) {
     New-Item -ItemType Directory -Force $dist | Out-Null
     Copy-Item $exe $dist -Force
     & (Join-Path $bin 'windeployqt6.exe') --release --qmldir (Join-Path $root 'qml') --no-translations (Join-Path $dist 'Nokturn.exe')
-    # windeployqt nie kopiuje bibliotek MSYS2 (runtime GCC, ICU, zlib, freetype…),
-    # więc dobieramy je, śledząc zależności każdego pliku binarnego przez ldd.
+    # windeployqt doesn't copy the MSYS2 libraries (GCC runtime, ICU, zlib, freetype…),
+    # so we pick them up by following each binary's dependencies with ldd.
     $ldd = Join-Path (Split-Path $Msys) 'usr\bin\ldd.exe'
     $done = @{}
     do {
@@ -49,9 +49,9 @@ if ($Deploy) {
             }
         }
     } while ($added -gt 0)
-    # Qt z MSYS2 domyślnie szuka modułów QML w share\qt6\qml — wskazujemy układ z windeployqt.
+    # Qt from MSYS2 looks for QML modules in share\qt6\qml by default — we point it to the windeployqt layout.
     Set-Content (Join-Path $dist 'qt.conf') "[Paths]`nPrefix = .`nPlugins = .`nQmlImports = qml`n" -Encoding ascii
-    Write-Host "Gotowe: $dist"
+    Write-Host "Done: $dist"
 }
 
 if ($Run) {

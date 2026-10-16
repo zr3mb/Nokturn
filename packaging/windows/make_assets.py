@@ -1,4 +1,4 @@
-# Generuje grafiki instalatora (PNG + ICO) z plików SVG przy użyciu rsvg-convert z MSYS2.
+# Generates the installer artwork (PNG + ICO) from SVG files with rsvg-convert from MSYS2.
 import struct, subprocess, sys
 from pathlib import Path
 
@@ -12,7 +12,7 @@ def render(svg, dest, w, h):
     subprocess.run([rsvg, "-w", str(w), "-h", str(h), "-o", str(dest), str(svg)], check=True)
     return dest.read_bytes()
 
-# Ikona: wiele rozmiarów PNG w jednym pliku .ico.
+# Icon: several PNG sizes in one .ico file.
 sizes = [16, 24, 32, 48, 64, 128, 256]
 pngs = [render(icon_svg, out / f"icon-{s}.png", s, s) for s in sizes]
 offset = 6 + 16 * len(sizes)
@@ -25,8 +25,8 @@ for s, data in zip(sizes, pngs):
 for s in sizes:
     (out / f"icon-{s}.png").unlink()
 
-# Grafika boczna kreatora i małe logo (rozmiar 100% i 200% dla ekranów HiDPI).
+# Wizard side image and small logo (100% and 200% sizes for HiDPI screens).
 for scale in (1, 2):
     render(here / "wizard.svg", out / f"wizard-{scale * 100}.png", 164 * scale, 314 * scale)
     render(icon_svg, out / f"small-{scale * 100}.png", 55 * scale, 55 * scale)
-print("Gotowe:", out)
+print("Done:", out)

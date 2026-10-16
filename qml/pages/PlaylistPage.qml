@@ -4,8 +4,8 @@ import QtQuick.Effects
 import QtQuick.Controls.Basic
 import Nokturn
 
-// Widok playlisty, albumu lub wykonawcy. Lista jest zwirtualizowana (ListView), bo playlisty
-// z YouTube Music potrafią mieć tysiące utworów.
+// Playlist, album or artist view. The list is virtualized (ListView), because YouTube Music
+// playlists can have thousands of tracks.
 Item {
     id: page
     property var args: ({})
@@ -15,14 +15,14 @@ Item {
         const a = args || {}
         if (a.kind === "album") {
             const al = Library.albums.find(x => x.key === a.key) || { title: "", artist: "", year: 0 }
-            return { label: "ALBUM", title: al.title, meta: [al.artist].concat(al.year > 0 ? [String(al.year)] : []),
+            return { label: qsTr("ALBUM"), title: al.title, meta: [al.artist].concat(al.year > 0 ? [String(al.year)] : []),
                      colorA: al.colorA || Theme.accent, colorB: al.colorB || Theme.accent2, seed: al.seed || 0,
                      cover: al.cover || "", icon: "", round: false,
                      rows: Library.tracksOfAlbum(a.key) }
         }
         if (a.kind === "artist") {
             const ar = Library.artists.find(x => x.name === a.artist) || {}
-            return { label: "WYKONAWCA", title: a.artist, meta: [],
+            return { label: qsTr("ARTIST"), title: a.artist, meta: [],
                      colorA: ar.colorA || Theme.accent, colorB: ar.colorB || Theme.accent2, seed: ar.seed || 0,
                      cover: ar.cover || "", icon: "", round: true,
                      rows: Library.tracksOfArtist(a.artist) }
@@ -30,17 +30,17 @@ Item {
         const index = a.index || 0
         const p = Library.playlists[index]
         if (!p)
-            return { label: "PLAYLISTA", title: "", meta: [], colorA: Theme.accent, colorB: Theme.accent2,
+            return { label: qsTr("PLAYLIST"), title: "", meta: [], colorA: Theme.accent, colorB: Theme.accent2,
                      seed: 0, cover: "", icon: "music", round: false, rows: [], loading: false }
         const yt = p.kind === "ytplaylist"
         const meta = yt ? "YouTube Music"
-                   : p.kind === "youtube" ? (YouTube.connected ? "Polubione na Twoim koncie YouTube" : "Przykładowe utwory z YouTube Music")
-                   : "Twoja playlista"
-        return { label: yt ? "PLAYLISTA · YOUTUBE MUSIC" : "PLAYLISTA", title: p.name, meta: [meta],
+                   : p.kind === "youtube" ? (YouTube.connected ? qsTr("Liked on your YouTube account") : qsTr("Sample tracks from YouTube Music"))
+                   : qsTr("Your playlist")
+        return { label: yt ? qsTr("PLAYLIST · YOUTUBE MUSIC") : qsTr("PLAYLIST"), title: p.name, meta: [meta],
                  colorA: p.colorA, colorB: p.colorB, seed: p.seed, cover: p.cover || "", icon: p.icon, round: false,
                  rows: Library.playlistRows(index), loading: Library.playlistLoading(index) }
     }
-    // Identyfikator kolejki dla ustawień miksu (osobny dla każdej playlisty / albumu / wykonawcy).
+    // Queue id for the mix settings (separate for each playlist / album / artist).
     readonly property string context: {
         const a = args || {}
         if (a.kind === "album") return "album:" + a.key
@@ -55,7 +55,7 @@ Item {
 
     readonly property bool playingHere: Player.playing && info.rows.indexOf(Player.currentIndex) >= 0
 
-    // Kolorowa poświata za nagłówkiem (z lekką paralaksą)
+    // Colored glow behind the header (with a slight parallax)
     Rectangle {
         width: parent.width
         height: 420
@@ -149,7 +149,7 @@ Item {
                             Text {
                                 Layout.fillWidth: true
                                 text: page.info.meta.concat([
-                                          Theme.plural(page.info.rows.length, "utwór", "utwory", "utworów"),
+                                          qsTr("%n tracks", "", page.info.rows.length),
                                           Theme.formatTotal(page.totalSeconds)
                                       ]).join("  ·  ")
                                 color: Theme.textDim
@@ -183,18 +183,18 @@ Item {
                                 if (rows.length) Player.playFrom(rows, rows[Math.floor(Math.random() * rows.length)], page.context)
                             }
                         }
-                        // "Miks" jak w Spotify: płynne, DJ-skie przejścia między utworami tej playlisty.
+                        // "Mix" like in Spotify: smooth, DJ-style transitions between this playlist's tracks.
                         PillButton {
                             visible: page.context !== ""
                             kind: page.mix.enabled ? "primary" : "ghost"
                             icon: "mix"
-                            text: page.mix.enabled ? "Miks · " + Player.mixStyleName(page.mix.style) : "Miks"
+                            text: page.mix.enabled ? qsTr("Mix") + " · " + Player.mixStyleName(page.mix.style) : qsTr("Mix")
                             fontSize: 13
                             implicitHeight: 40
                             onClicked: {
                                 Player.setMix(page.context, !page.mix.enabled, page.mix.style, page.mix.length)
-                                Nav.toast(page.mix.enabled ? "Miksowanie włączone — utwory będą przechodzić płynnie"
-                                                           : "Miksowanie wyłączone", "mix")
+                                Nav.toast(page.mix.enabled ? qsTr("Mixing on — tracks will flow smoothly")
+                                                           : qsTr("Mixing off"), "mix")
                             }
                         }
                         IconButton {
@@ -210,7 +210,7 @@ Item {
                             iconSize: 24
                             implicitWidth: 46; implicitHeight: 46
                             showDot: false
-                            onClicked: Nav.toast("Menu kontekstowe pojawi się wkrótce", "more")
+                            onClicked: Nav.toast(qsTr("The context menu is coming soon"), "more")
                         }
                         Item { Layout.fillWidth: true }
                     }
@@ -238,14 +238,14 @@ Item {
                         }
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: page.info.loading ? "Wczytywanie playlisty…" : "Nic tu jeszcze nie ma"
+                            text: page.info.loading ? qsTr("Loading the playlist…") : qsTr("Nothing here yet")
                             color: Theme.text
                             font.pixelSize: 18
                             font.weight: Font.DemiBold
                         }
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: page.info.loading ? "Pobieramy utwory z YouTube Music" : "Polub utwór sercem, a pojawi się w tym miejscu."
+                            text: page.info.loading ? qsTr("Fetching tracks from YouTube Music") : qsTr("Like a track with the heart and it will show up here.")
                             color: Theme.textDim
                             font.pixelSize: 14
                         }
@@ -267,7 +267,7 @@ Item {
         }
     }
 
-    // Ustawienia miksu tej playlisty
+    // Mix settings for this playlist
     Popup {
         id: mixPopup
         anchors.centerIn: parent
@@ -295,7 +295,7 @@ Item {
                 Icon { name: "mix"; size: 22; color: Theme.accent }
                 Text {
                     Layout.fillWidth: true
-                    text: "Miks: " + page.info.title
+                    text: qsTr("Mix: %1").arg(page.info.title)
                     color: Theme.text
                     font.family: Theme.fontDisplay
                     font.pixelSize: 20
@@ -306,7 +306,7 @@ Item {
             }
             Text {
                 Layout.fillWidth: true
-                text: "Styl przejścia"
+                text: qsTr("Transition style")
                 color: Theme.textDim
                 font.pixelSize: 12
                 font.weight: Font.Bold
@@ -337,7 +337,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 Layout.topMargin: 6
-                text: "Długość przejścia"
+                text: qsTr("Transition length")
                 color: Theme.textDim
                 font.pixelSize: 12
                 font.weight: Font.Bold
@@ -365,7 +365,7 @@ Item {
                 spacing: 12
                 Text {
                     Layout.fillWidth: true
-                    text: "Inteligentne przejścia (pomijanie ciszy, wykrywanie wyciszeń) — wspólne dla wszystkich miksów."
+                    text: qsTr("Smart transitions (skipping silence, detecting fade-outs) — shared by all mixes.")
                     color: Theme.textFaint
                     font.pixelSize: 12
                     wrapMode: Text.WordWrap
@@ -375,7 +375,7 @@ Item {
             PillButton {
                 Layout.alignment: Qt.AlignRight
                 kind: "ghost"
-                text: "Wyłącz miks"
+                text: qsTr("Turn off the mix")
                 onClicked: {
                     Player.setMix(page.context, false, page.mix.style, page.mix.length)
                     mixPopup.close()

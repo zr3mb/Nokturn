@@ -13,11 +13,11 @@ class PlayerController;
 class QQmlEngine;
 class QJSEngine;
 
-// Status na Discordzie ("Słucha …"): lokalne IPC klienta Discord (Rich Presence).
-// Windows: potok nazwany \\.\pipe\discord-ipc-N, Linux/macOS: gniazdo discord-ipc-N
-// w $XDG_RUNTIME_DIR (także wersje Flatpak / Snap). Ramka = [opcode u32][długość u32][JSON].
-// Discord wymaga identyfikatora aplikacji (Application ID z discord.com/developers) —
-// jej nazwa jest wyświetlana jako "Słucha <nazwa>".
+// Discord status ("Listening to …"): local IPC with the Discord client (Rich Presence).
+// Windows: the named pipe \\.\pipe\discord-ipc-N, Linux/macOS: the discord-ipc-N socket
+// in $XDG_RUNTIME_DIR (Flatpak / Snap versions too). Frame = [opcode u32][length u32][JSON].
+// Discord requires an application ID (Application ID from discord.com/developers) —
+// its name is shown as "Listening to <name>".
 class DiscordPresence : public QObject
 {
     Q_OBJECT
@@ -78,7 +78,7 @@ private:
     int m_candidate = 0;
     QByteArray m_buffer;
     bool m_ready = false;
-    bool m_minimal = false;           // Discord odrzucił pola rozszerzone — wysyłamy podstawowe
+    bool m_minimal = false;           // Discord rejected the extended fields — we send the basic ones
     QString m_userName;
     QString m_lastError;
     QTimer m_retry;
@@ -90,6 +90,6 @@ private:
     QString m_clientId;
     bool m_showWhenPaused = false;
 
-    QHash<QString, QString> m_covers;   // id utworu lokalnego -> okładka z YouTube Music (https)
+    QHash<QString, QString> m_covers;   // local track id -> cover from YouTube Music (https)
     QString m_coverLookup;
 };

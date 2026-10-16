@@ -1,10 +1,10 @@
 #pragma once
 
-// Minimalne deklaracje ABI (WinRT) dla System Media Transport Controls — tylko to, czego używa
-// WindowsMediaControls. Własne deklaracje zamiast windows.media.h, bo nagłówki mingw-w64 nie
-// zawsze zawierają SMTC. Kolejność metod i identyfikatory (IID) zgodne z Windows SDK
-// (windows.media.idl, windows.storage.streams.idl, windows.foundation.idl); identyfikatory
-// delegatów wyliczone algorytmem parametryzowanych interfejsów WinRT (UUID v5 z sygnatury).
+// Minimal ABI (WinRT) declarations for System Media Transport Controls — only what
+// WindowsMediaControls uses. Our own declarations instead of windows.media.h, because the mingw-w64 headers
+// don't always include SMTC. Method order and identifiers (IIDs) match the Windows SDK
+// (windows.media.idl, windows.storage.streams.idl, windows.foundation.idl); the delegate
+// identifiers are computed with the WinRT parameterized-interface algorithm (UUID v5 from the signature).
 
 #include <windows.h>
 #include <inspectable.h>
@@ -13,7 +13,7 @@ namespace winrt_abi {
 
 using boolean_t = unsigned char;
 struct EventToken { INT64 value; };
-struct TimeSpan { INT64 duration; };   // w jednostkach 100 ns
+struct TimeSpan { INT64 duration; };   // in 100 ns units
 
 enum MediaPlaybackStatus : int { Closed = 0, Changing = 1, Stopped = 2, Playing = 3, Paused = 4 };
 enum MediaPlaybackType : int { Unknown = 0, Music = 1, Video = 2, Image = 3 };
@@ -101,7 +101,7 @@ struct IPositionRequestedEventArgs : IInspectable
     virtual HRESULT STDMETHODCALLTYPE get_RequestedPlaybackPosition(TimeSpan *value) = 0;
 };
 
-// Delegaty zdarzeń (IUnknown + Invoke).
+// Event delegates (IUnknown + Invoke).
 struct IButtonPressedHandler : IUnknown
 {
     virtual HRESULT STDMETHODCALLTYPE Invoke(IInspectable *sender, IButtonPressedEventArgs *args) = 0;
@@ -171,7 +171,7 @@ struct ISmtc2 : IInspectable
     virtual HRESULT STDMETHODCALLTYPE UpdateTimelineProperties(ITimelineProperties *properties) = 0;
     virtual HRESULT STDMETHODCALLTYPE add_PlaybackPositionChangeRequested(IPositionRequestedHandler *handler, EventToken *token) = 0;
     virtual HRESULT STDMETHODCALLTYPE remove_PlaybackPositionChangeRequested(EventToken token) = 0;
-    // dalsze zdarzenia (PlaybackRate/Shuffle/AutoRepeatChangeRequested) nie są używane
+    // further events (PlaybackRate/Shuffle/AutoRepeatChangeRequested) aren't used
 };
 
 struct ISmtcInterop : IInspectable

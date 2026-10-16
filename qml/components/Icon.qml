@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import Nokturn
 
-// Wektorowa ikona z Icons.paths — skaluje się bez utraty jakości i przyjmuje dowolny kolor.
+// Vector icon from Icons.paths — scales without quality loss and takes any color.
 Item {
     id: root
     property string name: ""

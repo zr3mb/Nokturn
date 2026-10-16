@@ -3,26 +3,26 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import Nokturn
 
-// Krok 7: podsumowanie wyborów.
+// Step 7: summary of the choices.
 Item {
     id: root
 
-    // animowany znaczek: okrąg się domyka, potem "ptaszek"
+    // animated mark: the circle closes, then the "tick"
     property real draw: 0
-    readonly property real tick: Math.max(0, Math.min(1, (draw - 0.55) / 0.45))   // postęp rysowania "ptaszka"
+    readonly property real tick: Math.max(0, Math.min(1, (draw - 0.55) / 0.45))   // drawing progress of the "tick"
     onVisibleChanged: if (visible) { draw = 0; drawAnim.restart() }
     NumberAnimation { id: drawAnim; target: root; property: "draw"; from: 0; to: 1; duration: 1100; easing.type: Easing.OutCubic }
     Component.onCompleted: drawAnim.start()
 
     readonly property var summary: [
-        { icon: "menuOpen", label: "Panel boczny", value: Nav.sidebarCompact ? "kompaktowy" : "pełny" },
-        { icon: "queue", label: "„Teraz odtwarzane”", value: Nav.queueOpen ? "widoczny" : "ukryty" },
-        { icon: "sparkle", label: "Kolor akcentu", value: Theme.dynamicAccent ? "z okładki" : "stały" },
-        { icon: "album", label: "Tło", value: Theme.ambient ? "żywe" : "spokojne" },
-        { icon: "folder", label: "Foldery", value: Library.folders.length === 0 ? "brak" : Theme.plural(Library.folders.length, "folder", "foldery", "folderów") },
-        { icon: "playCircle", label: "YouTube Music", value: YouTube.connected ? (YouTube.accountName || "połączono") : "bez konta" },
-        { icon: "mix", label: "Przejścia", value: Player.crossfade > 0 ? Player.crossfade + " s · " + Player.mixStyleName(Player.crossfadeStyle).toLowerCase() : "wyłączone" },
-        { icon: "chat", label: "Discord", value: Discord.enabled ? (Discord.connected ? "połączono" : "włączony") : "wyłączony" }
+        { icon: "menuOpen", label: qsTr("Sidebar"), value: Nav.sidebarCompact ? qsTr("compact") : qsTr("full") },
+        { icon: "queue", label: qsTr("“Now playing”"), value: Nav.queueOpen ? qsTr("visible") : qsTr("hidden") },
+        { icon: "sparkle", label: qsTr("Accent color"), value: Theme.dynamicAccent ? qsTr("from the cover") : qsTr("fixed") },
+        { icon: "album", label: qsTr("Background"), value: Theme.ambient ? qsTr("live") : qsTr("calm") },
+        { icon: "folder", label: qsTr("Folders"), value: Library.folders.length === 0 ? qsTr("none") : qsTr("%n folders", "", Library.folders.length) },
+        { icon: "playCircle", label: "YouTube Music", value: YouTube.connected ? (YouTube.accountName || qsTr("connected")) : qsTr("no account") },
+        { icon: "mix", label: qsTr("Transitions"), value: Player.crossfade > 0 ? qsTr("%1 s").arg(Player.crossfade) + " · " + Player.mixStyleName(Player.crossfadeStyle).toLowerCase() : qsTr("off", "transitions") },
+        { icon: "chat", label: "Discord", value: Discord.enabled ? (Discord.connected ? qsTr("connected") : qsTr("on")) : qsTr("off", "discord") }
     ]
 
     ColumnLayout {
@@ -57,7 +57,7 @@ Item {
         Text {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
-            text: "Wszystko gotowe"
+            text: qsTr("All set")
             color: Theme.text
             font.family: Theme.fontDisplay
             font.pixelSize: 44
@@ -67,8 +67,8 @@ Item {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
             text: Library.localCount > 0 || YouTube.connected
-                ? "Twoja muzyka czeka. Każde z tych ustawień zmienisz później w Ustawieniach."
-                : "Możesz już szukać w YouTube Music. Foldery z muzyką dodasz w każdej chwili w zakładce Źródła."
+                ? qsTr("Your music is waiting. You can change each of these settings later in Settings.")
+                : qsTr("You can already search YouTube Music. You can add music folders at any time on the Sources page.")
             color: Theme.textDim
             font.pixelSize: 15
             wrapMode: Text.WordWrap

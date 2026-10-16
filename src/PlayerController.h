@@ -20,10 +20,10 @@
 class TrackModel;
 struct Track;
 
-// Odtwarzacz: QMediaPlayer (backend FFmpeg) + kolejka + widmo z prawdziwego dźwięku.
-// Dwa "decki" (dwa QMediaPlayer) pozwalają miksować utwory: następny jest ładowany zawczasu
-// i startuje w trakcie końcówki bieżącego (przejścia w AudioEngine). Ustawienia miksu są
-// globalne (crossfade) albo osobne dla playlisty / albumu ("Miks" jak w Spotify).
+// Player: QMediaPlayer (FFmpeg backend) + queue + spectrum from the real audio.
+// Two "decks" (two QMediaPlayers) make it possible to mix tracks: the next one is loaded in advance
+// and starts during the ending of the current one (transitions in AudioEngine). Mix settings are
+// global (crossfade) or separate per playlist / album ("Mix" like in Spotify).
 class PlayerController : public QObject
 {
     Q_OBJECT
@@ -56,14 +56,14 @@ class PlayerController : public QObject
     Q_PROPERTY(QList<qreal> spectrum READ spectrum NOTIFY spectrumChanged)
     Q_PROPERTY(qreal level READ level NOTIFY spectrumChanged)
 
-    // ---- miksowanie ----
-    Q_PROPERTY(int crossfade READ crossfade WRITE setCrossfade NOTIFY mixChanged)               // s, 0 = wyłączone
+    // ---- mixing ----
+    Q_PROPERTY(int crossfade READ crossfade WRITE setCrossfade NOTIFY mixChanged)               // s, 0 = off
     Q_PROPERTY(QString crossfadeStyle READ crossfadeStyle WRITE setCrossfadeStyle NOTIFY mixChanged)
     Q_PROPERTY(bool smartTransitions READ smartTransitions WRITE setSmartTransitions NOTIFY mixChanged)
-    Q_PROPERTY(QStringList mixStyles READ mixStyles CONSTANT)
+    Q_PROPERTY(QStringList mixStyles READ mixStyles NOTIFY mixChanged)
     Q_PROPERTY(int mixRevision READ mixRevision NOTIFY mixChanged)
     Q_PROPERTY(QString queueContext READ queueContext NOTIFY queueChanged)
-    Q_PROPERTY(bool mixActive READ mixActive NOTIFY mixChanged)          // bieżąca kolejka będzie miksowana
+    Q_PROPERTY(bool mixActive READ mixActive NOTIFY mixChanged)          // the current queue will be mixed
     Q_PROPERTY(bool transitioning READ transitioning NOTIFY transitionChanged)
     Q_PROPERTY(QString transitionLabel READ transitionLabel NOTIFY transitionChanged)
 
@@ -116,14 +116,14 @@ public:
     void setShuffle(bool s);
     void setRepeatMode(int r);
 
-    // Odtwarza wiersz `row`; kolejką stają się `rows` (np. album, playlista, wyniki wyszukiwania).
-    // `context` identyfikuje źródło kolejki ("playlist:…", "album:…") — od niego zależy miks.
+    // Plays row `row`; `rows` become the queue (e.g. an album, a playlist, search results).
+    // `context` identifies the queue's origin ("playlist:…", "album:…") — the mix depends on it.
     Q_INVOKABLE void playFrom(const QVariantList &rows, int row, const QString &context = {});
-    // Odtwarza wiersz `row` z kolejką = cała lokalna biblioteka.
+    // Plays row `row` with the whole local library as the queue.
     Q_INVOKABLE void playIndex(int row);
-    // Przeskakuje do utworu w bieżącej kolejce (np. kliknięcie w "Następne").
+    // Jumps to a track in the current queue (e.g. a click in "Up next").
     Q_INVOKABLE void jumpTo(int row);
-    // Przygotowuje adres utworu z YouTube zawczasu (np. po najechaniu na wiersz).
+    // Prepares the URL of a YouTube track in advance (e.g. on hovering over a row).
     Q_INVOKABLE void prefetch(int row);
     Q_INVOKABLE void play();
     Q_INVOKABLE void pause();
@@ -134,13 +134,13 @@ public:
     Q_INVOKABLE void cycleRepeat();
     Q_INVOKABLE void toggleLiked();
 
-    // Miks playlisty / albumu: { enabled, style, length }.
+    // Playlist / album mix: { enabled, style, length }.
     Q_INVOKABLE QVariantMap mixFor(const QString &context) const;
     Q_INVOKABLE void setMix(const QString &context, bool enabled, const QString &style, int length);
     Q_INVOKABLE QString mixStyleName(const QString &style) const;
     Q_INVOKABLE QString mixStyleDescription(const QString &style) const;
 
-    // Dla integracji (Discord, MPRIS)
+    // For integrations (Discord, MPRIS)
     QString currentTrackId() const { return m_currentId; }
     const Track *currentTrack() const { return current(); }
 
@@ -169,10 +169,10 @@ private:
     struct Deck
     {
         QMediaPlayer *player = nullptr;
-        QAudioOutput *clock = nullptr;          // wyciszone — wyznacza tempo odtwarzania
+        QAudioOutput *clock = nullptr;          // muted — sets the playback pace
         QAudioBufferOutput *buffers = nullptr;
         QString trackId;
-        QString resolving;                      // videoId, na którego adres czekamy
+        QString resolving;                      // videoId whose URL we're waiting for
     };
 
     struct MixConfig
@@ -212,7 +212,7 @@ private:
     void applyVolume();
 
     TrackModel *m_tracks = nullptr;
-    AudioEngine m_engine;               // właściwe wyjście: mikser decków + korektor + QAudioSink
+    AudioEngine m_engine;               // the actual output: deck mixer + equalizer + QAudioSink
     std::array<Deck, AudioEngine::kDecks> m_decks;
     int m_active = 0;
     SpectrumAnalyzer m_analyzer;
@@ -226,23 +226,23 @@ private:
     bool m_autoplayAfterResolve = false;
     QString m_context;
 
-    // miksowanie
+    // mixing
     int m_crossfade = 0;
     QString m_crossfadeStyle = QStringLiteral("fade");
     bool m_smart = true;
     QHash<QString, MixConfig> m_mixes;
     int m_mixRevision = 0;
-    int m_plannedPos = -1;             // pozycja w kolejce utworu załadowanego na drugi deck
+    int m_plannedPos = -1;             // queue position of the track loaded on the other deck
     QString m_plannedId;
-    QString m_shuffleNextId;           // wylosowany z wyprzedzeniem następny utwór (prefetch adresu)
-    double m_silence = 0;              // jak długo bieżący utwór milczy (s) — inteligentne przejścia
-    double m_quiet = 0;                // jak długo bieżący utwór jest wyraźnie wyciszony (s)
+    QString m_shuffleNextId;           // the next track picked in advance by shuffle (URL prefetch)
+    double m_silence = 0;              // how long the current track has been silent (s) — smart transitions
+    double m_quiet = 0;                // how long the current track has been clearly faded out (s)
     QString m_transitionLabel;
 
     double m_volume = 0.72;
     bool m_muted = false;
     bool m_shuffle = false;
-    int m_repeat = 0; // 0 = brak, 1 = całość, 2 = jeden utwór
+    int m_repeat = 0; // 0 = none, 1 = all, 2 = one track
 
     QTimer m_timer;
     QElapsedTimer m_clock;

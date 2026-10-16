@@ -8,8 +8,8 @@
 
 class PlayerController;
 
-// MPRIS 2 (Linux): klawisze multimedialne, kontrolki w panelu GNOME/KDE, playerctl.
-// Usługa org.mpris.MediaPlayer2.nokturn, obiekt /org/mpris/MediaPlayer2.
+// MPRIS 2 (Linux): media keys, GNOME/KDE panel controls, playerctl.
+// Service org.mpris.MediaPlayer2.nokturn, object /org/mpris/MediaPlayer2.
 class Mpris : public QObject
 {
     Q_OBJECT

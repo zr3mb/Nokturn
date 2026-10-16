@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Logo: zaokrąglony kafelek z gradientem akcentu i "oddychającymi" słupkami.
+// Logo: a rounded tile with an accent gradient and "breathing" bars.
 Rectangle {
     id: root
     width: 34

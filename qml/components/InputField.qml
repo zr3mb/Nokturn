@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import Nokturn
 
-// Pole tekstowe z ikoną i poświatą przy fokusie.
+// Text field with an icon and a glow on focus.
 TextField {
     id: root
     property string icon: ""

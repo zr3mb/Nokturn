@@ -16,7 +16,7 @@
 #include <cmath>
 #include <cstring>
 
-// Bufor pierścieniowy czytany przez QAudioSink (w wątku audio) i zapisywany z wątku GUI.
+// Ring buffer read by QAudioSink (on the audio thread) and written from the GUI thread.
 class AudioEngine::Ring : public QIODevice
 {
 public:
@@ -24,8 +24,8 @@ public:
         : QIODevice(parent)
         , m_channels(format.channelCount())
         , m_int16(format.sampleFormat() == QAudioFormat::Int16)
-        , m_capacity(size_t(format.sampleRate()) * 2)            // 2 s zapasu
-        , m_prebuffer(size_t(format.sampleRate()) / 5)           // 200 ms poduszki
+        , m_capacity(size_t(format.sampleRate()) * 2)            // 2 s of headroom
+        , m_prebuffer(size_t(format.sampleRate()) / 5)           // 200 ms cushion
         , m_data(m_capacity * size_t(m_channels), 0.0f)
     {
     }
@@ -37,7 +37,7 @@ public:
     {
         QMutexLocker lock(&m_mutex);
         for (size_t f = 0; f < frames; ++f) {
-            if (m_count == m_capacity) {           // przepełnienie — porzuć najstarsze
+            if (m_count == m_capacity) {           // overflow — drop the oldest
                 m_read = (m_read + 1) % m_capacity;
                 --m_count;
             }
@@ -77,7 +77,7 @@ protected:
         const size_t frames = size_t(maxSize) / size_t(bytesPerSample * m_channels);
         QMutexLocker lock(&m_mutex);
 
-        // Najpierw zbierz poduszkę; po niedoborze zbieramy ją od nowa.
+        // Gather the cushion first; after an underrun we gather it again.
         if (!m_primed && m_count >= m_prebuffer)
             m_primed = true;
         const size_t take = m_primed ? std::min(frames, m_count) : 0;
@@ -134,7 +134,7 @@ double smoothstep(double a, double b, double x)
     return t * t * (3.0 - 2.0 * t);
 }
 
-// Równa moc: przy przenikaniu suma energii nie zapada się w środku przejścia.
+// Equal power: during a crossfade the summed energy doesn't dip in the middle.
 double fadeIn(double t)  { return std::sin(std::clamp(t, 0.0, 1.0) * kPi / 2); }
 double fadeOut(double t) { return std::cos(std::clamp(t, 0.0, 1.0) * kPi / 2); }
 
@@ -143,7 +143,7 @@ double fadeOut(double t) { return std::cos(std::clamp(t, 0.0, 1.0) * kPi / 2); }
 void AudioEngine::Stage::consume(size_t n, int ch)
 {
     read += n;
-    // Zwolnij przeczytaną część, gdy urośnie (bez przesuwania przy każdym bloku).
+    // Release the consumed part once it grows (instead of shifting on every block).
     if (read * size_t(ch) > 1 << 16 && read * size_t(ch) * 2 > data.size()) {
         data.erase(data.begin(), data.begin() + std::ptrdiff_t(read * size_t(ch)));
         read = 0;
@@ -169,7 +169,7 @@ AudioEngine::AudioEngine(QObject *parent)
     m_ring = new Ring(m_format, this);
     m_ring->open(QIODevice::ReadOnly);
     m_sink = new QAudioSink(device, m_format, this);
-    m_sink->setBufferSize(m_format.bytesForDuration(80000));   // 80 ms bufora urządzenia
+    m_sink->setBufferSize(m_format.bytesForDuration(80000));   // 80 ms device buffer
     m_sink->start(m_ring);
 }
 
@@ -200,7 +200,7 @@ void AudioEngine::push(int deck, const QAudioBuffer &buffer)
     if (in.sampleFormat() == QAudioFormat::Float && in.channelCount() == outCh) {
         std::memcpy(m_scratch.data(), buffer.constData<float>(), m_scratch.size() * sizeof(float));
     } else {
-        // Inny format — konwersja próbka po próbce (z rozłożeniem mono na oba kanały).
+        // A different format — convert sample by sample (spreading mono to both channels).
         const char *data = buffer.constData<char>();
         const int inCh = std::max(1, in.channelCount());
         const int bpf = in.bytesPerFrame();
@@ -210,7 +210,7 @@ void AudioEngine::push(int deck, const QAudioBuffer &buffer)
                 m_scratch[f * outCh + c] = in.normalizedSampleValue(data + f * bpf + std::min(c, inCh - 1) * bps);
     }
 
-    // Poziom głośności decku (do wykrywania ciszy i wyciszeń na końcu utworu).
+    // Deck loudness level (to detect silence and fade-outs at the end of a track).
     if (frames > 0) {
         double energy = 0;
         for (float v : m_scratch)
@@ -227,7 +227,7 @@ void AudioEngine::push(int deck, const QAudioBuffer &buffer)
     stage.data.insert(stage.data.end(), m_scratch.begin(), m_scratch.end());
     pump();
 
-    // Diagnostyka (NOKTURN_AUDIO_DEBUG=1): czy próbki przychodzą w tempie odtwarzania.
+    // Diagnostics (NOKTURN_AUDIO_DEBUG=1): whether samples arrive at playback speed.
     static const bool debug = qEnvironmentVariableIsSet("NOKTURN_AUDIO_DEBUG");
     if (debug && deck == m_active) {
         static QElapsedTimer clock;
@@ -236,16 +236,16 @@ void AudioEngine::push(int deck, const QAudioBuffer &buffer)
             clock.start();
         total += frames;
         if (clock.elapsed() >= 3000) {
-            qInfo("audio: %.2f s dźwięku w %.2f s (format %d Hz / %d kan., niedobory bufora: %d, przejście: %s)",
+            qInfo("audio: %.2f s of audio in %.2f s (format %d Hz / %d ch., buffer underruns: %d, transition: %s)",
                   double(total) / m_format.sampleRate(), clock.elapsed() / 1000.0,
-                  m_format.sampleRate(), outCh, m_ring->takeUnderruns(), m_tr.active ? "tak" : "nie");
+                  m_format.sampleRate(), outCh, m_ring->takeUnderruns(), m_tr.active ? "yes" : "no");
             total = 0;
             clock.restart();
         }
     }
 }
 
-// ---- miksowanie -----------------------------------------------------------------
+// ---- mixing ---------------------------------------------------------------------
 
 void AudioEngine::emit_(const float *frames, size_t count)
 {
@@ -264,7 +264,7 @@ void AudioEngine::pump()
             emit_(s.at(0, ch), n);
             s.consume(n, ch);
         }
-        Stage &other = m_stage[1 - m_active];      // poza przejściem drugi deck milczy
+        Stage &other = m_stage[1 - m_active];      // outside a transition the other deck is silent
         if (const size_t n = other.frames(ch))
             other.consume(n, ch);
         return;
@@ -275,7 +275,7 @@ void AudioEngine::pump()
     const size_t rate = size_t(m_format.sampleRate());
 
     if (!m_tr.started) {
-        // Cisza na początku nowego utworu (do 4 s) jest pomijana — przejście zaczyna się od muzyki.
+        // Silence at the start of the new track (up to 4 s) is skipped — the transition starts with music.
         if (m_tr.t.trimIntro) {
             const size_t maxTrim = rate * 4;
             while (b.frames(ch) > 0 && m_tr.trimmed < maxTrim) {
@@ -292,7 +292,7 @@ void AudioEngine::pump()
         if (b.frames(ch) > 0)
             m_tr.started = true;
         if (!m_tr.started) {
-            // Nowy utwór jeszcze nie gra — stary leci dalej bez zmian.
+            // The new track isn't playing yet — the old one carries on unchanged.
             if (const size_t n = a.frames(ch)) {
                 emit_(a.at(0, ch), n);
                 a.consume(n, ch);
@@ -310,9 +310,9 @@ void AudioEngine::pump()
         if (availA >= availB)
             n = availB;
         else if (a.ended || availB > rate * 35 / 100)
-            n = availB;    // stary utwór skończył się (albo się zaciął) — brakujące próbki to cisza
+            n = availB;    // the old track has ended (or stalled) — the missing samples are silence
         else
-            n = availA;    // poczekaj na stary deck, żeby nie rozjechać obu strumieni
+            n = availA;    // wait for the old deck so the two streams don't drift apart
         n = std::min(n, m_tr.length - m_tr.pos);
         if (n == 0)
             break;
@@ -341,9 +341,9 @@ void AudioEngine::mix(size_t n)
     const double len = double(m_tr.length);
     const Style style = m_tr.t.style;
 
-    // Zamiana basu: zwrotnica 180 Hz z dwóch filtrów jednobiegunowych.
+    // Bass swap: a 180 Hz crossover made of two one-pole filters.
     const double lpAlpha = 1.0 - std::exp(-2.0 * kPi * 180.0 / rate);
-    // Wzniesienie: filtr górnoprzepustowy na starym utworze, przestrajany co 32 ramki.
+    // Rise: a high-pass filter on the old track, retuned every 32 frames.
     double hb0 = 1, hb1 = 0, hb2 = 0, ha1 = 0, ha2 = 0;
     const size_t echoFrames = m_tr.echo.size() / size_t(std::max(1, ch));
 
@@ -391,8 +391,8 @@ void AudioEngine::mix(size_t n)
                 m_tr.lpB2[k] += lpAlpha * (m_tr.lpB[k] - m_tr.lpB2[k]);
                 const double lowA = m_tr.lpA2[k], highA = xa - lowA;
                 const double lowB = m_tr.lpB2[k], highB = xb - lowB;
-                // Góry przenikają przez całe przejście, bas przełącza się szybko w połowie
-                // (jak u DJ-a: nigdy dwie stopy perkusji naraz).
+                // The highs crossfade over the whole transition, the bass switches quickly halfway
+                // (like a DJ: never two kick drums at once).
                 const double swap = smoothstep(0.46, 0.54, t);
                 y = highA * fadeOut(t) + highB * fadeIn(t) + lowA * (1.0 - swap) + lowB * swap;
                 break;
@@ -498,7 +498,7 @@ void AudioEngine::resetLevels(int deck)
         m_levels[deck] = Levels {};
 }
 
-// ---- reszta ---------------------------------------------------------------------
+// ---- the rest -----------------------------------------------------------------
 
 void AudioEngine::flush()
 {

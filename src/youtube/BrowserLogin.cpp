@@ -1,5 +1,7 @@
 #include "BrowserLogin.h"
 
+#include "Language.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -15,17 +17,18 @@
 
 namespace {
 
-// Strona logowania Google, która po zalogowaniu wraca do YouTube Music
-// (ten sam adres, którego używa sam YouTube; z zalogowanym profilem przechodzi od razu).
+// Google sign-in page that returns to YouTube Music after signing in
+// (the same URL YouTube itself uses; with a signed-in profile it goes straight through).
+// {lang} = interface language.
 const char *kLoginUrl =
-    "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&hl=pl"
+    "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&hl={lang}"
     "&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop"
-    "%26hl%3Dpl%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F";
+    "%26hl%3D{lang}%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F";
 
 #ifdef Q_OS_WIN
 QString appPath(const QString &exe)
 {
-    // Rejestr: HKLM/HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths\<exe>
+    // Registry: HKLM/HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths\<exe>
     for (const char *root : { "HKEY_CURRENT_USER", "HKEY_LOCAL_MACHINE" }) {
         QSettings reg(QStringLiteral("%1\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\%2")
                           .arg(QLatin1String(root), exe),
@@ -78,7 +81,7 @@ BrowserLogin::BrowserLogin(QObject *parent)
     m_titleTimer.setInterval(700);
     connect(&m_titleTimer, &QTimer::timeout, this, &BrowserLogin::checkWindowTitle);
 
-    // Gdy okno nie zamknie się samo (np. dialog "Opuścić stronę?"), kończymy proces na siłę.
+    // When the window doesn't close by itself (e.g. a "Leave site?" dialog), we kill the process.
     m_closeTimer.setSingleShot(true);
     m_closeTimer.setInterval(12000);
     connect(&m_closeTimer, &QTimer::timeout, this, [this] { m_process.kill(); });
@@ -104,8 +107,8 @@ BrowserLogin::~BrowserLogin()
 QString BrowserLogin::findBrowser(QString *displayName)
 {
 #ifndef Q_OS_WIN
-    // Linux: przeglądarki z rodziny Chromium w PATH. Wersje ze Snapa na końcu — ich izolacja
-    // nie pozwala na profil w ukrytym katalogu (~/.local/share), więc działają tylko awaryjnie.
+    // Linux: Chromium-family browsers in PATH. Snap versions last — their sandbox
+    // doesn't allow a profile in a hidden directory (~/.local/share), so they're only a fallback.
     struct Candidate { const char *exe; const char *name; };
     const QList<Candidate> candidates = {
         { "google-chrome-stable", "Google Chrome" }, { "google-chrome", "Google Chrome" },
@@ -168,14 +171,14 @@ QString BrowserLogin::status() const
     switch (m_stage) {
     case Stage::Interactive:
 #ifdef Q_OS_WIN
-        return QStringLiteral("Zaloguj się w otwartym oknie. Gdy zobaczysz YouTube Music, okno zamknie się samo.");
+        return tr("Sign in in the window that opened. When you see YouTube Music, the window closes by itself.");
 #else
-        // Na Linuksie (zwłaszcza Wayland) nie da się podejrzeć tytułu cudzego okna.
-        return QStringLiteral("Zaloguj się w otwartym oknie, a gdy zobaczysz YouTube Music, zamknij je.");
+        // On Linux (especially Wayland) we can't peek at another app's window title.
+        return tr("Sign in in the window that opened, and close it once you see YouTube Music.");
 #endif
     case Stage::Closing:
     case Stage::Reading:
-        return QStringLiteral("Odczytuję sesję YouTube…");
+        return tr("Reading the YouTube session…");
     case Stage::Idle:
         break;
     }
@@ -197,17 +200,17 @@ void BrowserLogin::start(const QString &profileDir)
         return;
     m_browser = findBrowser();
     if (m_browser.isEmpty()) {
-        emit failed(QStringLiteral("Nie znaleziono Chrome, Edge ani Brave"));
+        emit failed(tr("Chrome, Edge or Brave was not found"));
         return;
     }
 
     m_profileDir = profileDir;
     QDir().mkpath(profileDir);
-    // Chrome trzyma "lockfile", dopóki profil jest otwarty — drugie uruchomienie tylko by
-    // przekazało okno istniejącej instancji, więc w tym stanie nie zaczynamy od nowa.
+    // Chrome keeps a "lockfile" while the profile is open — a second launch would only
+    // hand the window to the existing instance, so in that state we don't start over.
     const QString lock = profileDir + QStringLiteral("/lockfile");
     if (QFile::exists(lock) && !QFile::remove(lock)) {
-        emit failed(QStringLiteral("Okno logowania jest już otwarte — dokończ w nim logowanie albo je zamknij"));
+        emit failed(tr("The sign-in window is already open — finish signing in there or close it"));
         return;
     }
     QFile::remove(profileDir + QStringLiteral("/DevToolsActivePort"));
@@ -219,7 +222,7 @@ void BrowserLogin::start(const QString &profileDir)
         QStringLiteral("--no-first-run"),
         QStringLiteral("--no-default-browser-check"),
         QStringLiteral("--window-size=520,760"),
-        QStringLiteral("--app=") + QString::fromLatin1(kLoginUrl),
+        QStringLiteral("--app=") + QString::fromLatin1(kLoginUrl).replace(QStringLiteral("{lang}"), Language::instance()->effective()),
     });
     m_process.start();
     m_titleTimer.start();
@@ -230,19 +233,19 @@ void BrowserLogin::cancel()
     if (!running())
         return;
     stopAll();
-    emit failed(QStringLiteral("Anulowano logowanie"));
+    emit failed(tr("Sign-in cancelled"));
 }
 
-// ---- etap 1: zwykłe okno logowania ------------------------------------------------
+// ---- stage 1: regular sign-in window ------------------------------------------------
 
 void BrowserLogin::checkWindowTitle()
 {
 #ifdef Q_OS_WIN
-    // Tytuł okna-aplikacji to tytuł strony. Po udanym logowaniu Google przekierowuje
-    // na music.youtube.com, a okno zaczyna nazywać się "YouTube Music".
+    // The app window's title is the page title. After a successful sign-in Google redirects
+    // to music.youtube.com, and the window starts being called "YouTube Music".
     const WindowScan scan = scanWindows(m_process.processId());
     for (const QString &title : scan.titles) {
-        // Zanim strona poda tytuł, okno nazywa się adresem (np. "music.youtube.com_/").
+        // Before the page provides a title, the window is named after the URL (e.g. "music.youtube.com_/").
         if (title.contains(QLatin1String("YouTube Music"), Qt::CaseInsensitive)
             || title.contains(QLatin1String("music.youtube.com"), Qt::CaseInsensitive)) {
             closeInteractiveWindow();
@@ -257,11 +260,11 @@ void BrowserLogin::closeInteractiveWindow()
     m_titleTimer.stop();
     setStage(Stage::Closing);
 #ifdef Q_OS_WIN
-    // Łagodne zamknięcie (jak kliknięcie X) — Chrome zapisze wtedy ciasteczka na dysk.
+    // A gentle close (like clicking X) — Chrome then writes the cookies to disk.
     for (HWND hwnd : scanWindows(m_process.processId()).windows)
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
 #else
-    m_process.terminate();   // SIGTERM — Chrome zamyka się porządnie i zapisuje ciasteczka
+    m_process.terminate();   // SIGTERM — Chrome closes properly and saves the cookies
 #endif
     m_closeTimer.start();
 }
@@ -270,7 +273,7 @@ void BrowserLogin::onProcessFinished()
 {
     switch (m_stage) {
     case Stage::Interactive:
-        // Użytkownik sam zamknął okno — mógł się już zalogować, więc i tak sprawdzamy sesję.
+        // The user closed the window — they may already have signed in, so we check the session anyway.
         m_titleTimer.stop();
         startReading();
         break;
@@ -280,14 +283,14 @@ void BrowserLogin::onProcessFinished()
         break;
     case Stage::Reading:
         if (m_socket.state() == QAbstractSocket::UnconnectedState && !m_portTimer.isActive())
-            fail(QStringLiteral("Nie udało się odczytać sesji z przeglądarki"));
+            fail(tr("Couldn't read the session from the browser"));
         break;
     case Stage::Idle:
         break;
     }
 }
 
-// ---- etap 2: niewidoczny odczyt ciasteczek ---------------------------------------------
+// ---- stage 2: invisible cookie readout ---------------------------------------------
 
 void BrowserLogin::startReading()
 {
@@ -296,14 +299,14 @@ void BrowserLogin::startReading()
     m_readAttempts = 0;
     QFile::remove(m_profileDir + QStringLiteral("/DevToolsActivePort"));
 
-    // Chwila na zwolnienie profilu przez zamykającą się przeglądarkę.
+    // A moment for the closing browser to release the profile.
     QTimer::singleShot(500, this, [this] {
         if (m_stage != Stage::Reading)
             return;
         m_process.setProgram(m_browser);
         m_process.setArguments({
             QStringLiteral("--headless=new"),
-            QStringLiteral("--remote-debugging-port=0"),   // przeglądarka sama wybierze wolny port
+            QStringLiteral("--remote-debugging-port=0"),   // the browser picks a free port itself
             QStringLiteral("--user-data-dir=") + QDir::toNativeSeparators(m_profileDir),
             QStringLiteral("--no-first-run"),
             QStringLiteral("--no-default-browser-check"),
@@ -316,7 +319,7 @@ void BrowserLogin::startReading()
 
 void BrowserLogin::waitForDevTools()
 {
-    // Chrome zapisuje wybrany port i ścieżkę do DevTools w pliku DevToolsActivePort.
+    // Chrome writes the chosen port and the DevTools path to the DevToolsActivePort file.
     QFile file(m_profileDir + QStringLiteral("/DevToolsActivePort"));
     if (file.open(QIODevice::ReadOnly)) {
         const QStringList lines = QString::fromUtf8(file.readAll()).split('\n', Qt::SkipEmptyParts);
@@ -328,7 +331,7 @@ void BrowserLogin::waitForDevTools()
         }
     }
     if (++m_portAttempts > 80)   // ~20 s
-        fail(QStringLiteral("Nie udało się odczytać sesji z przeglądarki (DevTools nie odpowiada)"));
+        fail(tr("Couldn't read the session from the browser (DevTools isn't responding)"));
 }
 
 void BrowserLogin::requestCookies()
@@ -353,12 +356,12 @@ void BrowserLogin::onMessage(const QString &message)
         emit succeeded(cookies);
         return;
     }
-    // Magazyn ciasteczek wczytuje się z dysku z opóźnieniem — spróbuj jeszcze kilka razy.
+    // The cookie store loads from disk with a delay — try a few more times.
     if (++m_readAttempts < 4) {
         m_retryTimer.start();
         return;
     }
-    fail(QStringLiteral("Nie wykryto zalogowania — zaloguj się w oknie, aż zobaczysz YouTube Music"));
+    fail(tr("No sign-in detected — sign in in the window until you see YouTube Music"));
 }
 
 void BrowserLogin::fail(const QString &reason)
@@ -370,7 +373,7 @@ void BrowserLogin::fail(const QString &reason)
 void BrowserLogin::stopAll()
 {
     const Stage stage = m_stage;
-    // Najpierw stan "bezczynny", żeby zamykanie procesu nie uruchomiło kolejnych etapów.
+    // First the "idle" state, so closing the process doesn't trigger further stages.
     m_stage = Stage::Idle;
     m_titleTimer.stop();
     m_closeTimer.stop();

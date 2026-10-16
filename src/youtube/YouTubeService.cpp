@@ -2,6 +2,7 @@
 
 #include "AppPaths.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QJSEngine>
@@ -39,7 +40,7 @@ Track trackFromJson(const QJsonObject &o)
     t.colorB = QColor(o.value("colorB").toString());
     t.seed = o.value("seed").toInt();
     t.source = QStringLiteral("youtube");
-    t.quality = QStringLiteral("YouTube Music · strumień");
+    t.quality = QCoreApplication::translate("YouTubeService", "YouTube Music · stream");
     return t;
 }
 
@@ -99,12 +100,12 @@ YouTubeService::YouTubeService(QObject *parent)
     }
 }
 
-// ---- logowanie ----------------------------------------------------------------
+// ---- signing in ----------------------------------------------------------------
 
 void YouTubeService::login()
 {
     if (m_browserName.isEmpty()) {
-        emit notice(QStringLiteral("Nie znaleziono Chrome, Edge ani Brave — użyj ręcznego wklejenia ciasteczek"),
+        emit notice(tr("Chrome, Edge or Brave was not found — paste the cookies manually"),
                     QStringLiteral("close"));
         return;
     }
@@ -133,12 +134,12 @@ void YouTubeService::useCookies(const YtCookies &cookies, bool fresh)
     m_resolver.setCookies(cookies);
     if (fresh) {
         if (!cookies.save(cookieFile()))
-            emit notice(QStringLiteral("Nie udało się zapisać sesji na dysku"), QStringLiteral("close"));
-        emit notice(QStringLiteral("Zalogowano do YouTube Music"), QStringLiteral("check"));
+            emit notice(tr("Couldn't save the session to disk"), QStringLiteral("close"));
+        emit notice(tr("Signed in to YouTube Music"), QStringLiteral("check"));
     }
     emit accountChanged();
     emit dataChanged();
-    // Przy starcie aplikacji daj chwilę na wczytanie interfejsu, po logowaniu synchronizuj od razu.
+    // On app startup give the interface a moment to load; after signing in, sync right away.
     QTimer::singleShot(fresh ? 0 : 1500, this, &YouTubeService::refresh);
 }
 
@@ -150,7 +151,7 @@ void YouTubeService::logout()
     m_resolver.setCookies({});
     QFile::remove(cookieFile());
     QFile::remove(cacheFile());
-    QDir(browserProfile()).removeRecursively();   // sesja w profilu przeglądarki też znika
+    QDir(browserProfile()).removeRecursively();   // the session in the browser profile goes too
 
     m_account = {};
     m_tracks.clear();
@@ -162,10 +163,10 @@ void YouTubeService::logout()
     m_search.clear();
     emit accountChanged();
     emit dataChanged();
-    emit notice(QStringLiteral("Wylogowano z YouTube Music"), QStringLiteral("person"));
+    emit notice(tr("Signed out of YouTube Music"), QStringLiteral("person"));
 }
 
-// ---- synchronizacja -------------------------------------------------------------
+// ---- syncing ----------------------------------------------------------------------
 
 void YouTubeService::refresh()
 {
@@ -184,7 +185,7 @@ void YouTubeService::refresh()
     });
 
     m_api.browseTracks(QStringLiteral("VLLM"), [this](const QList<Track> &tracks, const QString &error) {
-        // Pusta odpowiedź przy niepustej liście to zwykle wygasła sesja, a nie odlubienie wszystkiego.
+        // An empty response for a non-empty list is usually an expired session, not un-liking everything.
         if (!tracks.isEmpty() || (error.isEmpty() && m_liked.isEmpty())) {
             storeTracks(tracks, false);
             QStringList ids;
@@ -230,26 +231,26 @@ QString YouTubeService::lastSync() const
         return {};
     const qint64 mins = m_lastSync.secsTo(QDateTime::currentDateTime()) / 60;
     if (mins < 1)
-        return QStringLiteral("przed chwilą");
+        return tr("just now");
     if (mins < 60)
-        return QStringLiteral("%1 min temu").arg(mins);
+        return tr("%1 min ago").arg(mins);
     return m_lastSync.toString(QStringLiteral("d.MM, HH:mm"));
 }
 
 void YouTubeService::ensurePlaylist(const QString &playlistId)
 {
-    // Każdą playlistę odświeżamy raz na sesję, w tle — do tego czasu widać wersję z cache.
+    // Each playlist is refreshed once per session, in the background — until then the cached version shows.
     if (m_loadingPlaylists.contains(playlistId) || m_refreshedPlaylists.contains(playlistId))
         return;
     m_loadingPlaylists.insert(playlistId);
     m_refreshedPlaylists.insert(playlistId);
-    // Bywa wołane z wiązania QML — powiadamiamy dopiero w następnym obiegu pętli zdarzeń.
+    // Sometimes called from a QML binding — we notify only in the next event-loop pass.
     QTimer::singleShot(0, this, &YouTubeService::dataChanged);
 
     m_api.browseTracks(QStringLiteral("VL") + playlistId, [this, playlistId](const QList<Track> &tracks, const QString &error) {
         m_loadingPlaylists.remove(playlistId);
         if (!error.isEmpty() && tracks.isEmpty()) {
-            emit notice(QStringLiteral("Nie udało się wczytać playlisty: ") + error, QStringLiteral("close"));
+            emit notice(tr("Couldn't load the playlist: %1").arg(error), QStringLiteral("close"));
             emit dataChanged();
             return;
         }
@@ -278,11 +279,11 @@ void YouTubeService::search(const QString &query)
     emit searchingChanged();
     m_api.search(q, [this, serial](const QList<Track> &tracks, const QString &error) {
         if (serial != m_searchSerial)
-            return;   // przyszło już nowsze zapytanie
+            return;   // a newer query has already arrived
         m_searching = false;
         emit searchingChanged();
         if (!error.isEmpty()) {
-            emit notice(QStringLiteral("Wyszukiwanie w YouTube Music: ") + error, QStringLiteral("close"));
+            emit notice(tr("YouTube Music search: %1").arg(error), QStringLiteral("close"));
             return;
         }
         storeTracks(tracks, true);
@@ -293,14 +294,14 @@ void YouTubeService::search(const QString &query)
     });
 }
 
-// ---- dane -----------------------------------------------------------------------
+// ---- data -------------------------------------------------------------------------
 
 void YouTubeService::storeTracks(const QList<Track> &tracks, bool transient)
 {
     for (Track t : tracks) {
         const auto existing = m_tracks.constFind(t.id);
         if (existing != m_tracks.cend()) {
-            // Zachowaj kolory wyliczone z okładki i "stałość" utworu w bibliotece.
+            // Keep the colors computed from the cover and the track's "permanence" in the library.
             t.colorA = existing->colorA;
             t.colorB = existing->colorB;
             t.transient = existing->transient && transient;
@@ -319,7 +320,7 @@ void YouTubeService::setLikedList(const QStringList &ids)
 
 QList<Track> YouTubeService::tracks() const
 {
-    // Kolejność: polubione, utwory z playlist, wyniki wyszukiwania.
+    // Order: liked, tracks from playlists, search results.
     QList<Track> out;
     QSet<QString> seen;
     auto add = [&](const QString &id) {
@@ -358,7 +359,7 @@ void YouTubeService::setTrackLiked(const QString &trackId, bool liked)
     }
     const auto it = m_tracks.constFind(trackId);
     if (it != m_tracks.cend())
-        m_api.setLiked(it->path, liked);   // synchronizacja z kontem
+        m_api.setLiked(it->path, liked);   // syncing with the account
     saveCache();
 }
 

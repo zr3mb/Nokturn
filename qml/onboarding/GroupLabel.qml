@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Etykieta grupy opcji w kreatorze.
+// Label for a group of options in the wizard.
 Text {
     Layout.fillWidth: true
     color: Theme.textDim

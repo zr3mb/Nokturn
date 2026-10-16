@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Krok 3: kolor akcentu (z okładki / stały) i tło (żywe / spokojne).
+// Step 3: accent color (from the cover / fixed) and background (live / calm).
 Item {
     id: root
 
@@ -11,8 +11,8 @@ Item {
         spacing: 26
 
         StepTitle {
-            title: "Kolory i nastrój"
-            subtitle: "Nokturn może przejmować barwy okładki odtwarzanego utworu i delikatnie pulsować światłem w rytm muzyki."
+            title: qsTr("Colors and mood")
+            subtitle: qsTr("Nokturn can take on the colors of the playing track's cover and gently pulse with light to the music.")
         }
 
         RowLayout {
@@ -23,13 +23,13 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 100
                 spacing: 12
-                GroupLabel { text: "Kolor akcentu" }
+                GroupLabel { text: qsTr("Accent color") }
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 14
                     OptionCard {
-                        title: "Z okładki"
-                        description: "Przyciski, suwaki i światło płynnie zmieniają barwę razem z muzyką."
+                        title: qsTr("From the cover")
+                        description: qsTr("Buttons, sliders and light smoothly change color along with the music.")
                         selected: Theme.dynamicAccent
                         onClicked: Theme.dynamicAccent = true
                         LayoutPreview {
@@ -41,8 +41,8 @@ Item {
                         }
                     }
                     OptionCard {
-                        title: "Stały"
-                        description: "Jeden, spokojny kolor szałwii — niezależnie od utworu."
+                        title: qsTr("Fixed")
+                        description: qsTr("One calm sage color — regardless of the track.")
                         selected: !Theme.dynamicAccent
                         onClicked: Theme.dynamicAccent = false
                         LayoutPreview {
@@ -67,13 +67,13 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 100
                 spacing: 12
-                GroupLabel { text: "Tło" }
+                GroupLabel { text: qsTr("Background") }
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 14
                     OptionCard {
-                        title: "Żywe"
-                        description: "Miękka poświata za interfejsem, pulsująca w rytm muzyki."
+                        title: qsTr("Live")
+                        description: qsTr("A soft glow behind the interface, pulsing with the music.")
                         selected: Theme.ambient
                         onClicked: Theme.ambient = true
                         LayoutPreview {
@@ -85,8 +85,8 @@ Item {
                         }
                     }
                     OptionCard {
-                        title: "Spokojne"
-                        description: "Jednolite, ciemne tło — mniej ruchu, mniej pracy dla karty graficznej."
+                        title: qsTr("Calm")
+                        description: qsTr("A plain dark background — less motion, less work for the graphics card.")
                         selected: !Theme.ambient
                         onClicked: Theme.ambient = false
                         LayoutPreview {

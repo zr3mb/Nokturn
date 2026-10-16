@@ -2,18 +2,18 @@ import QtQuick
 import QtQuick.Shapes
 import Nokturn
 
-// Podgląd przejścia między utworami: obwiednia kończącego się utworu i wchodzącego następnego
-// (długość nakładania = crossfade), z przesuwającą się głowicą odtwarzania.
+// Preview of a transition between tracks: the envelope of the ending track and the incoming next one
+// (overlap length = crossfade), with a moving playhead.
 Item {
     id: root
-    property real seconds: 6          // 0 = bez przejścia
+    property real seconds: 6          // 0 = no transition
     property string style: "fade"
     property bool running: true
     implicitHeight: 110
 
-    readonly property real span: 28   // sekund pokazanych na osi
+    readonly property real span: 28   // seconds shown on the axis
     readonly property real overlap: Math.max(0.0001, seconds) / span * width
-    readonly property real cut: width * 0.55          // koniec pierwszego utworu
+    readonly property real cut: width * 0.55          // end of the first track
     readonly property real startB: seconds > 0 ? cut - overlap : cut + 6
 
     property real head: 0
@@ -25,7 +25,7 @@ Item {
         color: Theme.alpha(Theme.text, 0.035)
     }
 
-    // fala (pseudo) jako tło obu utworów
+    // (pseudo) waveform as the background of both tracks
     Row {
         id: waves
         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 12 }
@@ -49,7 +49,7 @@ Item {
         }
     }
 
-    // obwiednie głośności
+    // volume envelopes
     Shape {
         anchors.fill: parent
         preferredRendererType: Shape.CurveRenderer
@@ -71,7 +71,7 @@ Item {
         }
     }
 
-    // głowica odtwarzania
+    // playhead
     Rectangle {
         x: 12 + (root.width - 24) * root.head
         y: 8
@@ -83,13 +83,13 @@ Item {
 
     Text {
         anchors { left: parent.left; bottom: parent.bottom; leftMargin: 14; bottomMargin: 4 }
-        text: "Utwór 1"
+        text: qsTr("Track 1")
         color: Theme.textFaint
         font.pixelSize: 10
     }
     Text {
         anchors { right: parent.right; bottom: parent.bottom; rightMargin: 14; bottomMargin: 4 }
-        text: root.seconds > 0 ? "Utwór 2 · nakładanie " + root.seconds + " s" : "Utwór 2 · bez nakładania"
+        text: root.seconds > 0 ? qsTr("Track 2 · %1 s overlap").arg(root.seconds) : qsTr("Track 2 · no overlap")
         color: Theme.accent
         font.pixelSize: 10
     }

@@ -2,8 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Zarządzanie źródłami muzyki. Pliki lokalne i YouTube Music działają naprawdę;
-// radio i własne strumienie są na razie tylko interfejsem.
+// Managing music sources. Local files and YouTube Music really work;
+// radio and custom streams are only an interface for now.
 Item {
     id: page
     property var args: ({})
@@ -94,14 +94,14 @@ Item {
                 width: parent.width
                 spacing: 4
                 Text {
-                    text: "Źródła muzyki"
+                    text: qsTr("Music sources")
                     color: Theme.text
                     font.family: Theme.fontDisplay
                     font.pixelSize: 38
                     font.weight: Font.Bold
                 }
                 Text {
-                    text: "Połącz miejsca, z których Nokturn ma odtwarzać muzykę. Wszystko trafi do jednej biblioteki."
+                    text: qsTr("Connect the places Nokturn should play music from. Everything ends up in one library.")
                     color: Theme.textDim
                     font.pixelSize: 15
                 }
@@ -110,14 +110,14 @@ Item {
 
         Reveal {
             delay: 80
-            // Dwie kolumny kart na szerokim oknie, jedna na wąskim
+            // Two columns of cards in a wide window, one in a narrow one
             GridLayout {
                 width: parent.width
                 columns: width > 900 ? 2 : 1
                 columnSpacing: 18
                 rowSpacing: 18
 
-                // ---- lewa kolumna --------------------------------------------
+                // ---- left column --------------------------------------------
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 100
@@ -128,12 +128,12 @@ Item {
                         source: page.src("local")
                         status: Library.scanning ? "connecting" : Library.folders.length > 0 ? "connected" : "disconnected"
                         detail: Library.folders.length === 0 ? ""
-                                : Theme.plural(Library.folders.length, "folder", "foldery", "folderów") + " · "
-                                  + Theme.plural(Library.localCount, "utwór", "utwory", "utworów")
+                                : qsTr("%n folders", "", Library.folders.length) + " · "
+                                  + qsTr("%n tracks", "", Library.localCount)
 
                         Hint {
                             visible: Library.folders.length === 0
-                            text: "Nie wybrano jeszcze żadnego folderu. Dodaj folder, a Nokturn przeskanuje go razem z podfolderami."
+                                text: qsTr("No folder chosen yet. Add a folder and Nokturn will scan it together with its subfolders.")
                         }
 
                         Repeater {
@@ -143,7 +143,7 @@ Item {
                                 icon: "folder"
                                 iconColor: "#9fbfa8"
                                 title: modelData.path
-                                detail: Theme.plural(modelData.count, "utwór", "utwory", "utworów")
+                                detail: qsTr("%n tracks", "", modelData.count)
                                 onActivated: Library.removeFolder(modelData.path)
                             }
                         }
@@ -206,13 +206,13 @@ Item {
                             PillButton {
                                 kind: "secondary"
                                 icon: "add"
-                                text: "Dodaj folder"
+                                text: qsTr("Add folder")
                                 onClicked: Nav.addFolder()
                             }
                             PillButton {
                                 kind: "ghost"
                                 icon: "refresh"
-                                text: Library.scanning ? "Skanuję…" : "Skanuj ponownie"
+                                text: Library.scanning ? qsTr("Scanning…") : qsTr("Scan again")
                                 busy: Library.scanning
                                 enabled: Library.folders.length > 0
                                 onClicked: Library.rescan()
@@ -224,12 +224,12 @@ Item {
                         source: page.src("youtube")
                         status: YouTube.loggingIn ? "connecting" : YouTube.connected ? "connected" : "disconnected"
                         detail: !YouTube.connected ? ""
-                                : YouTube.syncing ? "Synchronizacja z kontem…"
-                                : Theme.plural(YouTube.likedCount, "polubiony utwór", "polubione utwory", "polubionych utworów")
-                                  + " · " + Theme.plural(YouTube.playlistCount, "playlista", "playlisty", "playlist")
+                                : YouTube.syncing ? qsTr("Syncing with your account…")
+                                : qsTr("%n liked tracks", "", YouTube.likedCount)
+                                  + " · " + qsTr("%n playlists", "", YouTube.playlistCount)
                                   + (YouTube.lastSync !== "" ? " · " + YouTube.lastSync : "")
 
-                        // Niezalogowany
+                        // Signed out
                         ColumnLayout {
                             visible: !YouTube.connected && !YouTube.loggingIn
                             Layout.fillWidth: true
@@ -237,23 +237,22 @@ Item {
 
                             Hint {
                                 text: YouTube.browserName !== ""
-                                      ? "Otworzymy osobne okno " + YouTube.browserName + " z czystym profilem. Zaloguj się w nim "
-                                        + "normalnie na swoje konto Google. Gdy pojawi się YouTube Music, okno zamknie się samo, a Nokturn pobierze polubione utwory i playlisty."
-                                      : "Nie znaleziono Chrome, Edge ani Brave. Możesz wkleić ciasteczka ręcznie."
+                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to your Google account there as usual. When YouTube Music appears, the window closes by itself and Nokturn downloads your liked tracks and playlists.").arg(YouTube.browserName)
+                                      : qsTr("Chrome, Edge or Brave was not found. You can paste the cookies manually.")
                             }
                             Flow {
                                 Layout.fillWidth: true
                                 spacing: 10
                                 PillButton {
                                     icon: "person"
-                                    text: "Zaloguj się przez przeglądarkę"
+                                    text: qsTr("Sign in with the browser")
                                     enabled: YouTube.browserName !== ""
                                     onClicked: YouTube.login()
                                 }
                                 PillButton {
                                     kind: "ghost"
                                     icon: "key"
-                                    text: manualLogin.visible ? "Ukryj" : "Wklej ciasteczka"
+                                    text: manualLogin.visible ? qsTr("Hide") : qsTr("Paste cookies")
                                     onClicked: manualLogin.visible = !manualLogin.visible
                                 }
                             }
@@ -263,7 +262,7 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: 10
                                 Hint {
-                                    text: "Skopiuj nagłówek Cookie z zapytania do music.youtube.com (narzędzia deweloperskie → Sieć) i wklej go tutaj."
+                                    text: qsTr("Copy the Cookie header from a request to music.youtube.com (developer tools → Network) and paste it here.")
                                 }
                                 InputField {
                                     id: cookieField
@@ -275,7 +274,7 @@ Item {
                                 PillButton {
                                     kind: "secondary"
                                     icon: "link"
-                                    text: "Połącz"
+                                    text: qsTr("Connect")
                                     enabled: cookieField.text.length > 0
                                     onClicked: {
                                         YouTube.loginWithCookies(cookieField.text)
@@ -285,7 +284,7 @@ Item {
                             }
                         }
 
-                        // Trwa logowanie w przeglądarce
+                        // Signing in through the browser
                         RowLayout {
                             visible: YouTube.loggingIn
                             Layout.fillWidth: true
@@ -296,12 +295,12 @@ Item {
                             }
                             PillButton {
                                 kind: "ghost"
-                                text: "Anuluj"
+                                text: qsTr("Cancel")
                                 onClicked: YouTube.cancelLogin()
                             }
                         }
 
-                        // Zalogowany
+                        // Signed in
                         RowLayout {
                             visible: YouTube.connected
                             Layout.fillWidth: true
@@ -328,7 +327,7 @@ Item {
                                 spacing: 2
                                 Text {
                                     Layout.fillWidth: true
-                                    text: YouTube.accountName || "Konto YouTube Music"
+                                    text: YouTube.accountName || qsTr("YouTube Music account")
                                     color: Theme.text
                                     font.pixelSize: 14
                                     font.weight: Font.DemiBold
@@ -357,7 +356,7 @@ Item {
                             }
                             PillButton {
                                 kind: "ghost"
-                                text: "Wyloguj"
+                                text: qsTr("Sign out")
                                 onClicked: YouTube.logout()
                             }
                         }
@@ -369,7 +368,7 @@ Item {
                             color: Qt.rgba(1, 1, 1, 0.06)
                         }
 
-                        // Silnik odtwarzania
+                        // Playback engine
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
@@ -384,16 +383,16 @@ Item {
                                 spacing: 2
                                 Text {
                                     Layout.fillWidth: true
-                                    text: "Silnik odtwarzania (yt-dlp)"
+                                    text: qsTr("Playback engine (yt-dlp)")
                                     color: Theme.text
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
                                 }
                                 Text {
                                     Layout.fillWidth: true
-                                    text: YouTube.engineDownloading ? "Pobieranie… " + Math.round(YouTube.engineProgress * 100) + "%"
-                                        : YouTube.engineReady ? "Gotowy" + (YouTube.engineVersion ? " · wersja " + YouTube.engineVersion : "")
-                                        : "Potrzebny do odtwarzania utworów z YouTube — pobierzemy oficjalne wydanie z GitHuba."
+                                    text: YouTube.engineDownloading ? qsTr("Downloading… %1%").arg(Math.round(YouTube.engineProgress * 100))
+                                        : YouTube.engineReady ? qsTr("Ready") + (YouTube.engineVersion ? " · " + qsTr("version %1").arg(YouTube.engineVersion) : "")
+                                        : qsTr("Needed to play tracks from YouTube — we'll download the official release from GitHub.")
                                     color: Theme.textDim
                                     font.pixelSize: 12
                                     wrapMode: Text.WordWrap
@@ -402,7 +401,7 @@ Item {
                             PillButton {
                                 kind: YouTube.engineReady ? "ghost" : "primary"
                                 icon: YouTube.engineReady ? "refresh" : "add"
-                                text: YouTube.engineReady ? "Aktualizuj" : "Pobierz"
+                                text: YouTube.engineReady ? qsTr("Update") : qsTr("Download")
                                 busy: YouTube.engineDownloading
                                 onClicked: YouTube.downloadEngine()
                             }
@@ -410,7 +409,7 @@ Item {
                     }
                 }
 
-                // ---- prawa kolumna -------------------------------------------
+                // ---- right column -------------------------------------------
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 100
@@ -424,7 +423,7 @@ Item {
                             icon: "live"
                             iconColor: "#cdb68e"
                             live: true
-                            title: "Ambient Waves FM — Nocny Jazz"
+                            title: qsTr("Ambient Waves FM — Night Jazz")
                             detail: "128 kbps"
                             onActivated: Player.playIndex(Library.search("", "radio", 1)[0])
                         }
@@ -434,28 +433,28 @@ Item {
                             live: true
                             title: "Deep Focus Radio"
                             detail: "192 kbps"
-                            onActivated: Nav.toast("Strumienie radiowe pojawią się wkrótce", "radio")
+                            onActivated: Nav.toast(qsTr("Radio streams are coming soon"), "radio")
                         }
                         ListLine {
                             icon: "live"
                             iconColor: "#cdb68e"
                             live: true
-                            title: "Lo-Fi Nocą"
+                            title: qsTr("Lo-Fi at Night")
                             detail: "128 kbps"
-                            onActivated: Nav.toast("Strumienie radiowe pojawią się wkrótce", "radio")
+                            onActivated: Nav.toast(qsTr("Radio streams are coming soon"), "radio")
                         }
                         PillButton {
                             kind: "ghost"
                             icon: "add"
-                            text: "Dodaj stację"
-                            onClicked: Nav.toast("Dodawanie stacji pojawi się wkrótce", "radio")
+                            text: qsTr("Add station")
+                            onClicked: Nav.toast(qsTr("Adding stations is coming soon"), "radio")
                         }
                     }
 
                     SourceCard {
                         source: page.src("stream")
 
-                        Hint { text: "Odtwarzaj dowolny strumień audio — wklej adres pliku lub playlisty M3U / PLS." }
+                        Hint { text: qsTr("Play any audio stream — paste the address of a file or an M3U / PLS playlist.") }
                         InputField {
                             id: urlField
                             Layout.fillWidth: true
@@ -464,9 +463,9 @@ Item {
                         }
                         PillButton {
                             icon: "play"
-                            text: "Odtwórz"
+                            text: qsTr("Play")
                             enabled: urlField.text.length > 0
-                            onClicked: Nav.toast("Odtwarzanie z adresu URL pojawi się wkrótce", "link")
+                            onClicked: Nav.toast(qsTr("Playing from a URL is coming soon"), "link")
                         }
                     }
                 }

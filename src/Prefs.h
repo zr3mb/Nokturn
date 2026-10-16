@@ -7,9 +7,9 @@
 class QQmlEngine;
 class QJSEngine;
 
-// Proste ustawienia dla QML (wygląd, stan paneli, kreator pierwszego uruchomienia) —
-// zapisywane w tym samym settings.ini co reszta aplikacji (AppPaths::settings()).
-// Typowane odczyty, bo QSettings w formacie INI zwraca wartości logiczne jako tekst.
+// Simple settings for QML (appearance, panel state, first-run wizard) —
+// stored in the same settings.ini as the rest of the app (AppPaths::settings()).
+// Typed reads, because QSettings in INI format returns booleans as text.
 class Prefs : public QObject
 {
     Q_OBJECT

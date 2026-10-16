@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import Nokturn
 
-// Okrągły przycisk odtwarzania pokazywany na kartach po najechaniu.
+// Round play button shown on cards on hover.
 Item {
     id: root
     property real size: 46

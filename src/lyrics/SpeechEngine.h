@@ -12,10 +12,10 @@
 
 class QNetworkReply;
 
-// Rozpoznawanie mowy (whisper.cpp) do dopasowywania czasów tekstu — funkcja eksperymentalna.
-// Program "whisper-cli" i model ggml pobieramy z oficjalnych źródeł (GitHub, Hugging Face)
-// i weryfikujemy sumą SHA-256 podaną przez serwis. Dźwięk dekoduje Qt Multimedia (FFmpeg)
-// do 16 kHz mono, a whisper zwraca słowa z czasami.
+// Speech recognition (whisper.cpp) for aligning lyric timing — an experimental feature.
+// The "whisper-cli" program and the ggml model are downloaded from official sources (GitHub, Hugging Face)
+// and verified with the SHA-256 published by the service. Qt Multimedia (FFmpeg) decodes the audio
+// to 16 kHz mono, and whisper returns words with timestamps.
 class SpeechEngine : public QObject
 {
     Q_OBJECT
@@ -24,7 +24,7 @@ public:
     struct Hardware
     {
         int threads = 1;
-        double memoryGb = 0;     // 0 = nieznane
+        double memoryGb = 0;     // 0 = unknown
         bool sufficient = false;
         QString recommendedModel;
         QString summary;
@@ -40,7 +40,7 @@ public:
     static QString modelSize(const QString &model);
 
     bool engineReady() const { return !m_enginePath.isEmpty(); }
-    // Gotowa paczka whisper.cpp jest tylko dla Windows; na Linuksie instaluje się ją z repozytorium.
+    // A ready-made whisper.cpp package exists only for Windows; on Linux it's installed from the repositories.
     static bool canDownloadEngine()
     {
 #ifdef Q_OS_WIN
@@ -61,7 +61,7 @@ public:
     void cancelDownload();
     void removeModel(const QString &model);
 
-    // Transkrypcja z czasami słów. `prompt` (np. początek tekstu) podpowiada modelowi słownictwo.
+    // Transcription with word timestamps. `prompt` (e.g. the start of the lyrics) hints the vocabulary to the model.
     void transcribe(const QUrl &audio, const QString &model, const QString &prompt, WordsCallback callback);
     void cancel();
 
@@ -77,7 +77,7 @@ private:
     QString modelsDir() const;
     QString modelPath(const QString &model) const;
     void finishDownloadError(const QString &message);
-    // Pobiera plik strumieniowo (modele mają setki MB) i sprawdza SHA-256 przed zapisaniem.
+    // Downloads the file as a stream (models are hundreds of MB) and checks SHA-256 before saving.
     void fetchVerified(const QUrl &url, const QString &target, const QByteArray &sha256Hex,
                        std::function<void(bool ok)> done);
     void startWhisper();

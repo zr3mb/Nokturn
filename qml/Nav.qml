@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 
-// Globalny stan interfejsu: aktualna strona, historia, panele.
+// Global UI state: current page, history, panels.
 QtObject {
     id: nav
 
@@ -10,17 +10,17 @@ QtObject {
     property var backStack: []
     property var forwardStack: []
 
-    // Układ okna — zapamiętywany między uruchomieniami.
+    // Window layout — remembered between launches.
     property bool queueOpen: Prefs.boolValue("ui/queueOpen", true)
-    property string panelTab: "queue"      // panel "Teraz odtwarzane": "queue" | "lyrics"
-    property bool immersiveLyrics: Prefs.boolValue("ui/immersiveLyrics", true)   // tekst obok okładki w trybie pełnoekranowym
+    property string panelTab: "queue"      // "Now playing" panel: "queue" | "lyrics"
+    property bool immersiveLyrics: Prefs.boolValue("ui/immersiveLyrics", true)   // lyrics next to the cover in full-screen mode
     property bool immersive: false
     property bool sidebarCompact: Prefs.boolValue("ui/sidebarCompact", false)
     onQueueOpenChanged: Prefs.setValue("ui/queueOpen", queueOpen)
     onImmersiveLyricsChanged: Prefs.setValue("ui/immersiveLyrics", immersiveLyrics)
     onSidebarCompactChanged: Prefs.setValue("ui/sidebarCompact", sidebarCompact)
 
-    // Kreator pierwszego uruchomienia (wygląd, źródła muzyki, odtwarzanie, integracje).
+    // First-run wizard (appearance, music sources, playback, integrations).
     property bool onboarding: !Prefs.boolValue("onboarding/done", false)
     property int onboardingStep: 0
     function finishOnboarding() {

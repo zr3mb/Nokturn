@@ -23,7 +23,7 @@ QDBusObjectPath trackPath(const QString &id)
 {
     if (id.isEmpty())
         return QDBusObjectPath(QStringLiteral("/org/mpris/MediaPlayer2/TrackList/NoTrack"));
-    // Ścieżka obiektu D-Bus dopuszcza tylko [A-Za-z0-9_] — używamy skrótu identyfikatora.
+    // A D-Bus object path only allows [A-Za-z0-9_] — we use a hash of the id.
     return QDBusObjectPath(QStringLiteral("/org/nokturn/track/")
                            + QString::fromLatin1(QCryptographicHash::hash(id.toUtf8(), QCryptographicHash::Sha1).toHex()));
 }
@@ -41,7 +41,7 @@ Mpris::Mpris(PlayerController *player)
     QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected())
         return;
-    // Drugie okno programu dostaje nazwę z sufiksem (wymóg specyfikacji przy wielu instancjach).
+    // A second instance of the program gets a name with a suffix (required by the spec with multiple instances).
     m_registered = bus.registerObject(kPath, this)
                    && (bus.registerService(kService)
                        || bus.registerService(kService + QStringLiteral(".instance")
@@ -213,7 +213,7 @@ void MprisPlayer::SetPosition(const QDBusObjectPath &trackId, qlonglong position
 {
     auto *p = m_mpris->player();
     if (!p || trackId != trackPath(p->currentTrackId()))
-        return;   // specyfikacja: polecenie dla innego utworu ignorujemy
+        return;   // per the spec: a command for a different track is ignored
     if (positionUs >= 0 && (p->duration() <= 0 || positionUs <= qlonglong(p->duration()) * 1000000))
         p->seek(positionUs / 1e6);
 }

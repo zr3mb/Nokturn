@@ -1,0 +1,59 @@
+{
+  "_comment": "English plural forms only (source text is English): [one, other].",
+  "%n tracks from your folders": [
+    "%n track from your folders",
+    "%n tracks from your folders"
+  ],
+  "%n tracks": [
+    "%n track",
+    "%n tracks"
+  ],
+  "Playlist · %n tracks": [
+    "Playlist · %n track",
+    "Playlist · %n tracks"
+  ],
+  "%n folders": [
+    "%n folder",
+    "%n folders"
+  ],
+  "%n liked tracks": [
+    "%n liked track",
+    "%n liked tracks"
+  ],
+  "%n playlists": [
+    "%n playlist",
+    "%n playlists"
+  ],
+  "%n liked": [
+    "%n liked",
+    "%n liked"
+  ],
+  "In the library: %n results": [
+    "In the library: %n result",
+    "In the library: %n results"
+  ],
+  "%n albums": [
+    "%n album",
+    "%n albums"
+  ],
+  "%n artists": [
+    "%n artist",
+    "%n artists"
+  ],
+  "%n liked on YouTube Music": [
+    "%n liked on YouTube Music",
+    "%n liked on YouTube Music"
+  ],
+  "Artist · %n tracks": [
+    "Artist · %n track",
+    "Artist · %n tracks"
+  ],
+  "In the library: %n tracks": [
+    "In the library: %n track",
+    "In the library: %n tracks"
+  ],
+  "%n CPU threads": [
+    "%n CPU thread",
+    "%n CPU threads"
+  ]
+}

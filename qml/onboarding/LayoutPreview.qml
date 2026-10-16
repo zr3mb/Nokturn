@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Shapes
 import Nokturn
 
-// Animowana miniatura okna Nokturna do kreatora: pokazuje, jak wygląda dany wariant układu
-// (panel boczny pełny / kompaktowy, panel "Teraz odtwarzane", kolor akcentu, żywe tło).
-// Wszystko rysowane prostymi kształtami w jednostkach względnych (u = 1% szerokości).
+// Animated thumbnail of the Nokturn window for the wizard: shows what a layout variant looks like
+// (full / compact sidebar, the "Now playing" panel, accent color, live background).
+// Everything is drawn with simple shapes in relative units (u = 1% of the width).
 Item {
     id: root
     property bool compact: false
@@ -19,7 +19,7 @@ Item {
     readonly property real u: width / 100
     readonly property bool animate: running && visible
 
-    // Kolejne "okładki" — w trybie dynamicznym akcent podąża za nimi
+    // Successive "covers" — in dynamic mode the accent follows them
     readonly property var palettes: [
         ["#9fb5a8", "#3e4f5a"], ["#d9a07b", "#5b3a3f"], ["#8fa8d8", "#2f3c63"],
         ["#c9a6d6", "#4a3560"], ["#b5c98b", "#3a502f"]
@@ -37,7 +37,7 @@ Item {
         onTriggered: root.palette = (root.palette + 1) % root.palettes.length
     }
 
-    // Podświetlenie "przechodzi" po pozycjach panelu bocznego
+    // The highlight "walks" over the sidebar items
     property int active: 0
     Timer {
         interval: 1400
@@ -64,7 +64,7 @@ Item {
         border.color: Qt.rgba(1, 1, 1, 0.08)
         clip: true
 
-        // ---- żywe tło: miękkie, pulsujące światło w kolorach akcentu ----
+        // ---- live background: soft light pulsing in the accent colors ----
         Item {
             anchors.fill: parent
             opacity: root.ambient ? 1 : 0
@@ -100,7 +100,7 @@ Item {
             }
         }
 
-        // ---- pasek tytułu ----
+        // ---- title bar ----
         Rectangle {
             x: 34 * root.u; y: 1.6 * root.u
             width: 32 * root.u; height: 3 * root.u
@@ -117,7 +117,7 @@ Item {
             }
         }
 
-        // ---- panel boczny ----
+        // ---- sidebar ----
         Rectangle {
             id: side
             x: 1.6 * root.u
@@ -148,7 +148,7 @@ Item {
                 Behavior on opacity { NumberAnimation { duration: 260 } }
             }
 
-            // podświetlenie aktywnej pozycji
+            // highlight of the active item
             Rectangle {
                 x: 1 * root.u
                 y: 9.5 * root.u + root.active * 4.6 * root.u - 0.9 * root.u
@@ -189,7 +189,7 @@ Item {
                 }
             }
 
-            // playlisty (tylko w pełnym panelu)
+            // playlists (only in the full sidebar)
             Column {
                 x: 2.4 * root.u
                 y: 34 * root.u
@@ -216,7 +216,7 @@ Item {
             }
         }
 
-        // ---- panel "Teraz odtwarzane" ----
+        // ---- "Now playing" panel ----
         Rectangle {
             id: queue
             anchors { right: parent.right; rightMargin: root.showQueue ? 1.6 * root.u : -width }
@@ -264,7 +264,7 @@ Item {
             }
         }
 
-        // ---- treść ----
+        // ---- content ----
         Rectangle {
             id: content
             anchors {
@@ -322,7 +322,7 @@ Item {
             }
         }
 
-        // ---- pasek odtwarzacza ----
+        // ---- player bar ----
         Item {
             id: player
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }

@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Przycisk w kształcie pigułki: "primary" | "secondary" | "ghost".
+// Pill-shaped button: "primary" | "secondary" | "ghost".
 Item {
     id: root
     property string text: ""

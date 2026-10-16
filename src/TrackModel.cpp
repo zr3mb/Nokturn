@@ -29,7 +29,7 @@ QVariant TrackModel::data(const QModelIndex &index, int role) const
     case TrackNoRole:      return t.trackNo;
     case DurationRole:     return t.duration;
     case DurationTextRole:
-        // Utwory z YouTube bez podanej długości poznają ją dopiero po załadowaniu strumienia.
+        // Tracks from YouTube without a given length only learn it once the stream has loaded.
         return t.duration <= 0 && t.source != QLatin1String("radio") ? QString() : formatDuration(t.duration);
     case SourceRole:       return t.source;
     case QualityRole:      return t.quality;
@@ -124,7 +124,7 @@ void TrackModel::setColors(int row, const QColor &a, const QColor &b)
 QString TrackModel::formatDuration(int seconds)
 {
     if (seconds <= 0)
-        return QStringLiteral("NA ŻYWO");
+        return tr("LIVE");
     if (seconds >= 3600)
         return QStringLiteral("%1:%2:%3").arg(seconds / 3600)
             .arg((seconds / 60) % 60, 2, 10, QLatin1Char('0'))

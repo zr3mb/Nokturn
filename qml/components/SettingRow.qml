@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Wiersz ustawień: tytuł + opis po lewej, kontrolka po prawej.
+// Settings row: title + description on the left, the control on the right.
 Item {
     id: root
     property string title: ""

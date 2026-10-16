@@ -13,7 +13,7 @@ Item {
         Library.tracks.revision
         return Library.search(query, filterKeys[filter])
     }
-    // Wyszukiwanie w katalogu YouTube Music (online) dla "Wszystko" i "YouTube Music"
+    // Online search in the YouTube Music catalog for "All" and "YouTube Music"
     readonly property bool onlineEnabled: query.trim().length > 1 && (filter === 0 || filter === 2)
     readonly property var online: {
         Library.tracks.revision
@@ -32,12 +32,12 @@ Item {
     readonly property var moods: [
         { name: "Ambient",     a: "#9fb5a8", b: "#36504a", seed: 0 },
         { name: "Lo-fi",       a: "#b7aac9", b: "#463c5c", seed: 1 },
-        { name: "Jazz nocą",   a: "#cdb68e", b: "#5a4a34", seed: 2 },
-        { name: "Elektronika", a: "#93a8c3", b: "#36445c", seed: 3 },
+        { name: qsTr("Night jazz"),  a: "#cdb68e", b: "#5a4a34", seed: 2 },
+        { name: qsTr("Electronic"),  a: "#93a8c3", b: "#36445c", seed: 3 },
         { name: "Indie",       a: "#cda2a6", b: "#5c3a42", seed: 1 },
-        { name: "Klasyka",     a: "#c5bd95", b: "#545035", seed: 2 },
-        { name: "Skupienie",   a: "#8fb7b3", b: "#2e5150", seed: 0 },
-        { name: "Deszczowo",   a: "#a3b3c1", b: "#3b4a57", seed: 3 }
+        { name: qsTr("Classical"),   a: "#c5bd95", b: "#545035", seed: 2 },
+        { name: qsTr("Focus"),       a: "#8fb7b3", b: "#2e5150", seed: 0 },
+        { name: qsTr("Rainy"),       a: "#a3b3c1", b: "#3b4a57", seed: 3 }
     ]
 
     Connections {
@@ -71,7 +71,7 @@ Item {
         Component.onCompleted: tileIn.start()
 
         HoverHandler { id: tileHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: Nav.toast("Nastroje będą dostępne po podłączeniu źródeł", "sparkle") }
+        TapHandler { onTapped: Nav.toast(qsTr("Moods will be available once sources are connected"), "sparkle") }
 
         ArtCover {
             anchors.fill: parent
@@ -97,7 +97,7 @@ Item {
 
         Reveal {
             Text {
-                text: "Szukaj"
+                text: qsTr("Search")
                 color: Theme.text
                 font.family: Theme.fontDisplay
                 font.pixelSize: 38
@@ -117,13 +117,13 @@ Item {
                     implicitHeight: 56
                     icon: "search"
                     font.pixelSize: 16
-                    placeholderText: "Czego chcesz dziś posłuchać?"
+                    placeholderText: qsTr("What do you want to listen to today?")
                     onTextChanged: page.query = text
                     Keys.onEscapePressed: text = ""
                 }
 
                 SegmentedTabs {
-                    model: ["Wszystko", "Lokalne", "YouTube Music", "Radio"]
+                    model: [qsTr("All"), qsTr("Local"), "YouTube Music", qsTr("Radio")]
                     currentIndex: page.filter
                     onActivated: i => page.filter = i
                 }
@@ -149,8 +149,8 @@ Item {
             Text {
                 Layout.bottomMargin: 8
                 visible: page.results.length > 0
-                text: "W bibliotece: " + Theme.plural(page.results.length, "wynik", "wyniki", "wyników")
-                      + (page.query.trim() ? " dla „" + page.query.trim() + "”" : "")
+                text: qsTr("In the library: %n results", "", page.results.length)
+                      + (page.query.trim() ? " " + qsTr("for “%1”").arg(page.query.trim()) : "")
                 color: Theme.textDim
                 font.pixelSize: 14
             }
@@ -179,7 +179,7 @@ Item {
                 Icon { name: "playCircle"; size: 20; color: "#cf9d9d" }
                 Text {
                     Layout.fillWidth: true
-                    text: "W YouTube Music"
+                    text: qsTr("On YouTube Music")
                     color: Theme.text
                     font.family: Theme.fontDisplay
                     font.pixelSize: 18
@@ -215,14 +215,14 @@ Item {
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: "Brak wyników dla „" + page.query.trim() + "”"
+                    text: qsTr("No results for “%1”").arg(page.query.trim())
                     color: Theme.text
                     font.pixelSize: 18
                     font.weight: Font.DemiBold
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: "Spróbuj innej frazy albo podłącz kolejne źródło muzyki."
+                    text: qsTr("Try a different phrase or connect another music source.")
                     color: Theme.textDim
                     font.pixelSize: 14
                 }
@@ -238,8 +238,8 @@ Item {
 
             SectionHeader {
                 Layout.fillWidth: true
-                title: "Przeglądaj nastroje"
-                subtitle: "Albo po prostu zacznij pisać"
+                title: qsTr("Browse moods")
+                subtitle: qsTr("Or just start typing")
             }
 
             Grid {

@@ -22,9 +22,9 @@
 
 namespace {
 
-constexpr int kMinPushIntervalMs = 4000;   // Discord przyjmuje ok. 5 zmian statusu na 20 s
+constexpr int kMinPushIntervalMs = 4000;   // Discord accepts about 5 status changes per 20 s
 
-// Discord wymaga 2–128 znaków w polach tekstowych.
+// Discord requires 2–128 characters in text fields.
 QString clip(QString s, int max = 128)
 {
     s = s.simplified();
@@ -72,7 +72,7 @@ DiscordPresence::DiscordPresence(QObject *parent)
     connect(&m_socket, &QLocalSocket::readyRead, this, &DiscordPresence::onReadyRead);
     connect(&m_socket, &QLocalSocket::disconnected, this, &DiscordPresence::onDisconnected);
     connect(&m_socket, &QLocalSocket::errorOccurred, this, [this](QLocalSocket::LocalSocketError) {
-        // Nieudana próba połączenia — spróbuj kolejnego gniazda (discord-ipc-0…9, różne katalogi).
+        // A failed connection attempt — try the next socket (discord-ipc-0…9, different directories).
         if (!m_ready && m_socket.state() == QLocalSocket::UnconnectedState)
             QTimer::singleShot(0, this, &DiscordPresence::connectNext);
     });
@@ -92,7 +92,7 @@ void DiscordPresence::attach(PlayerController *player)
     connect(player, &PlayerController::seeked, this, &DiscordPresence::scheduleUpdate);
 }
 
-// ---- ustawienia -----------------------------------------------------------------
+// ---- settings -------------------------------------------------------------------
 
 void DiscordPresence::setEnabled(bool on)
 {
@@ -147,23 +147,23 @@ void DiscordPresence::setShowWhenPaused(bool on)
 QString DiscordPresence::status() const
 {
     if (!m_enabled)
-        return QStringLiteral("Wyłączone");
+        return tr("Off");
     if (m_clientId.isEmpty())
-        return QStringLiteral("Podaj identyfikator aplikacji Discord");
+        return tr("Enter the Discord application ID");
     if (m_ready)
-        return m_userName.isEmpty() ? QStringLiteral("Połączono") : QStringLiteral("Połączono jako ") + m_userName;
+        return m_userName.isEmpty() ? tr("Connected") : tr("Connected as %1").arg(m_userName);
     if (!m_lastError.isEmpty())
         return m_lastError;
-    return QStringLiteral("Łączenie z Discordem…");
+    return tr("Connecting to Discord…");
 }
 
-// ---- połączenie -----------------------------------------------------------------
+// ---- connection -----------------------------------------------------------------
 
 QStringList DiscordPresence::socketCandidates() const
 {
     QStringList out;
 #ifdef Q_OS_WIN
-    // QLocalSocket zamienia nazwę na \\.\pipe\discord-ipc-N.
+    // QLocalSocket turns the name into \\.\pipe\discord-ipc-N.
     for (int i = 0; i < 10; ++i)
         out << QStringLiteral("discord-ipc-%1").arg(i);
 #else
@@ -175,7 +175,7 @@ QStringList DiscordPresence::socketCandidates() const
     }
     if (!dirs.contains(QStringLiteral("/tmp")))
         dirs << QStringLiteral("/tmp");
-    // Discord z Flatpaka / Snapa oraz popularne klienty alternatywne trzymają gniazdo w podkatalogach.
+    // Discord from Flatpak / Snap and popular alternative clients keep the socket in subdirectories.
     const QStringList subdirs = {
         QString(), QStringLiteral("app/com.discordapp.Discord/"), QStringLiteral("app/com.discordapp.DiscordCanary/"),
         QStringLiteral("snap.discord/"), QStringLiteral("snap.discord-canary/"),
@@ -213,7 +213,7 @@ void DiscordPresence::connectNext()
         m_candidates = socketCandidates();
     if (m_candidate >= m_candidates.size()) {
         m_candidate = 0;
-        m_lastError = QStringLiteral("Discord nie jest uruchomiony");
+        m_lastError = tr("Discord isn't running");
         emit stateChanged();
         m_retry.start();
         return;
@@ -234,7 +234,7 @@ void DiscordPresence::onDisconnected()
     m_buffer.clear();
     m_candidate = 0;
     if (wasReady && m_lastError.isEmpty())
-        m_lastError = QStringLiteral("Rozłączono z Discordem");
+        m_lastError = tr("Disconnected from Discord");
     emit stateChanged();
     if (m_enabled)
         m_retry.start();
@@ -255,7 +255,7 @@ void DiscordPresence::onReadyRead()
     while (m_buffer.size() >= 8) {
         const quint32 op = qFromLittleEndian<quint32>(m_buffer.constData());
         const quint32 len = qFromLittleEndian<quint32>(m_buffer.constData() + 4);
-        if (len > 1 << 20) {   // uszkodzony strumień
+        if (len > 1 << 20) {   // damaged stream
             m_socket.abort();
             return;
         }
@@ -285,7 +285,7 @@ void DiscordPresence::handle(Opcode op, const QJsonObject &payload)
             emit stateChanged();
             pushActivity();
         } else if (evt == QLatin1String("ERROR")) {
-            // Starsze klienty Discorda nie znają nowszych pól (typ statusu, przyciski) — spróbuj bez nich.
+            // Older Discord clients don't know the newer fields (status type, buttons) — try without them.
             if (payload.value("cmd").toString() == QLatin1String("SET_ACTIVITY") && !m_minimal) {
                 m_minimal = true;
                 m_lastSent.clear();
@@ -300,7 +300,7 @@ void DiscordPresence::handle(Opcode op, const QJsonObject &payload)
     case Close:
         m_lastError = payload.value("message").toString();
         if (m_lastError.contains(QLatin1String("client id"), Qt::CaseInsensitive))
-            m_lastError = QStringLiteral("Discord nie rozpoznał identyfikatora aplikacji");
+            m_lastError = tr("Discord didn't recognize the application ID");
         emit stateChanged();
         m_socket.disconnectFromServer();
         break;
@@ -333,9 +333,9 @@ void DiscordPresence::pushActivity()
     QJsonObject args { { "pid", qint64(QCoreApplication::applicationPid()) } };
     const QJsonObject activity = buildActivity();
     if (!activity.isEmpty())
-        args.insert("activity", activity);   // brak "activity" = wyczyść status
+        args.insert("activity", activity);   // no "activity" = clear the status
 
-    // Bez zmian (pomijając znaczniki czasu przesunięte o ułamek sekundy) — nic nie wysyłamy.
+    // No change (ignoring timestamps shifted by a fraction of a second) — we send nothing.
     QJsonObject key = args;
     QJsonObject keyActivity = activity;
     if (keyActivity.contains("timestamps")) {
@@ -367,11 +367,11 @@ QJsonObject DiscordPresence::buildActivity() const
         return {};
 
     QJsonObject a;
-    a.insert("type", 2);   // "Słucha"
+    a.insert("type", 2);   // "Listening"
     a.insert("details", clip(t->title));
-    a.insert("state", clip(playing ? t->artist : QStringLiteral("Wstrzymano · ") + t->artist));
+    a.insert("state", clip(playing ? t->artist : tr("Paused · %1").arg(t->artist)));
     if (!m_minimal)
-        a.insert("status_display_type", 2);   // na liście członków: tytuł utworu zamiast nazwy aplikacji
+        a.insert("status_display_type", 2);   // in the member list: the track title instead of the app name
 
     const int duration = m_player->duration();
     if (playing && duration > 0) {
@@ -379,8 +379,8 @@ QJsonObject DiscordPresence::buildActivity() const
         a.insert("timestamps", QJsonObject { { "start", double(start) }, { "end", double(start + qint64(duration) * 1000) } });
     }
 
-    // Okładka: adres https (YouTube Music) albo okładka dopasowanego utworu z YouTube Music
-    // dla plików lokalnych; inaczej ikona aplikacji (zasób "nokturn" w aplikacji Discord).
+    // Cover: an https URL (YouTube Music) or the cover of the matched YouTube Music track
+    // for local files; otherwise the app icon (the "nokturn" asset in the Discord application).
     QString image = t->cover.startsWith(QLatin1String("https://")) ? t->cover : m_covers.value(t->id);
     if (image.isEmpty() || image.size() > 256)
         image = QStringLiteral("nokturn");
@@ -390,7 +390,7 @@ QJsonObject DiscordPresence::buildActivity() const
 
     if (!m_minimal && t->source == QLatin1String("youtube")) {
         a.insert("buttons", QJsonArray { QJsonObject {
-            { "label", QStringLiteral("Posłuchaj w YouTube Music") },
+            { "label", tr("Listen on YouTube Music") },
             { "url", QStringLiteral("https://music.youtube.com/watch?v=") + t->path } } });
     }
     return a;

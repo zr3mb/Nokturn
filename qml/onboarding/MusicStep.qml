@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import Nokturn
 
-// Krok 4: skąd brać muzykę — foldery na dysku i konto YouTube Music.
+// Step 4: where the music comes from — folders on disk and a YouTube Music account.
 Item {
     id: root
 
@@ -12,25 +12,25 @@ Item {
         spacing: 24
 
         StepTitle {
-            title: "Skąd gramy?"
-            subtitle: "Dodaj foldery z muzyką i połącz konto YouTube Music. Oba źródła są opcjonalne — możesz to zrobić później w zakładce Źródła."
+            title: qsTr("What are we playing from?")
+            subtitle: qsTr("Add music folders and connect your YouTube Music account. Both sources are optional — you can do it later on the Sources page.")
         }
 
         RowLayout {
             Layout.fillWidth: true
             spacing: 18
 
-            // ---- pliki lokalne ----
+            // ---- local files ----
             StepCard {
                 Layout.preferredWidth: 100
                 icon: "folder"
-                title: "Pliki na dysku"
-                description: "MP3, FLAC, M4A, OGG, Opus, WAV i inne — razem z podfolderami, tagami i okładkami."
+                title: qsTr("Files on disk")
+                description: qsTr("MP3, FLAC, M4A, OGG, Opus, WAV and more — with subfolders, tags and covers.")
 
                 Text {
                     Layout.fillWidth: true
                     visible: Library.folders.length === 0
-                    text: "Nie wybrano jeszcze żadnego folderu."
+                    text: qsTr("No folder chosen yet.")
                     color: Theme.textFaint
                     font.pixelSize: 13
                 }
@@ -59,7 +59,7 @@ Item {
                                     elide: Text.ElideMiddle
                                 }
                                 Text {
-                                    text: Theme.plural(folderRow.modelData.count, "utwór", "utwory", "utworów")
+                                    text: qsTr("%n tracks", "", folderRow.modelData.count)
                                     color: Theme.textFaint
                                     font.pixelSize: 11
                                 }
@@ -74,7 +74,7 @@ Item {
                     }
                 }
 
-                // postęp skanowania
+                // scan progress
                 ColumnLayout {
                     Layout.fillWidth: true
                     visible: Library.scanning
@@ -107,13 +107,13 @@ Item {
                     PillButton {
                         kind: Library.folders.length === 0 ? "primary" : "secondary"
                         icon: "add"
-                        text: "Dodaj folder"
+                        text: qsTr("Add folder")
                         onClicked: Nav.addFolder()
                     }
                     Text {
                         Layout.fillWidth: true
                         visible: Library.localCount > 0
-                        text: "W bibliotece: " + Theme.plural(Library.localCount, "utwór", "utwory", "utworów")
+                        text: qsTr("In the library: %n tracks", "", Library.localCount)
                         color: Theme.textDim
                         font.pixelSize: 13
                         horizontalAlignment: Text.AlignRight
@@ -126,9 +126,9 @@ Item {
                 Layout.preferredWidth: 100
                 icon: "playCircle"
                 title: "YouTube Music"
-                description: "Polubione utwory, playlisty z biblioteki i wyszukiwarka. Wyszukiwanie i odtwarzanie działają też bez logowania."
+                description: qsTr("Liked songs, playlists from your library and search. Search and playback also work without signing in.")
 
-                // Połączone konto
+                // Connected account
                 RowLayout {
                     Layout.fillWidth: true
                     visible: YouTube.connected
@@ -163,7 +163,7 @@ Item {
                         spacing: 1
                         Text {
                             Layout.fillWidth: true
-                            text: YouTube.accountName || "Konto Google"
+                            text: YouTube.accountName || qsTr("Google account")
                             color: Theme.text
                             font.pixelSize: 15
                             font.weight: Font.DemiBold
@@ -171,9 +171,9 @@ Item {
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: YouTube.syncing ? "Synchronizacja z kontem…"
-                                : Theme.plural(YouTube.likedCount, "polubiony utwór", "polubione utwory", "polubionych utworów")
-                                  + " · " + Theme.plural(YouTube.playlistCount, "playlista", "playlisty", "playlist")
+                            text: YouTube.syncing ? qsTr("Syncing with your account…")
+                                : qsTr("%n liked tracks", "", YouTube.likedCount)
+                                  + " · " + qsTr("%n playlists", "", YouTube.playlistCount)
                             color: Theme.textDim
                             font.pixelSize: 12
                             elide: Text.ElideRight
@@ -187,7 +187,7 @@ Item {
                         Text {
                             id: connectedText
                             anchors.centerIn: parent
-                            text: "Połączono"
+                            text: qsTr("Connected")
                             color: Theme.success
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
@@ -195,7 +195,7 @@ Item {
                     }
                 }
 
-                // Logowanie
+                // Signing in
                 ColumnLayout {
                     Layout.fillWidth: true
                     visible: !YouTube.connected
@@ -204,8 +204,8 @@ Item {
                         Layout.fillWidth: true
                         text: YouTube.loggingIn ? YouTube.loginStatus
                             : YouTube.browserName !== ""
-                              ? "Zalogujesz się w osobnym oknie " + YouTube.browserName + " z czystym profilem — Twoje zwykłe profile przeglądarki nie są dotykane."
-                              : "Nie znaleziono Chrome, Edge ani Brave — konto połączysz później w Źródłach, wklejając ciasteczka."
+                              ? qsTr("You'll sign in in a separate %1 window with a clean profile — your regular browser profiles are not touched.").arg(YouTube.browserName)
+                              : qsTr("Chrome, Edge or Brave was not found — you can connect the account later on the Sources page by pasting cookies.")
                         color: YouTube.loggingIn ? Theme.text : Theme.textDim
                         font.pixelSize: 13
                         wrapMode: Text.WordWrap
@@ -215,7 +215,7 @@ Item {
                         PillButton {
                             kind: "primary"
                             icon: "person"
-                            text: YouTube.loggingIn ? "Czekam na logowanie…" : "Połącz konto"
+                            text: YouTube.loggingIn ? qsTr("Waiting for sign-in…") : qsTr("Connect account")
                             busy: YouTube.loggingIn
                             enabled: YouTube.browserName !== "" && !YouTube.loggingIn
                             onClicked: YouTube.login()
@@ -223,7 +223,7 @@ Item {
                         PillButton {
                             visible: YouTube.loggingIn
                             kind: "ghost"
-                            text: "Anuluj"
+                            text: qsTr("Cancel")
                             onClicked: YouTube.cancelLogin()
                         }
                     }
@@ -235,7 +235,7 @@ Item {
                     color: Qt.rgba(1, 1, 1, 0.06)
                 }
 
-                // Silnik odtwarzania (yt-dlp)
+                // Playback engine (yt-dlp)
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
@@ -249,16 +249,16 @@ Item {
                         spacing: 2
                         Text {
                             Layout.fillWidth: true
-                            text: "Silnik odtwarzania (yt-dlp)"
+                            text: qsTr("Playback engine (yt-dlp)")
                             color: Theme.text
                             font.pixelSize: 13
                             font.weight: Font.DemiBold
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: YouTube.engineDownloading ? "Pobieranie… " + Math.round(YouTube.engineProgress * 100) + "%"
-                                : YouTube.engineReady ? "Gotowy" + (YouTube.engineVersion ? " · wersja " + YouTube.engineVersion : "")
-                                : "Potrzebny do odtwarzania z YouTube — oficjalne wydanie z GitHuba, sprawdzane sumą SHA-256."
+                            text: YouTube.engineDownloading ? qsTr("Downloading… %1%").arg(Math.round(YouTube.engineProgress * 100))
+                                : YouTube.engineReady ? qsTr("Ready") + (YouTube.engineVersion ? " · " + qsTr("version %1").arg(YouTube.engineVersion) : "")
+                                : qsTr("Needed to play from YouTube — the official release from GitHub, verified with SHA-256.")
                             color: Theme.textDim
                             font.pixelSize: 12
                             wrapMode: Text.WordWrap
@@ -268,7 +268,7 @@ Item {
                         visible: !YouTube.engineReady
                         kind: "secondary"
                         icon: "add"
-                        text: "Pobierz"
+                        text: qsTr("Download")
                         busy: YouTube.engineDownloading
                         enabled: !YouTube.engineDownloading
                         onClicked: YouTube.downloadEngine()

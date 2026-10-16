@@ -1,14 +1,17 @@
 #include "YtMusicApi.h"
 
+#include "Language.h"
 #include "LibraryScanner.h"
 #include "lyrics/LyricsAligner.h"
 
+#include <QCoreApplication>
 #include <QDate>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QSet>
+#include <QLocale>
 
 namespace {
 
@@ -16,7 +19,16 @@ const QString kOrigin = QStringLiteral("https://music.youtube.com");
 const QByteArray kUserAgent =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36";
 
-// Bezpieczne zagłębianie się w JSON po ścieżce "a.b.0.c".
+
+// Content language follows the interface language (playlist names, lyric footers);
+// the region comes from the system settings (what's available where).
+QString hl() { return Language::instance()->effective(); }
+QString gl()
+{
+    const QString code = QLocale::territoryToCode(QLocale::system().territory());
+    return code.size() == 2 ? code : QStringLiteral("US");
+}
+// Safe descent into JSON along a path like "a.b.0.c".
 QJsonValue dig(QJsonValue v, const QString &path)
 {
     for (const QString &key : path.split('.')) {
@@ -42,7 +54,7 @@ QString runsText(const QJsonValue &text)
     return out;
 }
 
-// Zbiera wszystkie obiekty o danym kluczu w dowolnym miejscu drzewa (kolejność dokumentu).
+// Collects every object with the given key anywhere in the tree (document order).
 void collect(const QJsonValue &v, const QString &key, QList<QJsonObject> &out)
 {
     if (v.isObject()) {
@@ -71,7 +83,7 @@ int parseDuration(const QString &text)
 QString bigThumbnail(const QJsonArray &thumbnails)
 {
     QString url = thumbnails.isEmpty() ? QString() : thumbnails.last().toObject().value("url").toString();
-    // Miniatury z googleusercontent mają rozmiar w adresie — prosimy o większą.
+    // Thumbnails from googleusercontent have the size in the URL — we ask for a bigger one.
     static const QRegularExpression size(QStringLiteral("=w\\d+-h\\d+"));
     url.replace(size, QStringLiteral("=w544-h544"));
     return url;
@@ -82,13 +94,14 @@ bool isNoiseRun(const QString &t)
     static const QRegularExpression punctuation(QStringLiteral("^[\\s•·,&|\\-–]*$"));
     if (punctuation.match(t).hasMatch() || t.trimmed() == QLatin1String("oraz") || t.trimmed() == QLatin1String("and"))
         return true;
+    // Labels of non-title runs in both interface languages YouTube may answer in.
     static const QSet<QString> words = {
-        "Utwór", "Song", "Teledysk", "Video", "Film", "Odcinek", "Episode", "Singiel", "Single", "EP", "Album",
+        "Utwór", "Song", "Teledysk", "Video", "Film", "Odcinek", "Episode", "Singiel", "Single", "EP", "Album",   // i18n-ignore
     };
     const QString s = t.trimmed();
     return s.isEmpty() || s == QLatin1String("•") || s == QLatin1String("&") || s == QLatin1String(",")
            || words.contains(s) || parseDuration(s) >= 0
-           || s.contains(QLatin1String("wyświetl")) || s.contains(QLatin1String("views"))
+           || s.contains(QLatin1String("wyświetl")) || s.contains(QLatin1String("views"))   // i18n-ignore
            || s.contains(QLatin1String("odtworze")) || s.contains(QLatin1String("plays"));
 }
 
@@ -105,7 +118,7 @@ std::optional<Track> parseItem(const QJsonObject &r)
     if (videoId.isEmpty() || flex.isEmpty())
         return std::nullopt;
 
-    // Wyniki, które nie są utworami (wykonawca, album, playlista, profil, podcast).
+    // Results that aren't tracks (artist, album, playlist, profile, podcast).
     static const QSet<QString> nonSongTypes = {
         "Wykonawca", "Artist", "Album", "Playlista", "Playlist", "Profil", "Profile", "Podcast", "Odcinek", "Episode",
     };
@@ -147,7 +160,7 @@ std::optional<Track> parseItem(const QJsonObject &r)
     t.id = QStringLiteral("yt:") + videoId;
     t.path = videoId;
     t.source = QStringLiteral("youtube");
-    t.quality = QStringLiteral("YouTube Music · strumień");
+    t.quality = QCoreApplication::translate("YouTubeService", "YouTube Music · stream");
     t.cover = bigThumbnail(dig(r, "thumbnail.musicThumbnailRenderer.thumbnail.thumbnails").toArray());
 
     const QString key = TrackModel::albumKey(t);
@@ -199,7 +212,7 @@ void YtMusicApi::callAs(const Client &client, const QString &endpoint, QJsonObje
     body.insert("context", QJsonObject {
         { "client", QJsonObject {
             { "clientName", client.name }, { "clientVersion", client.version },
-            { "hl", "pl" }, { "gl", "PL" } } },
+            { "hl", hl() }, { "gl", gl() } } },
         { "user", QJsonObject {} },
     });
 
@@ -209,7 +222,7 @@ void YtMusicApi::callAs(const Client &client, const QString &endpoint, QJsonObje
     request.setRawHeader("Origin", kOrigin.toLatin1());
     request.setRawHeader("X-Origin", kOrigin.toLatin1());
     request.setRawHeader("Referer", (kOrigin + '/').toLatin1());
-    request.setRawHeader("Accept-Language", "pl-PL,pl;q=0.9");
+    request.setRawHeader("Accept-Language", (hl() + QStringLiteral(";q=0.9")).toLatin1());
     request.setRawHeader("X-Youtube-Client-Name", client.id);
     request.setRawHeader("X-Youtube-Client-Version", client.version.toLatin1());
     if (m_cookies.isLoggedIn()) {
@@ -229,7 +242,7 @@ void YtMusicApi::callAs(const Client &client, const QString &endpoint, QJsonObje
             if (message.isEmpty())
                 message = reply->errorString();
             callback(json, status == 401 || status == 403
-                               ? QStringLiteral("Sesja YouTube wygasła — zaloguj się ponownie")
+                               ? tr("Your YouTube session has expired — sign in again")
                                : message);
             return;
         }
@@ -311,7 +324,7 @@ void YtMusicApi::browsePage(const QString &browseId, const QString &continuation
             if (!seen.contains(t.id))
                 collected << t;
 
-        // Kolejna strona: nowy styl (continuationCommand) albo stary (nextContinuationData).
+        // Next page: the new style (continuationCommand) or the old one (nextContinuationData).
         QList<QJsonObject> commands;
         collect(json, QStringLiteral("continuationCommand"), commands);
         QList<QJsonObject> legacy;
@@ -344,7 +357,7 @@ void YtMusicApi::fetchAccount(std::function<void(const Account &, const QString 
             account.handle = runsText(h.value("channelHandle"));
             account.photo = bigThumbnail(dig(h, "accountPhoto.thumbnails").toArray());
         }
-        callback(account, error.isEmpty() && account.name.isEmpty() ? QStringLiteral("Brak danych konta") : error);
+        callback(account, error.isEmpty() && account.name.isEmpty() ? tr("No account data") : error);
     });
 }
 
@@ -372,11 +385,11 @@ void YtMusicApi::setLiked(const QString &videoId, bool liked)
          [](const QJsonObject &, const QString &) {});
 }
 
-// ---- teksty utworów -----------------------------------------------------------
+// ---- lyrics -------------------------------------------------------------------
 
 Lyrics YtMusicApi::parseTimedLyrics(const QJsonValue &root)
 {
-    // Klient mobilny: ...timedLyricsModel.lyricsData.{timedLyricsData[], sourceMessage}
+    // Mobile client: ...timedLyricsModel.lyricsData.{timedLyricsData[], sourceMessage}
     QList<QJsonObject> models;
     collect(root, QStringLiteral("timedLyricsModel"), models);
     Lyrics out;
@@ -389,7 +402,7 @@ Lyrics YtMusicApi::parseTimedLyrics(const QJsonValue &root)
         const qint64 start = cue.value("startTimeMilliseconds").toVariant().toLongLong();
         const qint64 end = cue.value("endTimeMilliseconds").toVariant().toLongLong();
         const QString text = o.value("lyricLine").toString().trimmed();
-        // Linie "♪" oznaczają przerwę instrumentalną.
+        // "♪" lines mark an instrumental break.
         if (text.isEmpty() || text == QStringLiteral("\u266A")) {
             if (!out.lines.isEmpty() && !out.lines.last().text.isEmpty())
                 out.lines << LyricLine {};
@@ -424,7 +437,7 @@ Lyrics YtMusicApi::parsePlainLyrics(const QJsonValue &root)
 
 void YtMusicApi::fetchLyrics(const QString &videoId, LyricsCallback callback)
 {
-    // 1) "next" zwraca zakładki odtwarzacza; zakładka "Tekst" wskazuje browseId zaczynające się od "MPLY".
+    // 1) "next" returns the player tabs; the "Lyrics" tab points to a browseId starting with "MPLY".
     const QJsonObject body { { "videoId", videoId }, { "isAudioOnly", true } };
     call(QStringLiteral("next"), body, [this, callback](const QJsonObject &json, const QString &error) {
         if (!error.isEmpty()) {
@@ -446,7 +459,7 @@ void YtMusicApi::fetchLyrics(const QString &videoId, LyricsCallback callback)
             return;
         }
 
-        // 2) Wersja z czasami (jak w aplikacji na telefon), 3) awaryjnie zwykły tekst.
+        // 2) The timed version (like in the phone app), 3) plain text as a fallback.
         const QJsonObject browse { { "browseId", browseId } };
         callAs(androidClient(), QStringLiteral("browse"), browse,
                [this, browse, callback](const QJsonObject &timedJson, const QString &) {
@@ -462,11 +475,11 @@ void YtMusicApi::fetchLyrics(const QString &videoId, LyricsCallback callback)
     });
 }
 
-// ---- dopasowanie plików lokalnych -----------------------------------------------
+// ---- matching local files -----------------------------------------------------
 
 namespace {
 
-// "Tytuł (feat. X) - Remastered 2011" -> "tytuł"
+// "Title (feat. X) - Remastered 2011" -> "title"
 QString coreTitle(const QString &title)
 {
     static const QRegularExpression extras(
@@ -498,7 +511,7 @@ int YtMusicApi::bestMatch(const Track &local, const QList<Track> &results)
         if (local.duration > 0 && r.duration > 0) {
             const int diff = std::abs(local.duration - r.duration);
             if (diff > 12)
-                continue;   // inna wersja (np. koncertowa)
+                continue;   // a different version (e.g. live)
             score += 1.0 - diff / 12.0;
         }
         if (score > bestScore) {

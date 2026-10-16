@@ -15,8 +15,8 @@
 class QQmlEngine;
 class QJSEngine;
 
-// YouTube Music: logowanie (przeglądarka + ciasteczka), synchronizacja biblioteki
-// (polubione, playlisty), wyszukiwanie i silnik strumieni.
+// YouTube Music: signing in (browser + cookies), library sync
+// (liked, playlists), search and the stream engine.
 class YouTubeService : public QObject
 {
     Q_OBJECT
@@ -69,7 +69,7 @@ public:
     Q_INVOKABLE void downloadEngine();
     Q_INVOKABLE void search(const QString &query);
 
-    // Dla Library / Player
+    // For Library / Player
     StreamResolver *resolver() { return &m_resolver; }
     YtMusicApi *api() { return &m_api; }
     QList<Track> tracks() const;

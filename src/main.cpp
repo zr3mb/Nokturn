@@ -1,3 +1,5 @@
+#include "Language.h"
+
 #include <QFont>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -10,10 +12,10 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationDisplayName(QStringLiteral("Nokturn"));
     QGuiApplication::setOrganizationName(QStringLiteral("Nokturn"));
     QGuiApplication::setApplicationVersion(QStringLiteral(NOKTURN_VERSION));
-    // Wayland/X11: powiązanie okna z plikiem nokturn.desktop (ikona, nazwa w panelu, MPRIS).
+    // Wayland/X11: ties the window to the nokturn.desktop file (icon, name in the panel, MPRIS).
     QGuiApplication::setDesktopFileName(QStringLiteral("nokturn"));
 
-    // Styl "Basic" pozwala w pełni przestylizować kontrolki w QML.
+    // The "Basic" style allows fully restyling the controls in QML.
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
 #ifdef Q_OS_WIN
@@ -21,6 +23,8 @@ int main(int argc, char *argv[])
     font.setHintingPreference(QFont::PreferNoHinting);
     QGuiApplication::setFont(font);
 #endif
+
+    Language::instance()->apply();
 
     QQmlApplicationEngine engine;
     QObject::connect(

@@ -12,8 +12,8 @@
 
 #include <functional>
 
-// Klient wewnętrznego API YouTube Music ("InnerTube", ten sam, którego używa music.youtube.com).
-// Uwierzytelnienie: ciasteczka konta + nagłówek SAPISIDHASH — tak jak robi to przeglądarka.
+// Client for YouTube Music's internal API ("InnerTube", the same one music.youtube.com uses).
+// Authentication: account cookies + the SAPISIDHASH header — just like the browser does.
 class YtMusicApi : public QObject
 {
     Q_OBJECT
@@ -25,8 +25,8 @@ public:
     using TracksCallback = std::function<void(const QList<Track> &tracks, const QString &error)>;
     using LyricsCallback = std::function<void(const Lyrics &lyrics, const QString &error)>;
 
-    // Klient, w imieniu którego wysyłamy zapytanie (domyślnie strona WWW; aplikacja mobilna
-    // dostaje teksty z czasami, których wersja WWW nie udostępnia).
+    // The client we send the request as (the website by default; the mobile app
+    // gets timed lyrics that the web version doesn't provide).
     struct Client { QString name; QString version; QByteArray id; QByteArray userAgent; };
     static Client webClient();
     static Client androidClient();
@@ -40,19 +40,19 @@ public:
     void callAs(const Client &client, const QString &endpoint, QJsonObject body, JsonCallback callback,
                 const QUrlQuery &query = {});
 
-    // Pobiera całą listę (z kolejnymi stronami) — np. "VLLM" (polubione) albo "VL<id playlisty>".
+    // Fetches the whole list (with further pages) — e.g. "VLLM" (liked) or "VL<playlist id>".
     void browseTracks(const QString &browseId, TracksCallback callback, int maxPages = 30);
     void fetchAccount(std::function<void(const Account &, const QString &error)> callback);
     void fetchLibraryPlaylists(std::function<void(const QVariantList &, const QString &error)> callback);
     void search(const QString &query, TracksCallback callback);
     void setLiked(const QString &videoId, bool liked);
-    // Tekst utworu: najpierw wersja z czasami (klient mobilny), potem zwykły tekst.
-    // Pusty wynik bez błędu = YouTube Music nie ma tekstu tego utworu.
+    // Lyrics: the timed version first (mobile client), then plain text.
+    // An empty result without an error = YouTube Music has no lyrics for this track.
     void fetchLyrics(const QString &videoId, LyricsCallback callback);
 
     static QList<Track> parseTracks(const QJsonValue &root);
     static QVariantList parsePlaylists(const QJsonValue &root);
-    // Wynik wyszukiwania odpowiadający lokalnemu plikowi (tytuł, wykonawca, długość ±12 s); -1 = brak.
+    // The search result matching a local file (title, artist, duration ±12 s); -1 = none.
     static int bestMatch(const Track &local, const QList<Track> &results);
     static Lyrics parseTimedLyrics(const QJsonValue &root);
     static Lyrics parsePlainLyrics(const QJsonValue &root);

@@ -4,8 +4,8 @@
 #include <QSettings>
 #include <QStandardPaths>
 
-// Miejsce na dane aplikacji (ustawienia, cache biblioteki, okładki).
-// Zmienna NOKTURN_PROFILE pozwala wskazać osobny katalog — przydatne przy testach.
+// Where the app keeps its data (settings, library cache, covers).
+// The NOKTURN_PROFILE variable points to a separate directory — handy for testing.
 namespace AppPaths {
 
 inline QString dataDir()
@@ -24,7 +24,7 @@ inline QString coverDir()
     return dir;
 }
 
-// Jedna współdzielona instancja — zapis na dysk odbywa się zbiorczo (sync), a nie przy każdej zmianie.
+// One shared instance — writing to disk happens in batches (sync), not on every change.
 inline QSettings *settings()
 {
     static QSettings *instance = new QSettings(dataDir() + QStringLiteral("/settings.ini"), QSettings::IniFormat);

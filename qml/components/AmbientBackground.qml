@@ -2,8 +2,8 @@ import QtQuick
 import QtQuick.Shapes
 import Nokturn
 
-// Żywe tło: miękkie, dryfujące plamy światła w kolorach bieżącej okładki,
-// lekko pulsujące w rytm muzyki.
+// Live background: soft, drifting patches of light in the current cover's colors,
+// gently pulsing with the music.
 Item {
     id: root
     property real boost: 1.0
@@ -88,7 +88,7 @@ Item {
         }
     }
 
-    // Winieta — przyciemnia dół, żeby pasek odtwarzacza był czytelny
+    // Vignette — darkens the bottom so the player bar stays readable
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {

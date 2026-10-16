@@ -2,6 +2,7 @@
 
 #include "TagLibPath.h"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -47,7 +48,7 @@ QByteArray md5(const QString &s)
 
 } // namespace
 
-// Średni kolor okładki (z przewagą pikseli nasyconych), przygaszony do palety aplikacji.
+// Average cover color (weighted toward saturated pixels), muted to the app's palette.
 QPair<QColor, QColor> paletteFromImage(const QImage &image)
 {
     const QImage small = image.scaled(24, 24, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
@@ -159,12 +160,12 @@ Track readFile(const QString &path, const QFileInfo &fi, const QString &coverDir
     if (t.title.isEmpty())
         t.title = fi.completeBaseName();
     if (t.artist.isEmpty())
-        t.artist = QStringLiteral("Nieznany wykonawca");
+        t.artist = unknownArtist();
     if (t.album.isEmpty())
         t.album = fi.dir().dirName();
     t.quality = formatQuality(fi.suffix(), sampleRate, bitrate);
 
-    // Okładka: osadzona w pliku albo cover.jpg / folder.jpg w katalogu albumu.
+    // Cover: embedded in the file or cover.jpg / folder.jpg in the album folder.
     const QString key = TrackModel::albumKey(t);
     t.seed = stableSeed(key);
     CoverInfo cover = coverByAlbum.value(key);
@@ -224,7 +225,7 @@ QPair<QColor, QColor> fallbackPalette(const QString &key)
 
 void scan(QPromise<Result> &promise, const Input &input)
 {
-    // 1. Zbierz pliki audio
+    // 1. Collect audio files
     QStringList files;
     for (const QString &folder : input.folders) {
         QDirIterator it(folder, QDir::Files | QDir::Readable | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
@@ -239,7 +240,7 @@ void scan(QPromise<Result> &promise, const Input &input)
     files.removeDuplicates();
     promise.setProgressRange(0, int(files.size()));
 
-    // 2. Odczytaj tagi (albo weź z cache, jeśli plik się nie zmienił)
+    // 2. Read tags (or take them from the cache if the file hasn't changed)
     QDir().mkpath(input.coverDir);
     QHash<QString, CoverInfo> coverByAlbum;
     QHash<QString, QImage> imageByDir;
@@ -263,7 +264,7 @@ void scan(QPromise<Result> &promise, const Input &input)
         } else {
             Track t = readFile(path, fi, input.coverDir, coverByAlbum, imageByDir);
             if (cached != input.cache.cend())
-                t.added = cached->added;   // zmieniony plik — zachowaj datę dodania
+                t.added = cached->added;   // changed file — keep the date it was added
             result.tracks << t;
         }
         promise.setProgressValueAndText(++done, fi.fileName());
@@ -306,6 +307,18 @@ Track fromJson(const QJsonObject &o)
     t.mtime = qint64(o.value("mtime").toDouble());
     t.added = qint64(o.value("added").toDouble());
     return t;
+}
+
+QString unknownArtist()
+{
+    return QCoreApplication::translate("Scanner", "Unknown artist");
+}
+
+bool isUnknownArtist(const QString &artist)
+{
+    // Also the label stored by older versions (Polish) and by the other language.
+    return artist == QLatin1String("Unknown artist") || artist == QStringLiteral("Nieznany wykonawca")
+        || artist == unknownArtist();
 }
 
 } // namespace Scanner

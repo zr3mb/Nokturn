@@ -6,8 +6,8 @@
 
 #include <string>
 
-// Ścieżka w formacie, jakiego oczekuje TagLib::FileName: wchar_t* na Windows
-// (pełny Unicode), bajty w kodowaniu systemu plików na Linuksie i macOS.
+// A path in the format TagLib::FileName expects: wchar_t* on Windows
+// (full Unicode), bytes in the file system encoding on Linux and macOS.
 class TagLibPath
 {
 public:

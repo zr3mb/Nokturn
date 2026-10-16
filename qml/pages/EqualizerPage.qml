@@ -2,15 +2,15 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Korektor parametryczny: wykres z punktami pasm, fader wzmocnienia wstępnego z miernikiem
-// i limiterem, edytor zaznaczonego pasma oraz presety.
+// Parametric equalizer: a graph with band points, a preamp fader with a meter
+// and limiter, an editor for the selected band and presets.
 Item {
     id: page
     property var args: ({})
     property int selected: 3
 
     readonly property var bandColors: ["#c98585", "#cdb388", "#a3bcab", "#8fb7b3", "#93a8c3", "#ab9fc3", "#cda2a6"]
-    readonly property var typeNames: ["Low cut", "Niska półka", "Dzwon", "Wysoka półka", "High cut", "Notch", "Pasmowy"]
+    readonly property var typeNames: [qsTr("Low cut"), qsTr("Low shelf"), qsTr("Bell"), qsTr("High shelf"), qsTr("High cut"), qsTr("Notch"), qsTr("Band pass")]
     readonly property var band: Equalizer.bands[selected]
     readonly property bool isCut: band.type === Equalizer.LowCut || band.type === Equalizer.HighCut
 
@@ -67,7 +67,7 @@ Item {
         anchors.fill: parent
         spacing: 26
 
-        // ---- nagłówek -------------------------------------------------------------
+        // ---- header -----------------------------------------------------------------
         Reveal {
             RowLayout {
                 width: parent.width
@@ -78,7 +78,7 @@ Item {
                     spacing: 4
                     Text {
                         Layout.fillWidth: true
-                        text: "Korektor"
+                        text: qsTr("Equalizer")
                         color: Theme.text
                         font.family: Theme.fontDisplay
                         font.pixelSize: 38
@@ -86,14 +86,14 @@ Item {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: "Przeciągaj punkty · kółko myszy zmienia szerokość · dwuklik zeruje · prawy przycisk wyłącza pasmo"
+                        text: qsTr("Drag the points · the mouse wheel changes the width · double-click resets · right-click turns a band off")
                         color: Theme.textDim
                         font.pixelSize: 14
                         elide: Text.ElideRight
                     }
                 }
                 Text {
-                    text: Equalizer.enabled ? "Włączony" : "Wyłączony"
+                    text: Equalizer.enabled ? qsTr("On", "equalizer") : qsTr("Off", "equalizer")
                     color: Equalizer.enabled ? Theme.text : Theme.textDim
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
@@ -105,7 +105,7 @@ Item {
             }
         }
 
-        // ---- presety ------------------------------------------------------------------
+        // ---- presets ------------------------------------------------------------------
         Reveal {
             delay: 50
             Flow {
@@ -126,7 +126,7 @@ Item {
                         Text {
                             id: chipText
                             anchors.centerIn: parent
-                            text: chip.modelData
+                            text: { Language.effective; return Equalizer.presetLabel(chip.modelData) }   // re-evaluated when the language changes
                             color: chip.current ? "#15161a" : Theme.textDim
                             font.pixelSize: 13
                             font.weight: chip.current ? Font.DemiBold : Font.Medium
@@ -141,11 +141,11 @@ Item {
                     }
                 }
                 Text {
-                    visible: Equalizer.preset === "Własne"
+                    visible: Equalizer.preset === "Custom"
                     height: 34
                     verticalAlignment: Text.AlignVCenter
                     leftPadding: 6
-                    text: "Własne ustawienia"
+                    text: qsTr("Custom settings")
                     color: Theme.accent
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
@@ -153,7 +153,7 @@ Item {
             }
         }
 
-        // ---- wykres + master ------------------------------------------------------------
+        // ---- graph + master ------------------------------------------------------------
         Reveal {
             delay: 100
             RowLayout {
@@ -168,7 +168,7 @@ Item {
                     onSelectRequested: i => page.selected = i
                 }
 
-                // Master: wzmocnienie wstępne, miernik wyjścia, limiter
+                // Master: preamp, output meter, limiter
                 Rectangle {
                     Layout.preferredWidth: 150
                     Layout.preferredHeight: 380
@@ -205,7 +205,7 @@ Item {
                                 onMoved: v => Equalizer.preamp = v
                             }
 
-                            // Miernik: poziom po korekcji (przed limiterem), skala -48 … +12 dBFS
+                            // Meter: level after EQ (before the limiter), scale -48 … +12 dBFS
                             Item {
                                 id: meter
                                 Layout.fillHeight: true
@@ -241,7 +241,7 @@ Item {
                                 }
                             }
 
-                            // Redukcja przez limiter (rośnie w dół)
+                            // Reduction by the limiter (grows downwards)
                             Item {
                                 Layout.fillHeight: true
                                 Layout.preferredWidth: 6
@@ -279,8 +279,8 @@ Item {
                             Behavior on color { ColorAnimation { duration: 120 } }
                             Text {
                                 anchors.centerIn: parent
-                                text: Equalizer.clipping ? "PRZESTER"
-                                    : Equalizer.limiter && Equalizer.reduction > 0.5 ? "LIMIT −" + Equalizer.reduction.toFixed(1) + " dB"
+                                text: Equalizer.clipping ? qsTr("CLIPPING")
+                                    : Equalizer.limiter && Equalizer.reduction > 0.5 ? qsTr("LIMIT −%1 dB").arg(Equalizer.reduction.toFixed(1))
                                     : "OK"
                                 color: Equalizer.clipping ? "#ffffff" : Theme.textDim
                                 font.pixelSize: 10
@@ -307,7 +307,7 @@ Item {
             }
         }
 
-        // ---- edytor pasma ------------------------------------------------------------------
+        // ---- band editor ------------------------------------------------------------------
         Reveal {
             delay: 150
             Rectangle {
@@ -326,7 +326,7 @@ Item {
                     width: parent.width - 44
                     spacing: 20
 
-                    // Wybór pasma
+                    // Band choice
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
@@ -364,7 +364,7 @@ Item {
                         Item { Layout.fillWidth: true }
 
                         Text {
-                            text: page.band.enabled ? "Pasmo aktywne" : "Pasmo wyłączone"
+                            text: page.band.enabled ? qsTr("Band active") : qsTr("Band off")
                             color: Theme.textDim
                             font.pixelSize: 13
                         }
@@ -375,12 +375,12 @@ Item {
                         PillButton {
                             kind: "ghost"
                             icon: "refresh"
-                            text: "Resetuj"
+                            text: qsTr("Reset")
                             onClicked: Equalizer.resetBand(page.selected)
                         }
                     }
 
-                    // Typ filtra
+                    // Filter type
                     Flow {
                         Layout.fillWidth: true
                         spacing: 8
@@ -416,20 +416,20 @@ Item {
                         }
                     }
 
-                    // Parametry
+                    // Parameters
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 28
 
                         Param {
-                            label: "CZĘSTOTLIWOŚĆ"
+                            label: qsTr("FREQUENCY")
                             valueText: page.fmtFreq(page.band.freq)
                             value: Math.log(page.band.freq / 20) / Math.log(1000)
                             bubble: function(v) { return page.fmtFreq(20 * Math.pow(1000, v)) }
                             onEdited: v => Equalizer.setBandFreq(page.selected, 20 * Math.pow(1000, v))
                         }
                         Param {
-                            label: "WZMOCNIENIE"
+                            label: qsTr("GAIN")
                             active: page.band.usesGain
                             valueText: page.band.usesGain ? page.fmtDb(page.band.gain) : "—"
                             value: (page.band.gain + Equalizer.maxGain) / (2 * Equalizer.maxGain)
@@ -437,7 +437,7 @@ Item {
                             onEdited: v => Equalizer.setBandGain(page.selected, Math.round((v * 2 - 1) * Equalizer.maxGain * 10) / 10)
                         }
                         Param {
-                            label: page.isCut ? "REZONANS (Q)" : "SZEROKOŚĆ (Q)"
+                            label: page.isCut ? qsTr("RESONANCE (Q)") : qsTr("WIDTH (Q)")
                             valueText: page.band.q.toFixed(2)
                             value: Math.log(page.band.q / 0.1) / Math.log(180)
                             bubble: function(v) { return "Q " + (0.1 * Math.pow(180, v)).toFixed(2) }
@@ -445,19 +445,19 @@ Item {
                         }
                     }
 
-                    // Nachylenie dla filtrów odcinających
+                    // Slope for cut filters
                     RowLayout {
                         visible: page.isCut
                         spacing: 12
                         Text {
-                            text: "NACHYLENIE"
+                            text: qsTr("SLOPE")
                             color: Theme.textDim
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
                             font.letterSpacing: 0.6
                         }
                         SegmentedTabs {
-                            model: ["12 dB/okt.", "24 dB/okt.", "48 dB/okt."]
+                            model: [12, 24, 48].map(n => qsTr("%1 dB/oct.").arg(n))
                             currentIndex: page.band.slope >= 4 ? 2 : page.band.slope >= 2 ? 1 : 0
                             onActivated: i => Equalizer.setBandSlope(page.selected, [1, 2, 4][i])
                         }

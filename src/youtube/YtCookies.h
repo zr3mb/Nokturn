@@ -10,16 +10,16 @@ struct YtCookie
 {
     QString name;
     QString value;
-    QString domain;     // ".youtube.com" (z poddomenami) albo "music.youtube.com"
+    QString domain;     // ".youtube.com" (with subdomains) or "music.youtube.com"
     QString path = QStringLiteral("/");
-    qint64 expires = 0; // sekundy od epoki, 0 = ciasteczko sesyjne
+    qint64 expires = 0; // seconds since the epoch, 0 = session cookie
     bool secure = false;
     bool httpOnly = false;
 };
 
-// Ciasteczka konta YouTube. Na dysku są szyfrowane: Windows — DPAPI (tylko bieżący użytkownik
-// może je odczytać), Linux — kluczem z systemowego magazynu haseł (Secret Service przez secret-tool).
-// To pełny dostęp do konta, więc nie trzymamy ich jawnym tekstem.
+// YouTube account cookies. On disk they're encrypted: Windows — DPAPI (only the current user
+// can read them), Linux — with a key from the system password store (Secret Service via secret-tool).
+// This is full access to the account, so we don't keep them in plain text.
 class YtCookies
 {
 public:
@@ -31,10 +31,10 @@ public:
 
     QByteArray headerFor(const QUrl &url) const;
     QByteArray authorization(const QString &origin) const;   // SAPISIDHASH …
-    QString toNetscape() const;                               // format cookies.txt dla yt-dlp
+    QString toNetscape() const;                               // cookies.txt format for yt-dlp
 
     static YtCookies fromCdp(const QJsonArray &cdpCookies);   // Storage.getCookies
-    static YtCookies fromHeader(const QString &header);       // "a=b; c=d" wklejone ręcznie
+    static YtCookies fromHeader(const QString &header);       // "a=b; c=d" pasted manually
 
     bool save(const QString &file) const;
     static YtCookies load(const QString &file);

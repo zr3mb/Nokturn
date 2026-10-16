@@ -22,9 +22,9 @@ using namespace winrt_abi;
 
 namespace {
 
-constexpr qint64 kTicksPerMs = 10000;   // TimeSpan w WinRT liczy się w jednostkach 100 ns
+constexpr qint64 kTicksPerMs = 10000;   // TimeSpan in WinRT counts in 100 ns units
 
-// Identyfikatory skrótów globalnych (tryb awaryjny bez SMTC).
+// Global hotkey ids (fallback mode without SMTC).
 enum HotkeyId : int { HotkeyPlayPause = 0x4E01, HotkeyNext, HotkeyPrevious, HotkeyStop };
 
 class HString
@@ -47,7 +47,7 @@ private:
     HSTRING m_h = nullptr;
 };
 
-// Minimalny inteligentny wskaźnik COM.
+// A minimal COM smart pointer.
 template <typename T>
 class Com
 {
@@ -84,7 +84,7 @@ HRESULT activationFactory(const char *className, const IID &iid, Com<T> &out)
     return RoGetActivationFactory(name.get(), iid, out.putVoid());
 }
 
-// Delegaty zdarzeń SMTC. System wywołuje je w swoim wątku — zdarzenie przekazujemy do wątku GUI.
+// SMTC event delegates. The system calls them on its own thread — we forward the event to the GUI thread.
 template <typename Base, typename Args>
 class Delegate : public Base
 {
@@ -181,12 +181,12 @@ WindowsMediaControls::WindowsMediaControls(PlayerController *player)
     , m_player(player)
     , d(new Impl)
 {
-    // Okno powstaje dopiero po załadowaniu QML — podpinamy się, gdy będzie widoczne.
+    // The window only exists after QML loads — we hook in once it's visible.
     m_attachTimer.setInterval(300);
     connect(&m_attachTimer, &QTimer::timeout, this, &WindowsMediaControls::tryAttach);
     m_attachTimer.start();
 
-    // Pozycja na osi czasu w systemowym okienku nie jest ekstrapolowana — odświeżamy ją co kilka sekund.
+    // The timeline position in the system flyout isn't extrapolated — we refresh it every few seconds.
     m_timelineTimer.setInterval(5000);
     connect(&m_timelineTimer, &QTimer::timeout, this, &WindowsMediaControls::updateTimeline);
 }
@@ -220,7 +220,7 @@ void WindowsMediaControls::tryAttach()
     if (SUCCEEDED(hr))
         hr = interop->GetForWindow(hwnd, IID_Smtc, d->smtc.putVoid());
     if (FAILED(hr) || !d->smtc) {
-        qWarning("SMTC niedostępne (0x%08lx) — klawisze multimedialne jako skróty globalne", static_cast<unsigned long>(hr));
+        qWarning("SMTC unavailable (0x%08lx) — media keys as global hotkeys", static_cast<unsigned long>(hr));
         d->smtc.reset();
         registerHotkeys(quintptr(hwnd));
         return;
@@ -237,7 +237,7 @@ void WindowsMediaControls::tryAttach()
     d->buttonsHooked = SUCCEEDED(d->smtc->add_ButtonPressed(buttons, &d->buttonToken));
     buttons->Release();
     if (!d->buttonsHooked)
-        registerHotkeys(quintptr(hwnd));   // okienko pokaże utwór, a klawisze obsłużymy sami
+        registerHotkeys(quintptr(hwnd));   // the flyout shows the track, and we handle the keys ourselves
 
     d->smtc->get_DisplayUpdater(d->updater.put());
     if (SUCCEEDED(d->smtc->QueryInterface(IID_Smtc2, d->smtc2.putVoid())) && d->smtc2) {
@@ -299,8 +299,8 @@ void WindowsMediaControls::updateMetadata()
         }
     }
 
-    // Okładka: adres https (YouTube Music) albo plik z cache okładek — przez strumień w pamięci,
-    // bo SMTC w zwykłej aplikacji desktopowej nie czyta adresów file://.
+    // Cover: an https URL (YouTube Music) or a file from the cover cache — through an in-memory stream,
+    // because SMTC in a regular desktop app doesn't read file:// URLs.
     Com<IInspectable> thumbnail;
     if (d->streams) {
         if (t->cover.startsWith(QLatin1String("https://")) && d->uris) {
@@ -378,7 +378,7 @@ void WindowsMediaControls::handleSeek(qint64 positionMs)
         m_player->seek(positionMs / 1000.0);
 }
 
-// ---- tryb awaryjny: globalne skróty klawiszy multimedialnych ---------------------
+// ---- fallback mode: global hotkeys for the media keys ----------------------------
 
 void WindowsMediaControls::registerHotkeys(quintptr hwnd)
 {
@@ -391,7 +391,7 @@ void WindowsMediaControls::registerHotkeys(quintptr hwnd)
     any |= RegisterHotKey(window, HotkeyPrevious, MOD_NOREPEAT, VK_MEDIA_PREV_TRACK) != 0;
     any |= RegisterHotKey(window, HotkeyStop, MOD_NOREPEAT, VK_MEDIA_STOP) != 0;
     if (!any)
-        return;   // klawisze zajęte przez inną aplikację
+        return;   // keys taken by another app
     m_hotkeyWindow = hwnd;
     QCoreApplication::instance()->installNativeEventFilter(this);
 }

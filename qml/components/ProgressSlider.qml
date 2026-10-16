@@ -1,13 +1,13 @@
 import QtQuick
 import Nokturn
 
-// Suwak postępu/głośności: pogrubia się po najechaniu, pokazuje uchwyt i dymek z wartością.
+// Progress/volume slider: thickens on hover, shows a handle and a value bubble.
 Item {
     id: root
     property real value: 0                 // 0..1
     property color fillColor: Theme.text
     property color activeColor: Theme.accent
-    property var labelFor: null            // function(v) -> string; dymek nad kursorem
+    property var labelFor: null            // function(v) -> string; bubble above the cursor
     readonly property bool active: enabled && (mouse.containsMouse || mouse.pressed)
     property real dragValue: 0
     readonly property real shown: mouse.pressed ? dragValue : Math.max(0, Math.min(1, value))
@@ -61,7 +61,7 @@ Item {
         Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
     }
 
-    // Dymek z wartością w miejscu kursora
+    // Value bubble at the cursor position
     Rectangle {
         id: bubble
         visible: root.labelFor !== null

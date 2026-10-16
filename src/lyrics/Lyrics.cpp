@@ -52,7 +52,7 @@ Lyrics Lyrics::fromPlainText(const QString &text)
     Lyrics out;
     QString normalized = text;
     normalized.replace(QStringLiteral("\r\n"), QStringLiteral("\n")).replace(QChar('\r'), QChar('\n'));
-    bool lastEmpty = true;   // bez pustych linii na początku i podwójnych przerw
+    bool lastEmpty = true;   // no empty lines at the start and no double breaks
     for (const QString &raw : normalized.split(QChar('\n'))) {
         const QString line = raw.trimmed();
         if (line.isEmpty() && lastEmpty)
@@ -97,7 +97,7 @@ Lyrics Lyrics::fromLrc(const QString &text)
         }
         if (times.isEmpty())
             continue;
-        // Znaczniki słów w wersji "enhanced LRC" (<mm:ss.xx>) nie są nam potrzebne.
+        // Word tags of the "enhanced LRC" version (<mm:ss.xx>) aren't needed here.
         static const QRegularExpression wordTags(QStringLiteral("<\\d{1,3}:\\d{1,2}(?:[.:]\\d{1,3})?>"));
         const QString body = line.mid(pos).remove(wordTags).trimmed();
         for (qint64 t : std::as_const(times))
@@ -111,7 +111,7 @@ Lyrics Lyrics::fromLrc(const QString &text)
     Lyrics out;
     out.synced = true;
     for (const Stamped &s : std::as_const(stamped)) {
-        // Pusta linia z czasem oznacza w LRC przerwę instrumentalną.
+        // An empty line with a timestamp means an instrumental break in LRC.
         if (s.text.isEmpty() && (out.lines.isEmpty() || out.lines.last().text.isEmpty()))
             continue;
         out.lines << LyricLine { s.text.isEmpty() ? -1 : s.at, -1, s.text };

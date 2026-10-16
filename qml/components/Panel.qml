@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import Nokturn
 
-// Półprzezroczysty, zaokrąglony panel — zawartość jest przycinana do zaokrągleń.
+// Translucent rounded panel — content is clipped to the rounded corners.
 Item {
     id: root
     property real radius: 20

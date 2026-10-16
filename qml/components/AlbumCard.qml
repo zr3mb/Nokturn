@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import Nokturn
 
-// Karta albumu / wykonawcy: unosi się po najechaniu, cień rośnie, wysuwa się przycisk Play.
+// Album / artist card: lifts on hover, the shadow grows and a Play button slides in.
 Item {
     id: root
     property string title: ""

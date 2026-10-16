@@ -14,8 +14,8 @@
 class QQmlEngine;
 class QJSEngine;
 
-// Biblioteka muzyczna: pliki lokalne ze skanowanych folderów + przykładowe
-// utwory ze źródeł, które nie są jeszcze podłączone (YouTube Music, radio).
+// Music library: local files from the scanned folders + sample
+// tracks from sources that aren't connected yet (YouTube Music, radio).
 class Library : public QObject
 {
     Q_OBJECT
@@ -26,7 +26,7 @@ class Library : public QObject
     Q_PROPERTY(QVariantList recentAlbums READ recentAlbums NOTIFY libraryChanged)
     Q_PROPERTY(QVariantList artists READ artists NOTIFY libraryChanged)
     Q_PROPERTY(QVariantList playlists READ playlists NOTIFY libraryChanged)
-    Q_PROPERTY(QVariantList sources READ sources CONSTANT)
+    Q_PROPERTY(QVariantList sources READ sources NOTIFY sourcesChanged)
     Q_PROPERTY(QVariantList folders READ folders NOTIFY foldersChanged)
     Q_PROPERTY(int localCount READ localCount NOTIFY libraryChanged)
     Q_PROPERTY(bool scanning READ scanning NOTIFY scanChanged)
@@ -53,18 +53,18 @@ public:
     Q_INVOKABLE void removeFolder(const QString &path);
     Q_INVOKABLE void rescan(bool manual = true);
 
-    // Zwracają listy indeksów wierszy w `tracks`.
+    // They return lists of row indices in `tracks`.
     Q_INVOKABLE QVariantList search(const QString &query, const QString &source = {}, int limit = 200) const;
     Q_INVOKABLE QVariantList tracksOfAlbum(const QString &albumKey) const;
     Q_INVOKABLE QVariantList tracksOfArtist(const QString &artist) const;
     Q_INVOKABLE QVariantList likedTracks() const;
     Q_INVOKABLE QVariantList localTracks() const;
     Q_INVOKABLE QVariantList recentlyAdded(int limit = 50) const;
-    Q_INVOKABLE QVariantList playlistRows(int index);       // playlisty YouTube doczytuje w tle
+    Q_INVOKABLE QVariantList playlistRows(int index);       // YouTube playlists are loaded in the background
     Q_INVOKABLE bool playlistLoading(int index) const;
-    Q_INVOKABLE QVariantList libraryRows() const;           // lokalne + polubione w YouTube Music
-    Q_INVOKABLE QVariantList onlineResults() const;         // ostatnie wyniki wyszukiwania w YouTube Music
-    Q_INVOKABLE int totalDuration(const QVariantList &rows) const;   // suma długości (sekundy)
+    Q_INVOKABLE QVariantList libraryRows() const;           // local + liked on YouTube Music
+    Q_INVOKABLE QVariantList onlineResults() const;         // latest YouTube Music search results
+    Q_INVOKABLE int totalDuration(const QVariantList &rows) const;   // sum of durations (seconds)
 
     void ensurePalette(int row);
 
@@ -72,6 +72,7 @@ signals:
     void libraryChanged();
     void foldersChanged();
     void scanChanged();
+    void sourcesChanged();
     void notice(const QString &text, const QString &icon);
 
 private:
@@ -82,6 +83,7 @@ private:
     void saveFolders() const;
     void applyLocalTracks(QList<Track> local);
     void rebuildModel();
+    void buildSources();
     void rebuildCollections();
     void rebuildPlaylists();
     QVariantList rowsOfIds(const QStringList &ids) const;

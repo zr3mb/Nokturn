@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Główny przycisk Play/Pauza: płynna zamiana ikon + pulsujący pierścień podczas odtwarzania.
+// Main Play/Pause button: smooth icon swap + a pulsing ring while playing.
 Item {
     id: root
     property real size: 46

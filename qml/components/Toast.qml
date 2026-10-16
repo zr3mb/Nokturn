@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import Nokturn
 
-// Krótkie powiadomienie wysuwane nad paskiem odtwarzacza.
+// Short notification that slides in above the player bar.
 Item {
     id: root
     property real bottomOffset: 120

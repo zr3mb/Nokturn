@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Karta z treścią kroku (źródła muzyki, odtwarzanie, integracje).
+// Card with a step's content (music sources, playback, integrations).
 Rectangle {
     id: root
     property string icon: ""

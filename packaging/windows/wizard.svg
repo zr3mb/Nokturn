@@ -25,7 +25,7 @@
     </g>
   </g>
   <text x="82" y="192" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="22" font-weight="600" fill="#f4f0ea" letter-spacing="1.5">Nokturn</text>
-  <text x="82" y="212" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="9.5" fill="#b3c6bb" letter-spacing="2">ODTWARZACZ MUZYKI</text>
+  <text x="82" y="212" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="9.5" fill="#b3c6bb" letter-spacing="2">MUSIC PLAYER</text>
   <g fill="#b3c6bb" fill-opacity="0.18">
     <rect x="12" y="290" width="4" height="12" rx="2"/><rect x="20" y="282" width="4" height="20" rx="2"/>
     <rect x="28" y="286" width="4" height="16" rx="2"/><rect x="36" y="278" width="4" height="24" rx="2"/>

@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Krok 2: układ okna — panel boczny i panel "Teraz odtwarzane", na żywych miniaturach.
+// Step 2: window layout — the sidebar and the "Now playing" panel, on live thumbnails.
 Item {
     id: root
 
@@ -11,8 +11,8 @@ Item {
         spacing: 26
 
         StepTitle {
-            title: "Jak ułożyć okno?"
-            subtitle: "Kliknij wariant, który Ci odpowiada — aplikacja zmieni się od razu. Miniatury pokazują, jak to wygląda w działaniu."
+            title: qsTr("How should the window be laid out?")
+            subtitle: qsTr("Click the variant you like — the app changes right away. The thumbnails show how it looks in action.")
         }
 
         RowLayout {
@@ -23,13 +23,13 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 100
                 spacing: 12
-                GroupLabel { text: "Panel boczny" }
+                GroupLabel { text: qsTr("Sidebar") }
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 14
                     OptionCard {
-                        title: "Pełny"
-                        description: "Ikony z nazwami i Twoje playlisty zawsze pod ręką."
+                        title: qsTr("Full")
+                        description: qsTr("Icons with names and your playlists always at hand.")
                         selected: !Nav.sidebarCompact
                         onClicked: Nav.sidebarCompact = false
                         LayoutPreview {
@@ -41,8 +41,8 @@ Item {
                         }
                     }
                     OptionCard {
-                        title: "Kompaktowy"
-                        description: "Same ikony — więcej miejsca na okładki i listy."
+                        title: qsTr("Compact")
+                        description: qsTr("Icons only — more room for covers and lists.")
                         selected: Nav.sidebarCompact
                         onClicked: Nav.sidebarCompact = true
                         LayoutPreview {
@@ -67,13 +67,13 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 100
                 spacing: 12
-                GroupLabel { text: "Panel „Teraz odtwarzane”" }
+                GroupLabel { text: qsTr("“Now playing” panel") }
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 14
                     OptionCard {
-                        title: "Widoczny"
-                        description: "Okładka, kolejka i tekst utworu po prawej stronie."
+                        title: qsTr("Visible")
+                        description: qsTr("Cover, queue and lyrics on the right.")
                         selected: Nav.queueOpen
                         onClicked: Nav.queueOpen = true
                         LayoutPreview {
@@ -85,8 +85,8 @@ Item {
                         }
                     }
                     OptionCard {
-                        title: "Ukryty"
-                        description: "Otwierasz go przyciskiem na pasku odtwarzacza."
+                        title: qsTr("Hidden")
+                        description: qsTr("You open it with a button on the player bar.")
                         selected: !Nav.queueOpen
                         onClicked: Nav.queueOpen = false
                         LayoutPreview {
@@ -103,7 +103,7 @@ Item {
 
         Text {
             Layout.fillWidth: true
-            text: "Wskazówka: tryb pełnoekranowy z dużą okładką i tekstem włączysz klawiszem F11."
+            text: qsTr("Tip: press F11 for full-screen mode with a big cover and lyrics.")
             color: Theme.textFaint
             font.pixelSize: 13
         }

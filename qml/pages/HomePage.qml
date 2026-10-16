@@ -7,9 +7,9 @@ Item {
     property var args: ({})
 
     readonly property var quickPicks: Library.playlists.concat([
-        { name: "Wszystkie utwory", kind: "all", icon: "library", colorA: "#a3b3c1", colorB: "#3b4a57", seed: 0 },
-        { name: "Losowy miks", kind: "mix", icon: "shuffle", colorA: "#b7aac9", colorB: "#463c5c", seed: 0 },
-        { name: "Nocny Jazz — na żywo", kind: "radio", icon: "live", colorA: "#b9a889", colorB: "#4a4232", seed: 0 }
+        { name: qsTr("All tracks"), kind: "all", icon: "library", colorA: "#a3b3c1", colorB: "#3b4a57", seed: 0 },
+        { name: qsTr("Random mix"), kind: "mix", icon: "shuffle", colorA: "#b7aac9", colorB: "#463c5c", seed: 0 },
+        { name: qsTr("Night Jazz — live"), kind: "radio", icon: "live", colorA: "#b9a889", colorB: "#4a4232", seed: 0 }
     ])
 
     function rowsOf(p, index) {
@@ -21,7 +21,7 @@ Item {
     function playPick(p, index) {
         const rows = rowsOf(p, index)
         if (rows.length === 0) {
-            Nav.toast(Library.localCount === 0 ? "Najpierw dodaj folder z muzyką" : "Ta playlista jest jeszcze pusta", "music")
+            Nav.toast(Library.localCount === 0 ? qsTr("Add a music folder first") : qsTr("This playlist is still empty"), "music")
             return
         }
         if (p.kind === "mix") Player.shuffle = true
@@ -101,13 +101,13 @@ Item {
                 }
                 Text {
                     text: mini.isLocal
-                          ? (Library.scanning ? "Skanowanie…"
-                             : Library.folders.length > 0 ? Theme.plural(Library.localCount, "utwór", "utwory", "utworów")
-                             : "Dodaj folder →")
+                          ? (Library.scanning ? qsTr("Scanning…")
+                             : Library.folders.length > 0 ? qsTr("%n tracks", "", Library.localCount)
+                             : qsTr("Add folder →"))
                           : mini.modelData.id === "youtube" && YouTube.connected
-                            ? Theme.plural(YouTube.likedCount, "polubiony", "polubione", "polubionych")
-                          : mini.status === "connected" ? "Połączono"
-                          : mini.status === "disconnected" ? "Zaloguj się →" : mini.status === "connecting" ? "Logowanie…" : "Gotowe do użycia"
+                            ? qsTr("%n liked", "", YouTube.likedCount)
+                          : mini.status === "connected" ? qsTr("Connected")
+                          : mini.status === "disconnected" ? qsTr("Sign in →") : mini.status === "connecting" ? qsTr("Signing in…") : qsTr("Ready to use")
                     color: Theme.textDim
                     font.pixelSize: 12
                 }
@@ -130,7 +130,7 @@ Item {
                     font.weight: Font.Bold
                 }
                 Text {
-                    text: "Twoja muzyka z dysku, YouTube Music i radia — w jednym miejscu."
+                    text: qsTr("Your music from disk, YouTube Music and radio — in one place.")
                     color: Theme.textDim
                     font.pixelSize: 15
                 }
@@ -178,9 +178,9 @@ Item {
                 spacing: 16
                 SectionHeader {
                     Layout.fillWidth: true
-                    title: "Twoje źródła"
-                    subtitle: "Skąd Nokturn bierze muzykę"
-                    action: "Zarządzaj"
+                    title: qsTr("Your sources")
+                    subtitle: qsTr("Where Nokturn gets its music")
+                    action: qsTr("Manage")
                     onActionClicked: Nav.navigate("sources")
                 }
                 RowLayout {
@@ -201,8 +201,8 @@ Item {
                 spacing: 18
                 SectionHeader {
                     Layout.fillWidth: true
-                    title: "Twoje albumy"
-                    action: "Pokaż wszystkie"
+                    title: qsTr("Your albums")
+                    action: qsTr("Show all")
                     onActionClicked: Nav.navigate("library", { tab: 1 })
                 }
                 Grid {
@@ -248,8 +248,8 @@ Item {
                 SectionHeader {
                     Layout.fillWidth: true
                     Layout.bottomMargin: 10
-                    title: "Ostatnio dodane"
-                    action: "Biblioteka"
+                    title: qsTr("Recently added")
+                    action: qsTr("Library")
                     onActionClicked: Nav.navigate("library")
                 }
                 Repeater {

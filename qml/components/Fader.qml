@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Pionowy suwak (fader) w decybelach: przeciąganie, kółko myszy, dwuklik = 0 dB.
+// Vertical slider (fader) in decibels: drag, mouse wheel, double-click = 0 dB.
 Item {
     id: f
     property real value: 0
@@ -21,7 +21,7 @@ Item {
         return Math.round(v * 10) / 10
     }
 
-    // Tor
+    // Track
     Rectangle {
         x: (f.width - width) / 2
         y: f.trackTop
@@ -30,7 +30,7 @@ Item {
         radius: 3
         color: Qt.rgba(1, 1, 1, 0.08)
     }
-    // Wypełnienie od 0 dB do wartości
+    // Fill from 0 dB to the value
     Rectangle {
         x: (f.width - width) / 2
         width: 6
@@ -39,7 +39,7 @@ Item {
         height: Math.abs(f.yOf(f.value) - f.yOf(0))
         color: f.value >= 0 ? f.color : Theme.alpha(f.color, 0.45)
     }
-    // Znacznik 0 dB
+    // 0 dB marker
     Rectangle {
         x: (f.width - width) / 2
         y: f.yOf(0)
@@ -48,7 +48,7 @@ Item {
         color: Qt.rgba(1, 1, 1, 0.3)
     }
 
-    // Uchwyt
+    // Handle
     Rectangle {
         id: handle
         width: f.width - 6

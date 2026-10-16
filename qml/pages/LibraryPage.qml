@@ -3,14 +3,14 @@ import QtQuick.Layouts
 import QtQuick.Controls.Basic
 import Nokturn
 
-// Biblioteka. Listy są zwirtualizowane (ListView / GridView), więc tworzą tylko
-// widoczne wiersze — działa płynnie również przy tysiącach utworów.
+// Library. The lists are virtualized (ListView / GridView), so they only create
+// the visible rows — it stays smooth even with thousands of tracks.
 Item {
     id: page
     property var args: ({})
     property int tab: args && args.tab !== undefined ? args.tab : 0
     readonly property real pad: 34
-    // Pliki lokalne + polubione w YouTube Music
+    // Local files + liked on YouTube Music
     readonly property var libraryRows: {
         Library.tracks.revision
         return Library.libraryRows()
@@ -28,7 +28,7 @@ Item {
                 spacing: 4
                 Text {
                     Layout.fillWidth: true
-                    text: "Biblioteka"
+                    text: qsTr("Library")
                     color: Theme.text
                     font.family: Theme.fontDisplay
                     font.pixelSize: 38
@@ -38,10 +38,10 @@ Item {
                     Layout.fillWidth: true
                     text: Library.scanning
                           ? Library.scanStatus
-                          : Theme.plural(Library.localCount, "utwór", "utwory", "utworów") + "  ·  "
-                            + Theme.plural(Library.albums.filter(a => a.source === "local").length, "album", "albumy", "albumów") + "  ·  "
-                            + Theme.plural(Library.artists.filter(a => a.local).length, "wykonawca", "wykonawców", "wykonawców")
-                            + (YouTube.connected ? "  ·  " + Theme.plural(YouTube.likedCount, "polubiony", "polubione", "polubionych") + " w YouTube Music" : "")
+                          : qsTr("%n tracks", "", Library.localCount) + "  ·  "
+                            + qsTr("%n albums", "", Library.albums.filter(a => a.source === "local").length) + "  ·  "
+                            + qsTr("%n artists", "", Library.artists.filter(a => a.local).length)
+                            + (YouTube.connected ? "  ·  " + qsTr("%n liked on YouTube Music", "", YouTube.likedCount) : "")
                     color: Library.scanning ? Theme.accent : Theme.textDim
                     font.pixelSize: 14
                 }
@@ -50,7 +50,7 @@ Item {
             PillButton {
                 kind: "secondary"
                 icon: "add"
-                text: "Dodaj folder"
+                text: qsTr("Add folder")
                 onClicked: Nav.addFolder()
             }
         }
@@ -67,7 +67,7 @@ Item {
             SegmentedTabs {
                 id: tabs
                 style: "underline"
-                model: ["Utwory", "Albumy", "Wykonawcy"]
+                model: [qsTr("Tracks"), qsTr("Albums"), qsTr("Artists")]
                 currentIndex: page.tab
                 onActivated: i => page.tab = i
             }
@@ -90,21 +90,21 @@ Item {
                 Icon { name: "folder"; size: 24; color: Theme.accent }
                 Text {
                     Layout.fillWidth: true
-                    text: "Nie masz jeszcze lokalnych plików. Dodaj folder z muzyką — Nokturn odczyta tagi i okładki."
+                    text: qsTr("You don't have any local files yet. Add a music folder — Nokturn will read the tags and covers.")
                     color: Theme.textDim
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap
                 }
                 PillButton {
                     icon: "folder"
-                    text: "Wybierz folder"
+                    text: qsTr("Choose a folder")
                     onClicked: Nav.addFolder()
                 }
             }
         }
     }
 
-    // ---- Utwory ---------------------------------------------------------------
+    // ---- Tracks ----------------------------------------------------------------
     ListView {
         id: tracksView
         anchors.fill: parent
@@ -146,7 +146,7 @@ Item {
         }
     }
 
-    // ---- Albumy i wykonawcy -------------------------------------------------------
+    // ---- Albums and artists -------------------------------------------------------
     component CardGrid: GridView {
         id: grid
         property real minCell: 200
@@ -226,7 +226,7 @@ Item {
                 width: artistsView.cellWidth - 22
                 round: true
                 title: artistCell.modelData.name
-                subtitle: "Wykonawca · " + Theme.plural(artistCell.modelData.count, "utwór", "utwory", "utworów")
+                subtitle: qsTr("Artist · %n tracks", "", artistCell.modelData.count)
                 colorA: artistCell.modelData.colorA
                 colorB: artistCell.modelData.colorB
                 seed: artistCell.modelData.seed

@@ -2,15 +2,15 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Wiersz utworu na listach: numer ↔ play ↔ equalizer, okładka, tytuł, album, źródło, polubienie, czas.
+// Track row in lists: number ↔ play ↔ equalizer, cover, title, album, source, like, duration.
 Item {
     id: root
     property int trackIndex: 0
     property int number: trackIndex + 1
     property int revealDelay: 0
     property bool showAlbum: true
-    property var queue: null   // wiersze, które staną się kolejką po kliknięciu (null = cała biblioteka)
-    property string context: "" // źródło kolejki ("playlist:…", "album:…") — od niego zależy miks
+    property var queue: null   // rows that become the queue on click (null = the whole library)
+    property string context: "" // queue origin ("playlist:…", "album:…") — the mix depends on it
 
     function play() {
         if (current) Player.toggle()
@@ -42,8 +42,8 @@ Item {
 
     HoverHandler { id: hover }
 
-    // Chwila zatrzymania kursora nad utworem z YouTube — przygotowujemy jego adres, zanim padnie kliknięcie
-    // (opóźnienie, żeby szybkie przesuwanie myszą po liście nie uruchamiało yt-dlp dla każdego wiersza).
+    // The cursor rests on a YouTube track for a moment — we prepare its URL before the click lands
+    // (the delay keeps fast mouse sweeps over the list from starting yt-dlp for every row).
     Timer {
         interval: 200
         running: hover.hovered && !root.current
@@ -159,7 +159,7 @@ Item {
             Behavior on opacity { NumberAnimation { duration: Theme.fast } }
             onClicked: {
                 Library.tracks.toggleLiked(root.trackIndex)
-                Nav.toast(root.t.liked ? "Dodano do Ulubionych" : "Usunięto z Ulubionych", "heart")
+                Nav.toast(root.t.liked ? qsTr("Added to Liked") : qsTr("Removed from Liked"), "heart")
             }
         }
 
@@ -179,7 +179,7 @@ Item {
             showDot: false
             opacity: root.hovered ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Theme.fast } }
-            onClicked: Nav.toast("Menu kontekstowe pojawi się wkrótce", "more")
+            onClicked: Nav.toast(qsTr("The context menu is coming soon"), "more")
         }
     }
 }

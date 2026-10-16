@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import Nokturn
 
-// Panel boczny: logo, menu z "pływającym" wskaźnikiem zaznaczenia, playlisty.
+// Sidebar: logo, menu with a "floating" selection indicator, playlists.
 Panel {
     id: root
     readonly property bool compact: Nav.sidebarCompact
@@ -51,7 +51,7 @@ Panel {
             width: flick.width - 24
             height: col.height
 
-            // Wskaźnik zaznaczenia — przeskakuje sprężyście między pozycjami
+            // Selection indicator — springs between items
             Rectangle {
                 id: indicator
                 readonly property Item target: root.selectedItem
@@ -83,7 +83,7 @@ Panel {
                     height: 28
                     leftPadding: 14
                     verticalAlignment: Text.AlignVCenter
-                    text: root.compact ? "" : "MENU"
+                    text: root.compact ? "" : qsTr("MENU")
                     color: Theme.textFaint
                     font.pixelSize: 11
                     font.weight: Font.DemiBold
@@ -92,11 +92,11 @@ Panel {
 
                 Repeater {
                     model: [
-                        { key: "home", label: "Główna", icon: "home" },
-                        { key: "search", label: "Szukaj", icon: "search" },
-                        { key: "library", label: "Biblioteka", icon: "library" },
-                        { key: "sources", label: "Źródła", icon: "sources" },
-                        { key: "equalizer", label: "Korektor", icon: "equalizer" }
+                        { key: "home", label: qsTr("Home"), icon: "home" },
+                        { key: "search", label: qsTr("Search"), icon: "search" },
+                        { key: "library", label: qsTr("Library"), icon: "library" },
+                        { key: "sources", label: qsTr("Sources"), icon: "sources" },
+                        { key: "equalizer", label: qsTr("Equalizer"), icon: "equalizer" }
                     ]
 
                     SidebarItem {
@@ -120,7 +120,7 @@ Panel {
 
                     Text {
                         anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                        text: "PLAYLISTY"
+                        text: qsTr("PLAYLISTS")
                         color: Theme.textFaint
                         font.pixelSize: 11
                         font.weight: Font.DemiBold
@@ -142,7 +142,7 @@ Panel {
                         iconSize: 18
                         showDot: false
                         visible: !root.compact
-                        onClicked: Nav.toast("Tworzenie playlist pojawi się wkrótce", "add")
+                        onClicked: Nav.toast(qsTr("Creating playlists is coming soon"), "add")
                     }
                 }
 
@@ -159,9 +159,9 @@ Panel {
                         subtitle: {
                             Library.tracks.revision
                             if (modelData.kind === "ytplaylist")
-                                return "YouTube Music" + (modelData.count >= 0 ? " · " + Theme.plural(modelData.count, "utwór", "utwory", "utworów") : "")
+                                return "YouTube Music" + (modelData.count >= 0 ? " · " + qsTr("%n tracks", "", modelData.count) : "")
                             const n = Library.playlistRows(index).length
-                            return "Playlista · " + Theme.plural(n, "utwór", "utwory", "utworów")
+                            return qsTr("Playlist · %n tracks", "", n)
                         }
                         colorA: modelData.colorA
                         colorB: modelData.colorB
@@ -198,7 +198,7 @@ Panel {
 
             SidebarItem {
                 icon: "tune"
-                label: "Ustawienia"
+                label: qsTr("Settings")
                 compact: root.compact
                 ownHighlight: true
                 selected: Nav.page === "settings"

@@ -2,7 +2,7 @@ pragma Singleton
 import QtQuick
 import Nokturn
 
-// Paleta: ciepła, przygaszona czerń + akcent pobierany z okładki bieżącego utworu.
+// Palette: warm, muted black + an accent taken from the current track's cover art.
 Item {
     id: theme
 
@@ -16,7 +16,7 @@ Item {
     readonly property color danger: "#c98585"
     readonly property color warning: "#cdb388"
 
-    // Zapamiętywane między uruchomieniami (Ustawienia, kreator pierwszego uruchomienia).
+    // Remembered between launches (Settings, first-run wizard).
     property bool dynamicAccent: Prefs.boolValue("ui/dynamicAccent", true)
     property bool ambient: Prefs.boolValue("ui/ambient", true)
     onDynamicAccentChanged: Prefs.setValue("ui/dynamicAccent", dynamicAccent)
@@ -29,7 +29,7 @@ Item {
     Behavior on accent { ColorAnimation { duration: 900; easing.type: Easing.InOutCubic } }
     Behavior on accent2 { ColorAnimation { duration: 900; easing.type: Easing.InOutCubic } }
 
-    // Windows: Segoe UI Variable; Linux/macOS: czcionka systemowa (np. Cantarell, Noto Sans, Inter).
+    // Windows: Segoe UI Variable; Linux/macOS: the system font (e.g. Cantarell, Noto Sans, Inter).
     readonly property bool windows: Qt.platform.os === "windows"
     readonly property string fontDisplay: windows ? "Segoe UI Variable Display" : Qt.application.font.family
     readonly property string fontText: windows ? "Segoe UI Variable Text" : Qt.application.font.family
@@ -52,15 +52,8 @@ Item {
 
     function formatTotal(sec) {
         const m = Math.round(sec / 60)
-        if (m < 60) return m + " min"
-        return Math.floor(m / 60) + " godz. " + (m % 60) + " min"
-    }
-
-    function plural(n, one, few, many) {
-        if (n === 1) return n + " " + one
-        const d = n % 10, dd = n % 100
-        if (d >= 2 && d <= 4 && (dd < 12 || dd > 14)) return n + " " + few
-        return n + " " + many
+        if (m < 60) return qsTr("%1 min").arg(m)
+        return qsTr("%1 h %2 min").arg(Math.floor(m / 60)).arg(m % 60)
     }
 
     function roundedRectPath(w, h, r) {
@@ -72,9 +65,9 @@ Item {
 
     function greeting() {
         const h = new Date().getHours()
-        if (h < 5) return "Dobranoc"
-        if (h < 12) return "Dzień dobry"
-        if (h < 18) return "Miłego popołudnia"
-        return "Dobry wieczór"
+        if (h < 5) return qsTr("Good night")
+        if (h < 12) return qsTr("Good morning")
+        if (h < 18) return qsTr("Good afternoon")
+        return qsTr("Good evening")
     }
 }

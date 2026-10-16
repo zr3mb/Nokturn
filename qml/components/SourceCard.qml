@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import Nokturn
 
-// Karta źródła muzyki z poświatą w kolorze źródła i rozwijaną treścią.
+// Music source card with a glow in the source's color and expandable content.
 Item {
     id: root
     property var source: ({})

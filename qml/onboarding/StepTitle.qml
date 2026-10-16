@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Nagłówek kroku kreatora.
+// Wizard step heading.
 ColumnLayout {
     id: root
     property string title: ""

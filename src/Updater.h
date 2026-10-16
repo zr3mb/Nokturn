@@ -12,10 +12,10 @@ class QNetworkReply;
 class QQmlEngine;
 class QJSEngine;
 
-// Aktualizacje z GitHub Releases (zr3mb/apkadomuzy): przy starcie i co kilka godzin sprawdza
-// najnowsze wydanie, a gdy jest nowsze — pokazuje okienko. Na Windows pobiera instalator
-// (weryfikacja SHA-256), uruchamia go w trybie cichym i zamyka aplikację; instalator
-// nadpisuje poprzednią wersję i uruchamia nową. Na innych systemach otwiera stronę wydania.
+// Updates from GitHub Releases: checks the latest release at startup and every few hours,
+// and when it's newer — shows a dialog. On Windows it downloads the installer
+// (SHA-256 verified), runs it in silent mode and closes the app; the installer
+// overwrites the previous version and starts the new one. On other systems it opens the release page.
 class Updater : public QObject
 {
     Q_OBJECT
@@ -69,8 +69,8 @@ private:
     QString m_notes;
     QUrl m_page;
     QUrl m_installerUrl;
-    QUrl m_shaUrl;          // plik .sha256 obok instalatora (gdy API nie podaje skrótu)
-    QByteArray m_digest;    // SHA-256 z pola "digest" zasobu w API GitHuba
+    QUrl m_shaUrl;          // the .sha256 file next to the installer (when the API gives no hash)
+    QByteArray m_digest;    // SHA-256 from the asset's "digest" field in the GitHub API
     QString m_installerPath;
     QFile m_file;
     bool m_prompt = false;

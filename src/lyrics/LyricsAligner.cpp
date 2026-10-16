@@ -11,15 +11,15 @@ namespace {
 struct Token
 {
     QString norm;
-    int line = -1;        // LyricsAligner: indeks linii tekstu
+    int line = -1;        // LyricsAligner: lyric line index
     int indexInLine = 0;
-    qint64 start = 0;     // transkrypcja: czasy słowa
+    qint64 start = 0;     // transcription: word times
     qint64 end = 0;
 };
 
 bool isNoise(const QString &raw)
 {
-    // Whisper oznacza fragmenty bez śpiewu np. "[Music]", "(muzyka)", "♪".
+    // Whisper marks parts without singing e.g. "[Music]", "(muzyka)" (Polish), "♪".
     return raw.contains(QChar('[')) || raw.contains(QChar(']')) || raw.contains(QChar('(')) || raw.contains(QChar(')'))
            || raw.contains(QChar(0x266A)) || raw.contains(QChar(0x266B)) || raw.contains(QChar('*'));
 }
@@ -41,9 +41,9 @@ int levenshtein(const QString &a, const QString &b)
     return prev[m];
 }
 
-// Wyniki w dziesiątych częściach punktu (liczby całkowite — szybciej i bez dryfu).
-constexpr int kLyricGap = -6;       // słowo tekstu nierozpoznane
-constexpr int kTranscriptGap = -4;  // słowo transkrypcji spoza tekstu (szum, chórki, przesłyszenia)
+// Scores in tenths of a point (integers — faster and no drift).
+constexpr int kLyricGap = -6;       // a lyric word that wasn't recognized
+constexpr int kTranscriptGap = -4;  // a transcription word outside the lyrics (noise, backing vocals, mishearings)
 constexpr int kMismatch = -10;
 constexpr double kThreshold = 0.72;
 
@@ -63,11 +63,11 @@ QString normalize(const QString &word)
     QString out;
     out.reserve(decomposed.size());
     for (const QChar c : decomposed) {
-        if (c == QChar(0x0142))          // ł nie rozkłada się w NFKD
+        if (c == QChar(0x0142))          // ł doesn't decompose in NFKD
             out += QChar('l');
         else if (c.isLetterOrNumber())
             out += c;
-        // znaki diakrytyczne (Mn), apostrofy i interpunkcja odpadają
+        // diacritics (Mn), apostrophes and punctuation are dropped
     }
     return out;
 }
@@ -79,7 +79,7 @@ double similarity(const QString &a, const QString &b)
     const int len = int(std::max(a.size(), b.size()));
     if (len == 0)
         return 0.0;
-    // Krótkie słowa ("i", "a", "to") muszą się zgadzać dokładnie — inaczej wszystko pasuje do wszystkiego.
+    // Short words ("i", "a", "to") must match exactly — otherwise everything matches everything.
     if (std::min(a.size(), b.size()) <= 2)
         return 0.0;
     return 1.0 - double(levenshtein(a, b)) / len;
@@ -111,7 +111,7 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
     for (const Word &w : words) {
         if (isNoise(w.text))
             continue;
-        // Jedno "słowo" z rozpoznawania może zawierać kilka (np. bez spacji przed interpunkcją).
+        // One "word" from recognition may contain several (e.g. without a space before punctuation).
         const QStringList parts = w.text.split(QChar(' '), Qt::SkipEmptyParts);
         const qint64 span = std::max<qint64>(1, w.end - w.start);
         for (int p = 0; p < parts.size(); ++p) {
@@ -129,11 +129,11 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
     if (n == 0 || m == 0 || qint64(n) * m > 12'000'000)
         return result;
 
-    // Typowa długość słowa — do przesuwania początku linii, gdy pierwsze słowa nie zostały rozpoznane.
+    // Typical word length — to shift a line's start when its first words weren't recognized.
     std::nth_element(durations.begin(), durations.begin() + durations.size() / 2, durations.end());
     const qint64 wordMs = std::clamp<qint64>(durations[durations.size() / 2], 220, 650);
 
-    // ---- wyrównanie ----
+    // ---- alignment ----
     std::vector<int> prev(m + 1, 0), cur(m + 1, 0);
     std::vector<std::uint8_t> steps(size_t(n + 1) * (m + 1), None);
     auto at = [m](int i, int j) { return size_t(i) * (m + 1) + j; };
@@ -141,7 +141,7 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
         steps[at(i, 0)] = Up;
     for (int j = 1; j <= m; ++j)
         steps[at(0, j)] = Left;
-    // Wiersz/kolumna zerowa = 0: przerwy na początku są darmowe (intro, nierozpoznany początek).
+    // Row/column zero = 0: gaps at the start are free (intro, unrecognized beginning).
 
     int best = 0, bestI = n, bestJ = m;
     for (int i = 1; i <= n; ++i) {
@@ -161,7 +161,7 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
                 steps[at(i, j)] = Left;
             }
         }
-        // Koniec też jest darmowy: najlepszy wynik w ostatniej kolumnie albo w ostatnim wierszu.
+        // The end is free too: the best score in the last column or the last row.
         if (cur[m] > best) {
             best = cur[m];
             bestI = i;
@@ -195,7 +195,7 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
         }
     }
 
-    // ---- czasy linii ----
+    // ---- line times ----
     struct Anchor { int line; int pos; qint64 start; qint64 lastEnd; };
     QList<Anchor> anchors;
     int matched = 0;
@@ -251,7 +251,7 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
         lines[li].start = std::max<qint64>(0, t);
     }
 
-    // Kolejność musi być rosnąca (przesunięcie o nierozpoznane słowa mogło ją zaburzyć).
+    // The order must be increasing (shifting by unrecognized words may have broken it).
     qint64 last = -1;
     for (LyricLine &l : lines) {
         if (l.start < 0)
@@ -263,8 +263,8 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
         last = l.start;
     }
 
-    // Koniec linii: początek następnej, ale nie dłużej niż chwilę po ostatnim zaśpiewanym słowie
-    // (w przerwie instrumentalnej nic nie powinno być podświetlone).
+    // A line ends at the start of the next one, but no later than shortly after the last sung word
+    // (nothing should be highlighted during an instrumental break).
     qint64 next = durationMs;
     for (int li = int(lines.size()) - 1; li >= 0; --li) {
         LyricLine &l = lines[li];

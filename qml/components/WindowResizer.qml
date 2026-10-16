@@ -1,6 +1,6 @@
 import QtQuick
 
-// Niewidoczne krawędzie okna bez ramki, pozwalające zmieniać jego rozmiar.
+// Invisible edges of the frameless window that let you resize it.
 Item {
     id: root
     property int grip: 6

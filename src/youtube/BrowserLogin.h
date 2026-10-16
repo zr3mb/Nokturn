@@ -7,18 +7,18 @@
 #include <QTimer>
 #include <QWebSocket>
 
-// Logowanie do YouTube Music w prawdziwej przeglądarce — w dwóch etapach:
+// Signing in to YouTube Music in a real browser — in two stages:
 //
-// 1. Interaktywny: zainstalowany Chrome / Edge / Brave startuje jako osobne okno-aplikacja
-//    z własnym, czystym profilem i BEZ DevTools. Google blokuje logowanie w przeglądarkach
-//    z włączonym zdalnym debugowaniem ("Ta przeglądarka może nie być bezpieczna"), więc to okno
-//    jest zwykłą przeglądarką. Gdy tytuł okna zmieni się na "YouTube Music" (po zalogowaniu Google
-//    przekierowuje na music.youtube.com), zamykamy je łagodnie, żeby ciasteczka trafiły na dysk.
+// 1. Interactive: the installed Chrome / Edge / Brave starts as a separate app window
+//    with its own clean profile and WITHOUT DevTools. Google blocks signing in in browsers
+//    with remote debugging turned on ("This browser may not be secure"), so this window
+//    is a regular browser. When the window title changes to "YouTube Music" (after signing in Google
+//    redirects to music.youtube.com), we close it gently so the cookies get written to disk.
 //
-// 2. Odczyt: ten sam profil uruchamiamy niewidocznie (headless) z DevTools Protocol tylko po to,
-//    by przez Storage.getCookies odczytać zapisaną sesję. Nic się wtedy nie loguje.
+// 2. Readout: the same profile is started invisibly (headless) with the DevTools Protocol only
+//    to read the saved session through Storage.getCookies. Nothing signs in at that point.
 //
-// Zwykłe profile przeglądarki użytkownika nie są dotykane.
+// The user's regular browser profiles are not touched.
 class BrowserLogin : public QObject
 {
     Q_OBJECT

@@ -16,7 +16,7 @@ ApplicationWindow {
 
     readonly property bool maximized: visibility === Window.Maximized || visibility === Window.FullScreen
 
-    // Cała zawartość okna w jednym elemencie (umożliwia też zrzuty ekranu w trybie --tour)
+    // The whole window content in one item (also enables screenshots in --tour mode)
     Item {
         id: shell
         anchors.fill: parent
@@ -96,12 +96,12 @@ ApplicationWindow {
             anchors.fill: parent
         }
 
-        // Kreator pierwszego uruchomienia (nad wszystkim poza powiadomieniami)
+        // First-run wizard (above everything except notifications)
         Onboarding {
             anchors.fill: parent
         }
 
-        // Nowa wersja z GitHub Releases
+        // New version from GitHub Releases
         UpdateDialog {
             anchors.fill: parent
         }
@@ -187,7 +187,7 @@ ApplicationWindow {
 
     FolderDialog {
         id: folderDialog
-        title: "Wybierz folder z muzyką"
+        title: qsTr("Choose a music folder")
         onAccepted: Library.addFolder(selectedFolder)
     }
 

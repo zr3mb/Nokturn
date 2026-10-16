@@ -23,10 +23,10 @@ namespace {
 
 const char *kReleaseBase = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
 
-// Nazwa pliku w katalogu narzędzi i nazwa samodzielnej wersji w wydaniu na GitHubie
-// (Linux: "yt-dlp_linux" nie wymaga Pythona, w przeciwieństwie do "yt-dlp").
-// Windows: wersja rozpakowana (yt-dlp_win.zip) startuje ~3× szybciej niż jednoplikowy
-// yt-dlp.exe, który przy każdym uruchomieniu wypakowuje się do katalogu tymczasowego.
+// File name in the tools directory and the name of the standalone build in the GitHub release
+// (Linux: "yt-dlp_linux" doesn't need Python, unlike "yt-dlp").
+// Windows: the unpacked build (yt-dlp_win.zip) starts ~3× faster than the single-file
+// yt-dlp.exe, which unpacks itself to a temporary directory on every launch.
 QString engineFileName()
 {
 #ifdef Q_OS_WIN
@@ -53,7 +53,7 @@ QString releaseAsset()
 void hideConsole(QProcess *process)
 {
 #ifdef Q_OS_WIN
-    // Nokturn jest aplikacją okienkową — bez tego każde wywołanie yt-dlp mignęłoby konsolą.
+    // Nokturn is a GUI app — without this every yt-dlp call would flash a console.
     process->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
         args->flags |= CREATE_NO_WINDOW;
     });
@@ -98,10 +98,10 @@ void StreamResolver::detect()
     if (ready())
         readVersion();
 #ifdef Q_OS_WIN
-    // Starsza instalacja z jednoplikowym yt-dlp.exe — po cichu przechodzimy na szybszą wersję rozpakowaną.
+    // An older install with the single-file yt-dlp.exe — we quietly switch to the faster unpacked build.
     const QString legacy = toolsDir() + QChar('/') + engineFileName();
     if (m_enginePath != legacy)
-        QFile::remove(legacy);   // mógł zostać, jeśli był w użyciu podczas uaktualnienia
+        QFile::remove(legacy);   // it may have stayed if it was in use during the upgrade
     else if (!m_downloading) {
         m_quiet = true;
         QTimer::singleShot(0, this, &StreamResolver::download);
@@ -128,8 +128,8 @@ QStringList StreamResolver::baseArguments() const
         QStringLiteral("-f"), QStringLiteral("bestaudio[ext=m4a]/bestaudio/best"),
         QStringLiteral("--print"), QStringLiteral("urls"),
     };
-    // yt-dlp potrzebuje środowiska JavaScript do pełnej obsługi YouTube (domyślnie szuka Deno).
-    // Instalator Windows dołącza deno.exe obok Nokturn.exe — ma pierwszeństwo.
+    // yt-dlp needs a JavaScript runtime for full YouTube support (it looks for Deno by default).
+    // The Windows installer ships deno.exe next to Nokturn.exe — it takes precedence.
     const QString bundled = QStandardPaths::findExecutable(QStringLiteral("deno"),
                                                            { QCoreApplication::applicationDirPath() });
     const QString deno = QStandardPaths::findExecutable(QStringLiteral("deno"));
@@ -156,9 +156,9 @@ void StreamResolver::resolve(const QString &videoId)
         return;
     }
     if (m_running.contains(videoId))
-        return;   // już trwa — wynik przyjdzie sygnałem
+        return;   // already running — the result will come as a signal
     if (!ready()) {
-        emit failed(videoId, QStringLiteral("Brak silnika yt-dlp"));
+        emit failed(videoId, tr("The yt-dlp engine is missing"));
         return;
     }
     run(videoId, m_cookies.isLoggedIn());
@@ -168,8 +168,8 @@ void StreamResolver::run(const QString &videoId, bool withCookies)
 {
     QStringList args = baseArguments();
 
-    // Ciasteczka konta (lepsza jakość dla Premium, utwory z ograniczeniem wieku).
-    // Plik istnieje tylko na czas działania procesu.
+    // Account cookies (better quality for Premium, age-restricted tracks).
+    // The file exists only while the process runs.
     QString cookieFile;
     if (withCookies) {
         cookieFile = toolsDir() + QStringLiteral("/cookies-%1.txt").arg(QUuid::createUuid().toString(QUuid::Id128));
@@ -203,11 +203,11 @@ void StreamResolver::run(const QString &videoId, bool withCookies)
             return;
         }
         QStringList err = QString::fromUtf8(process->readAllStandardError()).split('\n', Qt::SkipEmptyParts);
-        QString message = err.isEmpty() ? QStringLiteral("yt-dlp zakończył się błędem") : err.last().trimmed();
+        QString message = err.isEmpty() ? tr("yt-dlp ended with an error") : err.last().trimmed();
         message.remove(QStringLiteral("ERROR: "));
-        // Z ciasteczkami yt-dlp używa klientów webowych, które bez Deno/Node dostają
-        // tylko miniatury („Requested format is not available”). Bez konta działa klient
-        // niewymagający JavaScriptu, więc próbujemy jeszcze raz anonimowo.
+        // With cookies yt-dlp uses web clients that, without Deno/Node, only get
+        // thumbnails ("Requested format is not available"). Without an account a client
+        // that doesn't need JavaScript works, so we try once more anonymously.
         if (!cookieFile.isEmpty() && message.contains(QLatin1String("Requested format is not available"))) {
             run(videoId, false);
             return;
@@ -225,14 +225,14 @@ void StreamResolver::download()
     m_progress = 0;
     emit engineChanged();
 
-    // Najpierw lista sum kontrolnych, potem sam program — porównujemy SHA-256 przed zapisaniem.
+    // The checksum list first, then the program itself — we compare SHA-256 before saving.
     QNetworkReply *sumsReply = m_net.get(QNetworkRequest(QUrl(QString::fromLatin1(kReleaseBase) + "SHA2-256SUMS")));
     connect(sumsReply, &QNetworkReply::finished, this, [this, sumsReply] {
         sumsReply->deleteLater();
         if (sumsReply->error() != QNetworkReply::NoError) {
             m_downloading = false;
             emit engineChanged();
-            report(QStringLiteral("Nie udało się pobrać yt-dlp: ") + sumsReply->errorString(), QStringLiteral("close"));
+            report(tr("Couldn't download yt-dlp: %1").arg(sumsReply->errorString()), QStringLiteral("close"));
             return;
         }
         const QByteArray sums = sumsReply->readAll();
@@ -246,7 +246,7 @@ void StreamResolver::download()
             if (binReply->error() != QNetworkReply::NoError) {
                 m_downloading = false;
                 emit engineChanged();
-                report(QStringLiteral("Nie udało się pobrać yt-dlp: ") + binReply->errorString(), QStringLiteral("close"));
+                report(tr("Couldn't download yt-dlp: %1").arg(binReply->errorString()), QStringLiteral("close"));
                 return;
             }
             finishDownload(binReply->readAll(), sums);
@@ -256,7 +256,7 @@ void StreamResolver::download()
 
 void StreamResolver::report(const QString &text, const QString &icon)
 {
-    // Ciche uaktualnienie w tle nie zaśmieca powiadomieniami — stara wersja dalej działa.
+    // A quiet background upgrade doesn't litter notifications — the old version keeps working.
     if (!m_quiet)
         emit notice(text, icon);
     m_quiet = false;
@@ -275,18 +275,18 @@ void StreamResolver::finishDownload(const QByteArray &binary, const QByteArray &
     }
     if (!verified) {
         emit engineChanged();
-        report(QStringLiteral("Pobrany yt-dlp nie zgadza się z sumą kontrolną — przerwano"), QStringLiteral("close"));
+        report(tr("The downloaded yt-dlp doesn't match the checksum — aborted"), QStringLiteral("close"));
         return;
     }
 #ifdef Q_OS_WIN
-    // Archiwum rozpakowuje systemowy tar.exe (Windows 10+) do katalogu tymczasowego,
-    // który po sukcesie zastępuje poprzednią wersję.
+    // The archive is unpacked by the system tar.exe (Windows 10+) into a temporary directory,
+    // which replaces the previous version on success.
     const QString zip = toolsDir() + QStringLiteral("/yt-dlp_win.zip");
     const QString staging = toolsDir() + QStringLiteral("/yt-dlp.new");
     QSaveFile out(zip);
     if (!out.open(QIODevice::WriteOnly) || out.write(binary) != binary.size() || !out.commit()) {
         emit engineChanged();
-        report(QStringLiteral("Nie udało się zapisać yt-dlp"), QStringLiteral("close"));
+        report(tr("Couldn't save yt-dlp"), QStringLiteral("close"));
         return;
     }
     QDir(staging).removeRecursively();
@@ -300,19 +300,19 @@ void StreamResolver::finishDownload(const QByteArray &binary, const QByteArray &
         if (code != 0 || !QFile::exists(staging + QChar('/') + engineFileName())) {
             QDir(staging).removeRecursively();
             emit engineChanged();
-            report(QStringLiteral("Nie udało się rozpakować yt-dlp"), QStringLiteral("close"));
+            report(tr("Couldn't unpack yt-dlp"), QStringLiteral("close"));
             return;
         }
         QDir(final).removeRecursively();
         if (!QDir().rename(staging, final)) {
             emit engineChanged();
-            report(QStringLiteral("Nie udało się zapisać yt-dlp"), QStringLiteral("close"));
+            report(tr("Couldn't save yt-dlp"), QStringLiteral("close"));
             return;
         }
-        QFile::remove(toolsDir() + QChar('/') + engineFileName());   // stary jednoplikowy
+        QFile::remove(toolsDir() + QChar('/') + engineFileName());   // the old single-file one
         m_cache.clear();
         detect();
-        report(QStringLiteral("Silnik odtwarzania YouTube jest gotowy"), QStringLiteral("check"));
+        report(tr("The YouTube playback engine is ready"), QStringLiteral("check"));
     });
     tar->start(QDir::fromNativeSeparators(qEnvironmentVariable("SystemRoot")) + QStringLiteral("/System32/tar.exe"),
                { QStringLiteral("-xf"), QDir::toNativeSeparators(zip), QStringLiteral("-C"), QDir::toNativeSeparators(staging) });
@@ -325,10 +325,10 @@ void StreamResolver::finishDownload(const QByteArray &binary, const QByteArray &
                                           | QFileDevice::ReadOther | QFileDevice::ExeOther);
         m_cache.clear();
         detect();
-        report(QStringLiteral("Silnik odtwarzania YouTube jest gotowy"), QStringLiteral("check"));
+        report(tr("The YouTube playback engine is ready"), QStringLiteral("check"));
     } else {
         emit engineChanged();
-        report(QStringLiteral("Nie udało się zapisać yt-dlp"), QStringLiteral("close"));
+        report(tr("Couldn't save yt-dlp"), QStringLiteral("close"));
     }
 #endif
 }

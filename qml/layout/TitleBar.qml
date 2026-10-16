@@ -2,12 +2,12 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Własny pasek tytułu: nawigacja wstecz/dalej, wyszukiwarka, profil, przyciski okna.
+// Custom title bar: back/forward navigation, search, profile, window buttons.
 Item {
     id: root
     readonly property var win: Window.window
 
-    // Przeciąganie okna i maksymalizacja dwuklikiem
+    // Window dragging and double-click to maximize
     Item {
         anchors.fill: parent
         DragHandler {
@@ -46,7 +46,7 @@ Item {
         }
     }
 
-    // Pigułka wyszukiwania
+    // Search pill
     Rectangle {
         id: search
         anchors.centerIn: parent
@@ -70,7 +70,7 @@ Item {
         }
         Text {
             anchors { left: searchIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
-            text: "Szukaj utworów, wykonawców, albumów…"
+            text: qsTr("Search tracks, artists, albums…")
             color: Theme.textFaint
             font.pixelSize: 14
         }
@@ -104,7 +104,7 @@ Item {
         anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
         spacing: 10
 
-        // Profil
+        // Profile
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: profileRow.implicitWidth + 10
@@ -132,7 +132,7 @@ Item {
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Profil"
+                    text: qsTr("Profile")
                     color: Theme.text
                     font.pixelSize: 13
                     font.weight: Font.DemiBold

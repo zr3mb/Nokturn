@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import Nokturn
 
-// Krok 1: powitanie.
+// Step 1: welcome.
 Item {
     id: root
 
@@ -15,7 +15,7 @@ Item {
         width: Math.min(parent.width, 980)
         spacing: 22
 
-        // Duże, "oddychające" logo z poświatą
+        // Big, "breathing" logo with a glow
         Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 140
@@ -59,7 +59,7 @@ Item {
         Text {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
-            text: "Witaj w Nokturnie"
+            text: qsTr("Welcome to Nokturn")
             color: Theme.text
             font.family: Theme.fontDisplay
             font.pixelSize: 54
@@ -70,11 +70,19 @@ Item {
             Layout.maximumWidth: 640
             Layout.alignment: Qt.AlignHCenter
             horizontalAlignment: Text.AlignHCenter
-            text: "Pliki z dysku i YouTube Music w jednym, spokojnym odtwarzaczu. Ustawmy go pod Ciebie — to zajmie minutę, a wszystko zmienisz później w Ustawieniach."
+            text: qsTr("Files from your disk and YouTube Music in one calm player. Let's set it up for you — it takes a minute, and you can change everything later in Settings.")
             color: Theme.textDim
             font.pixelSize: 16
             wrapMode: Text.WordWrap
             lineHeight: 1.15
+        }
+        // The language can be picked right away (also in Settings → Appearance).
+        SegmentedTabs {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 6
+            model: ["English", "Polski"]
+            currentIndex: Language.effective === "pl" ? 1 : 0
+            onActivated: i => Language.language = ["en", "pl"][i]
         }
 
         GridLayout {
@@ -86,10 +94,10 @@ Item {
 
             Repeater {
                 model: [
-                    { icon: "folder", title: "Twoja biblioteka", text: "Foldery z muzyką, okładki i tagi — przeskanowane w tle." },
-                    { icon: "playCircle", title: "YouTube Music", text: "Polubione, playlisty i wyszukiwarka z Twojego konta." },
-                    { icon: "mix", title: "Miksy i teksty", text: "Płynne przejścia jak u DJ-a i teksty utworów na żywo." },
-                    { icon: "equalizer", title: "Korektor", text: "7 pasm, presety i limiter — dźwięk po Twojemu." }
+                    { icon: "folder", title: qsTr("Your library"), text: qsTr("Music folders, covers and tags — scanned in the background.") },
+                    { icon: "playCircle", title: "YouTube Music", text: qsTr("Liked songs, playlists and search from your account.") },
+                    { icon: "mix", title: qsTr("Mixes and lyrics"), text: qsTr("DJ-style smooth transitions and live lyrics.") },
+                    { icon: "equalizer", title: qsTr("Equalizer"), text: qsTr("7 bands, presets and a limiter — sound your way.") }
                 ]
                 Rectangle {
                     id: tileCard
@@ -102,7 +110,7 @@ Item {
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.06)
 
-                    // wjazd z opóźnieniem
+                    // delayed entrance
                     opacity: 0
                     transform: Translate { id: shift; y: 24 }
                     Component.onCompleted: enter.start()

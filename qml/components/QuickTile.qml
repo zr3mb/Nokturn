@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Kompaktowy kafelek "szybkiego wyboru" na stronie głównej.
+// Compact "quick pick" tile on the home page.
 Item {
     id: root
     property string title: ""

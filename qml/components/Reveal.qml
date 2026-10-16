@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 
-// Opakowanie sekcji: przy pojawieniu się wjeżdża od dołu i rozjaśnia się (z opóźnieniem).
+// Section wrapper: slides up and fades in when it appears (with a delay).
 Item {
     id: root
     property int delay: 0

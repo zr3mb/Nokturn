@@ -1,17 +1,17 @@
 import QtQuick
 import Nokturn
 
-// Plakietka źródła utworu: plik lokalny / YouTube Music / radio.
+// Track source badge: local file / YouTube Music / radio.
 Rectangle {
     id: root
     property string source: "local"
     property bool showLabel: true
 
     readonly property var info: ({
-        local:   { label: "Lokalny",       icon: "folder",     color: "#9fbfa8" },
+        local:   { label: qsTr("Local"),       icon: "folder",     color: "#9fbfa8" },
         youtube: { label: "YouTube Music", icon: "playCircle", color: "#cf9d9d" },
-        radio:   { label: "Radio",         icon: "live",       color: "#cdb68e" },
-        stream:  { label: "Strumień",      icon: "link",       color: "#93a8c3" }
+        radio:   { label: qsTr("Radio"),       icon: "live",       color: "#cdb68e" },
+        stream:  { label: qsTr("Stream"),      icon: "link",       color: "#93a8c3" }
     })[source] || { label: source, icon: "music", color: "#a19e98" }
 
     implicitWidth: row.implicitWidth + (showLabel ? 18 : 12)

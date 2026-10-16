@@ -40,7 +40,7 @@ Item {
 
         Reveal {
             Text {
-                text: "Ustawienia"
+                text: qsTr("Settings")
                 color: Theme.text
                 font.family: Theme.fontDisplay
                 font.pixelSize: 38
@@ -53,36 +53,46 @@ Item {
             ColumnLayout {
                 width: parent.width
                 spacing: 8
-                Heading { text: "Wygląd" }
+                Heading { text: qsTr("Appearance") }
                 SettingRow {
                     icon: "sparkle"
-                    title: "Kreator pierwszego uruchomienia"
-                    description: "Przejdź jeszcze raz przez wybór układu, kolorów, źródeł muzyki, przejść i integracji."
+                    title: qsTr("First-run wizard")
+                    description: qsTr("Go through choosing the layout, colors, music sources, transitions and integrations again.")
                     PillButton {
                         kind: "secondary"
                         icon: "refresh"
-                        text: "Uruchom kreator"
+                        text: qsTr("Run the wizard")
                         fontSize: 13
                         implicitHeight: 36
                         onClicked: Nav.startOnboarding()
                     }
                 }
                 SettingRow {
+                    icon: "chat"
+                    title: qsTr("Language")
+                    description: qsTr("Interface language. “System” follows the language of your operating system.")
+                    SegmentedTabs {
+                        model: [qsTr("System"), "English", "Polski"]
+                        currentIndex: ["system", "en", "pl"].indexOf(Language.language)
+                        onActivated: i => Language.language = ["system", "en", "pl"][i]
+                    }
+                }
+                SettingRow {
                     icon: "sparkle"
-                    title: "Dynamiczny kolor akcentu"
-                    description: "Kolory interfejsu płynnie dopasowują się do okładki odtwarzanego utworu."
+                    title: qsTr("Dynamic accent color")
+                    description: qsTr("Interface colors smoothly adapt to the cover of the playing track.")
                     Toggle { checked: Theme.dynamicAccent; onToggled: c => Theme.dynamicAccent = c }
                 }
                 SettingRow {
                     icon: "album"
-                    title: "Żywe tło"
-                    description: "Miękkie światło za interfejsem, delikatnie pulsujące w rytm muzyki."
+                    title: qsTr("Live background")
+                    description: qsTr("Soft light behind the interface, gently pulsing with the music.")
                     Toggle { checked: Theme.ambient; onToggled: c => Theme.ambient = c }
                 }
                 SettingRow {
                     icon: "menuOpen"
-                    title: "Kompaktowy panel boczny"
-                    description: "Pokazuj w panelu bocznym tylko ikony."
+                    title: qsTr("Compact sidebar")
+                    description: qsTr("Show only icons in the sidebar.")
                     Toggle { checked: Nav.sidebarCompact; onToggled: c => Nav.sidebarCompact = c }
                 }
             }
@@ -93,26 +103,26 @@ Item {
             ColumnLayout {
                 width: parent.width
                 spacing: 8
-                Heading { text: "Odtwarzanie" }
+                Heading { text: qsTr("Playback") }
                 SettingRow {
                     icon: "tune"
-                    title: "Płynne przejścia (crossfade)"
+                    title: qsTr("Smooth transitions (crossfade)")
                     description: Player.crossfade > 0
-                        ? "Koniec utworu nakłada się na początek następnego. Playlisty z włączonym „Miksem” używają własnych ustawień."
-                        : "Wyłączone — utwory grają po kolei. Miks możesz też włączyć osobno dla wybranej playlisty."
+                        ? qsTr("The end of a track overlaps the start of the next one. Playlists with “Mix” turned on use their own settings.")
+                        : qsTr("Off — tracks play one after another. You can also turn on Mix for a single playlist.")
                     Row {
                         spacing: 14
                         ProgressSlider {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 170
                             value: Player.crossfade / 12
-                            labelFor: function(v) { return Math.round(v * 12) === 0 ? "wył." : Math.round(v * 12) + " s" }
+                            labelFor: function(v) { return Math.round(v * 12) === 0 ? qsTr("off") : qsTr("%1 s").arg(Math.round(v * 12)) }
                             onMoved: v => Player.crossfade = Math.round(v * 12)
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 34
-                            text: Player.crossfade === 0 ? "wył." : Player.crossfade + " s"
+                            text: Player.crossfade === 0 ? qsTr("off") : qsTr("%1 s").arg(Player.crossfade)
                             color: Theme.textDim
                             font.pixelSize: 13
                             font.features: { "tnum": 1 }
@@ -122,7 +132,7 @@ Item {
                 SettingRow {
                     visible: Player.crossfade > 0
                     icon: "sparkle"
-                    title: "Styl przejścia"
+                    title: qsTr("Transition style")
                     description: Player.mixStyleDescription(Player.crossfadeStyle)
                     SegmentedTabs {
                         model: Player.mixStyles.map(s => Player.mixStyleName(s))
@@ -132,20 +142,20 @@ Item {
                 }
                 SettingRow {
                     icon: "next"
-                    title: "Inteligentne przejścia"
-                    description: "Miks zaczyna się, gdy muzyka faktycznie się kończy: pomija ciszę na końcu i na początku utworów oraz wykrywa wyciszenia zapisane w nagraniu."
+                    title: qsTr("Smart transitions")
+                    description: qsTr("The mix starts when the music actually ends: it skips silence at the end and start of tracks and detects fade-outs recorded in the track.")
                     Toggle { checked: Player.smartTransitions; onToggled: c => Player.smartTransitions = c }
                 }
                 SettingRow {
                     icon: "volumeUp"
-                    title: "Normalizacja głośności"
-                    description: "Wyrównuje głośność utworów z różnych źródeł."
+                    title: qsTr("Volume normalization")
+                    description: qsTr("Evens out the loudness of tracks from different sources.")
                     Toggle { checked: true }
                 }
                 SettingRow {
                     icon: "queue"
-                    title: "Odtwarzanie bez przerw"
-                    description: "Albumy koncertowe i miksy grają bez ciszy między utworami."
+                    title: qsTr("Gapless playback")
+                    description: qsTr("Live albums and mixes play without silence between tracks.")
                     Toggle { checked: false }
                 }
             }
@@ -156,18 +166,18 @@ Item {
             ColumnLayout {
                 width: parent.width
                 spacing: 8
-                Heading { text: "Teksty utworów" }
+                Heading { text: qsTr("Lyrics") }
                 SettingRow {
                     icon: "lyrics"
-                    title: "Teksty z YouTube Music"
-                    description: "Tekst odtwarzanego utworu (z synchronizacją, gdy jest dostępna) w panelu „Teraz odtwarzane” i w trybie pełnoekranowym. Dla plików lokalnych utwór jest wyszukiwany po wykonawcy i tytule; awaryjnie używany jest plik .lrc obok utworu albo tekst zapisany w tagach."
+                    title: qsTr("Lyrics from YouTube Music")
+                    description: qsTr("Lyrics of the playing track (synced when available) in the “Now playing” panel and in full-screen mode. For local files the track is looked up by artist and title; as a fallback, an .lrc file next to the track or lyrics stored in the tags are used.")
                 }
                 SettingRow {
                     icon: "sparkle"
-                    title: "Automatyczne dopasowanie czasu (alpha)"
+                    title: qsTr("Automatic timing (alpha)")
                     description: Lyrics.hardwareOk
-                        ? "Gdy tekst nie ma znaczników czasu, Nokturn rozpozna śpiew w nagraniu (whisper.cpp, lokalnie na Twoim komputerze) i dopasuje do niego linie tekstu. Mocno obciąża procesor przez kilkadziesiąt sekund do kilku minut na utwór; wynik jest zapamiętywany. Twój sprzęt: " + Lyrics.hardwareSummary + "."
-                        : "Wymaga mocniejszego sprzętu (co najmniej 4 wątki procesora i 8 GB RAM). Twój sprzęt: " + Lyrics.hardwareSummary + "."
+                        ? qsTr("When lyrics have no timestamps, Nokturn recognizes the singing in the recording (whisper.cpp, locally on your computer) and aligns the lyric lines to it. It puts a heavy load on the CPU for tens of seconds to a few minutes per track; the result is remembered. Your hardware: %1.").arg(Lyrics.hardwareSummary)
+                        : qsTr("Requires stronger hardware (at least 4 CPU threads and 8 GB of RAM). Your hardware: %1.").arg(Lyrics.hardwareSummary)
                     Toggle {
                         enabled: Lyrics.hardwareOk
                         opacity: enabled ? 1 : 0.4
@@ -178,10 +188,10 @@ Item {
                 SettingRow {
                     visible: Lyrics.autoAlign
                     icon: "tune"
-                    title: "Model rozpoznawania mowy"
-                    description: "Większy model lepiej rozpoznaje śpiew, ale działa wolniej. "
+                    title: qsTr("Speech recognition model")
+                    description: qsTr("A larger model recognizes singing better but runs slower.") + " "
                         + Lyrics.sttModel + ": " + Lyrics.modelSize(Lyrics.sttModel)
-                        + (Lyrics.sttModel === Lyrics.recommendedModel ? " · zalecany dla Twojego sprzętu" : " · zalecany: " + Lyrics.recommendedModel)
+                        + " · " + (Lyrics.sttModel === Lyrics.recommendedModel ? qsTr("recommended for your hardware") : qsTr("recommended: %1").arg(Lyrics.recommendedModel))
                     SegmentedTabs {
                         model: Lyrics.sttModels.map(m => m.charAt(0).toUpperCase() + m.slice(1))
                         currentIndex: Lyrics.sttModels.indexOf(Lyrics.sttModel)
@@ -191,48 +201,48 @@ Item {
                 SettingRow {
                     visible: Lyrics.autoAlign
                     icon: Lyrics.sttReady ? "check" : "add"
-                    title: Lyrics.sttReady ? "Rozpoznawanie mowy jest gotowe" : "Pobierz składniki"
+                    title: Lyrics.sttReady ? qsTr("Speech recognition is ready") : qsTr("Download components")
                     description: Lyrics.sttDownloading
-                        ? "Pobieranie: " + Lyrics.sttDownloadLabel + "… " + Math.round(Lyrics.sttProgress * 100) + "%"
-                        : "Program whisper.cpp: " + (Lyrics.sttEngineReady ? "zainstalowany"
-                              : Lyrics.sttCanDownloadEngine ? "brak (oficjalne wydanie z GitHuba)"
-                              : "brak — zainstaluj pakiet whisper.cpp (polecenie whisper-cli lub whisper-cpp)")
-                          + " · model " + Lyrics.sttModel + ": " + (Lyrics.sttModelReady ? "pobrany" : "brak (" + Lyrics.modelSize(Lyrics.sttModel) + ", Hugging Face)")
-                          + ". Pliki są sprawdzane sumą SHA-256."
+                        ? qsTr("Downloading: %1… %2%").arg(Lyrics.sttDownloadLabel).arg(Math.round(Lyrics.sttProgress * 100))
+                        : qsTr("whisper.cpp program: %1").arg(Lyrics.sttEngineReady ? qsTr("installed")
+                              : Lyrics.sttCanDownloadEngine ? qsTr("missing (official release from GitHub)")
+                              : qsTr("missing — install the whisper.cpp package (whisper-cli or whisper-cpp command)"))
+                          + " · " + qsTr("model %1: %2").arg(Lyrics.sttModel).arg(Lyrics.sttModelReady ? qsTr("downloaded") : qsTr("missing (%1, Hugging Face)").arg(Lyrics.modelSize(Lyrics.sttModel)))
+                          + ". " + qsTr("Files are verified with SHA-256.")
                     Row {
                         spacing: 8
                         PillButton {
                             visible: Lyrics.sttDownloading
                             kind: "ghost"
                             icon: "close"
-                            text: "Przerwij"
+                            text: qsTr("Cancel")
                             onClicked: Lyrics.cancelSttDownload()
                         }
                         PillButton {
                             visible: !Lyrics.sttDownloading && !Lyrics.sttEngineReady && Lyrics.sttCanDownloadEngine
                             kind: "primary"
                             icon: "add"
-                            text: "Pobierz whisper.cpp"
+                            text: qsTr("Download whisper.cpp")
                             onClicked: Lyrics.downloadSttEngine()
                         }
                         PillButton {
                             visible: !Lyrics.sttDownloading && !Lyrics.sttEngineReady && !Lyrics.sttCanDownloadEngine
                             kind: "ghost"
                             icon: "refresh"
-                            text: "Sprawdź ponownie"
+                            text: qsTr("Check again")
                             onClicked: Lyrics.redetectStt()
                         }
                         PillButton {
                             visible: !Lyrics.sttDownloading && Lyrics.sttEngineReady && !Lyrics.sttModelReady
                             kind: "primary"
                             icon: "add"
-                            text: "Pobierz model"
+                            text: qsTr("Download the model")
                             onClicked: Lyrics.downloadSttModel()
                         }
                         PillButton {
                             visible: !Lyrics.sttDownloading && Lyrics.sttModelReady
                             kind: "ghost"
-                            text: "Usuń model"
+                            text: qsTr("Remove the model")
                             onClicked: Lyrics.removeSttModel(Lyrics.sttModel)
                         }
                     }
@@ -248,21 +258,21 @@ Item {
                 Heading { text: "Discord" }
                 SettingRow {
                     icon: "chat"
-                    title: "Pokazuj na Discordzie, czego słuchasz"
-                    description: "Status „Słucha” z tytułem, wykonawcą, okładką i paskiem postępu. Działa z uruchomioną aplikacją Discord na tym komputerze. Stan: " + Discord.status + "."
+                    title: qsTr("Show what you're listening to on Discord")
+                    description: qsTr("A “Listening” status with the title, artist, cover and a progress bar. Works with the Discord app running on this computer. Status: %1.").arg(Discord.status)
                     Toggle { checked: Discord.enabled; onToggled: c => Discord.enabled = c }
                 }
                 SettingRow {
                     visible: Discord.enabled
                     icon: "key"
-                    title: "Identyfikator aplikacji Discord"
+                    title: qsTr("Discord application ID")
                     description: Discord.builtInClientId && Discord.clientId !== ""
-                        ? "Wbudowany identyfikator Nokturna. Możesz wpisać własny, żeby zmienić nazwę wyświetlaną w statusie."
-                        : "Utwórz aplikację na discord.com/developers/applications (jej nazwa pojawi się jako „Słucha <nazwa>”), skopiuj „Application ID” i wklej go tutaj. Opcjonalnie dodaj w Rich Presence → Art Assets obrazek o nazwie „nokturn” — będzie okładką plików bez okładki w sieci."
+                        ? qsTr("Nokturn's built-in ID. You can enter your own to change the name shown in the status.")
+                        : qsTr("Create an application at discord.com/developers/applications (its name will show as “Listening to <name>”), copy the “Application ID” and paste it here. Optionally add an image named “nokturn” under Rich Presence → Art Assets — it becomes the cover for files without a cover online.")
                     InputField {
                         width: 230
                         implicitHeight: 38
-                        placeholderText: "np. 1234567890123456789"
+                        placeholderText: qsTr("e.g. 1234567890123456789")
                         text: Discord.clientId
                         inputMethodHints: Qt.ImhDigitsOnly
                         onEditingFinished: Discord.clientId = text
@@ -271,8 +281,8 @@ Item {
                 SettingRow {
                     visible: Discord.enabled
                     icon: "pause"
-                    title: "Pokazuj także po wstrzymaniu"
-                    description: "Domyślnie status znika, gdy muzyka jest wstrzymana (jak w Spotify)."
+                    title: qsTr("Show while paused too")
+                    description: qsTr("By default the status disappears when the music is paused (like Spotify).")
                     Toggle { checked: Discord.showWhenPaused; onToggled: c => Discord.showWhenPaused = c }
                 }
             }
@@ -283,13 +293,13 @@ Item {
             ColumnLayout {
                 width: parent.width
                 spacing: 8
-                Heading { text: "Jakość strumienia" }
+                Heading { text: qsTr("Stream quality") }
                 SettingRow {
                     icon: "playCircle"
-                    title: "YouTube Music i radio"
-                    description: ["Najmniejsze zużycie danych.", "Zrównoważona jakość.", "Najwyższa dostępna jakość (do 256 kbps).", "Bezstratnie, gdy źródło na to pozwala."][page.quality]
+                    title: qsTr("YouTube Music and radio")
+                    description: [qsTr("Lowest data usage."), qsTr("Balanced quality."), qsTr("Highest available quality (up to 256 kbps)."), qsTr("Lossless when the source allows it.")][page.quality]
                     SegmentedTabs {
-                        model: ["Oszczędna", "Normalna", "Wysoka", "Bezstratna"]
+                        model: [qsTr("Data saver"), qsTr("Normal"), qsTr("High"), qsTr("Lossless")]
                         currentIndex: page.quality
                         onActivated: i => page.quality = i
                     }
@@ -302,7 +312,7 @@ Item {
             ColumnLayout {
                 width: parent.width
                 spacing: 12
-                Heading { text: "Skróty klawiszowe" }
+                Heading { text: qsTr("Keyboard shortcuts") }
                 GridLayout {
                     Layout.fillWidth: true
                     columns: 2
@@ -311,12 +321,12 @@ Item {
 
                     Repeater {
                         model: [
-                            { keys: ["Spacja"], label: "Odtwórz / pauza" },
-                            { keys: ["Ctrl", "→"], label: "Następny utwór" },
-                            { keys: ["Ctrl", "←"], label: "Poprzedni utwór" },
-                            { keys: ["Ctrl", "K"], label: "Szukaj" },
-                            { keys: ["F11"], label: "Tryb pełnoekranowy" },
-                            { keys: ["Alt", "←"], label: "Wstecz" }
+                            { keys: [qsTr("Space")], label: qsTr("Play / pause") },
+                            { keys: ["Ctrl", "→"], label: qsTr("Next track") },
+                            { keys: ["Ctrl", "←"], label: qsTr("Previous track") },
+                            { keys: ["Ctrl", "K"], label: qsTr("Search") },
+                            { keys: ["F11"], label: qsTr("Full-screen mode") },
+                            { keys: ["Alt", "←"], label: qsTr("Back") }
                         ]
                         RowLayout {
                             required property var modelData
@@ -355,7 +365,7 @@ Item {
                     Text { text: "C++20 · Qt 6 · Qt Quick"; color: Theme.textFaint; font.pixelSize: 12 }
                 }
                 PillButton {
-                    text: Updater.available ? "Zaktualizuj do " + Updater.latestVersion : "Sprawdź aktualizacje"
+                    text: Updater.available ? qsTr("Update to %1").arg(Updater.latestVersion) : qsTr("Check for updates")
                     kind: "secondary"
                     icon: "refresh"
                     busy: Updater.state === "checking"

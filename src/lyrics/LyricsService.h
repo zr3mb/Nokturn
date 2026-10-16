@@ -14,19 +14,19 @@
 class QQmlEngine;
 class QJSEngine;
 
-// Teksty utworów dla QML.
-// Kolejność źródeł: YouTube Music (wersja z czasami, potem zwykły tekst; dla plików lokalnych
-// utwór jest wyszukiwany po wykonawcy i tytule), a w drugiej kolejności tekst z pliku
-// (.lrc obok utworu albo tag LYRICS). Gdy tekst nie ma czasów, a użytkownik włączył
-// "automatyczne dopasowanie" (alpha), czasy linii wyznacza rozpoznawanie mowy (SpeechEngine).
-// Wyniki trafiają do cache na dysku — rozpoznawanie dla danego utworu wykonuje się raz.
+// Lyrics for QML.
+// Source order: YouTube Music (the timed version, then plain text; for local files
+// the track is looked up by artist and title), and second the lyrics from the file
+// (.lrc next to the track or the LYRICS tag). When the lyrics have no timestamps and the user turned on
+// "automatic timing" (alpha), line times come from speech recognition (SpeechEngine).
+// Results go to a cache on disk — recognition runs once per track.
 class LyricsService : public QObject
 {
     Q_OBJECT
     QML_NAMED_ELEMENT(Lyrics)
     QML_SINGLETON
 
-    // "none" (nic nie gra) | "loading" | "ready" | "missing" | "error"
+    // "none" (nothing playing) | "loading" | "ready" | "missing" | "error"
     Q_PROPERTY(QString state READ state NOTIFY lyricsChanged)
     Q_PROPERTY(QString error READ error NOTIFY lyricsChanged)
     Q_PROPERTY(QVariantList lines READ lines NOTIFY lyricsChanged)
@@ -85,7 +85,7 @@ public:
     QString hardwareSummary() const { return m_hardware.summary; }
     QString recommendedModel() const { return m_hardware.recommendedModel; }
 
-    // Indeks linii (w `lines`) śpiewanej w danej chwili; -1 przed pierwszą linią lub bez czasów.
+    // Index of the line (in `lines`) being sung right now; -1 before the first line or without timestamps.
     Q_INVOKABLE int lineAt(double seconds) const;
     Q_INVOKABLE QString modelSize(const QString &model) const { return SpeechEngine::modelSize(model); }
     Q_INVOKABLE void retry();
@@ -97,7 +97,7 @@ public:
     Q_INVOKABLE void cancelSttDownload() { m_speech.cancelDownload(); }
     Q_INVOKABLE void removeSttModel(const QString &model) { m_speech.removeModel(model); }
 
-    // Wywoływane przez odtwarzacz przy zmianie utworu (nullptr = nic nie gra).
+    // Called by the player when the track changes (nullptr = nothing playing).
     void setTrack(const Track *track);
 
 signals:
@@ -130,14 +130,14 @@ private:
     quint64 m_serial = 0;
     Lyrics m_lyrics;
     QVariantList m_lines;
-    std::vector<std::pair<qint64, int>> m_starts;   // (początek ms, indeks linii) — do wyszukiwania binarnego
+    std::vector<std::pair<qint64, int>> m_starts;   // (start ms, line index) — for binary search
     QString m_state = QStringLiteral("none");
     QString m_error;
 
-    QString m_waitingStream;   // videoId, na którego adres czekamy, żeby rozpocząć rozpoznawanie
+    QString m_waitingStream;   // videoId whose URL we're waiting for to start recognition
     qreal m_alignProgress = 0;
     QString m_alignStage;
-    QHash<QString, bool> m_alignTried;   // utwory, dla których rozpoznawanie już zawiodło w tej sesji
+    QHash<QString, bool> m_alignTried;   // tracks for which recognition has already failed this session
 
     bool m_autoAlign = false;
     QString m_model;

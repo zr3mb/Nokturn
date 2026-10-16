@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Krok 5: przejścia między utworami (crossfade / styl miksu) i teksty utworów.
+// Step 5: transitions between tracks (crossfade / mix style) and lyrics.
 Item {
     id: root
 
@@ -11,8 +11,8 @@ Item {
         spacing: 24
 
         StepTitle {
-            title: "Jak ma grać?"
-            subtitle: "Ustaw przejścia między utworami i teksty. Miks możesz też włączyć osobno dla każdej playlisty — przyciskiem „Miks” na jej stronie."
+            title: qsTr("How should it play?")
+            subtitle: qsTr("Set up transitions between tracks and lyrics. You can also turn on Mix for each playlist separately — with the “Mix” button on its page.")
         }
 
         RowLayout {
@@ -22,10 +22,10 @@ Item {
             StepCard {
                 Layout.preferredWidth: 130
                 icon: "mix"
-                title: "Przejścia między utworami"
+                title: qsTr("Transitions between tracks")
                 description: Player.crossfade > 0
-                    ? "Koniec utworu nakłada się na początek następnego — " + Player.mixStyleName(Player.crossfadeStyle).toLowerCase() + "."
-                    : "Bez nakładania — utwory grają jeden po drugim."
+                    ? qsTr("The end of a track overlaps the start of the next one — %1.").arg(Player.mixStyleName(Player.crossfadeStyle).toLowerCase())
+                    : qsTr("No overlap — tracks play one after another.")
 
                 CrossfadePreview {
                     Layout.fillWidth: true
@@ -37,19 +37,19 @@ Item {
                     Layout.fillWidth: true
                     spacing: 14
                     Text {
-                        text: "Długość"
+                        text: qsTr("Length")
                         color: Theme.textDim
                         font.pixelSize: 13
                     }
                     ProgressSlider {
                         Layout.fillWidth: true
                         value: Player.crossfade / 12
-                        labelFor: function(v) { return Math.round(v * 12) === 0 ? "wył." : Math.round(v * 12) + " s" }
+                        labelFor: function(v) { return Math.round(v * 12) === 0 ? qsTr("off") : qsTr("%1 s").arg(Math.round(v * 12)) }
                         onMoved: v => Player.crossfade = Math.round(v * 12)
                     }
                     Text {
                         Layout.preferredWidth: 36
-                        text: Player.crossfade === 0 ? "wył." : Player.crossfade + " s"
+                        text: Player.crossfade === 0 ? qsTr("off") : qsTr("%1 s").arg(Player.crossfade)
                         color: Theme.text
                         font.pixelSize: 13
                         font.features: { "tnum": 1 }
@@ -88,10 +88,10 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 2
-                        Text { text: "Inteligentne przejścia"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                        Text { text: qsTr("Smart transitions"); color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
                         Text {
                             Layout.fillWidth: true
-                            text: "Pomija ciszę na końcu i początku utworów oraz wykrywa wyciszenia w nagraniu."
+                            text: qsTr("Skips silence at the end and start of tracks and detects fade-outs in the recording.")
                             color: Theme.textDim
                             font.pixelSize: 12
                             wrapMode: Text.WordWrap
@@ -104,8 +104,8 @@ Item {
             StepCard {
                 Layout.preferredWidth: 100
                 icon: "lyrics"
-                title: "Teksty utworów"
-                description: "Pobierane automatycznie z YouTube Music (z synchronizacją, gdy jest dostępna) albo z plików .lrc obok utworów. Znajdziesz je w panelu „Teraz odtwarzane” i w trybie pełnoekranowym."
+                title: qsTr("Lyrics")
+                description: qsTr("Fetched automatically from YouTube Music (synced when available) or from .lrc files next to the tracks. You'll find them in the “Now playing” panel and in full-screen mode.")
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -115,7 +115,7 @@ Item {
                         spacing: 2
                         RowLayout {
                             spacing: 8
-                            Text { text: "Dopasowanie czasu"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                            Text { text: qsTr("Automatic timing"); color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
                             Rectangle {
                                 width: alphaText.implicitWidth + 12
                                 height: 18
@@ -135,8 +135,8 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: Lyrics.hardwareOk
-                                ? "Teksty bez czasów dostaną je z rozpoznawania śpiewu (whisper.cpp, lokalnie). Twój sprzęt: " + Lyrics.hardwareSummary + " — zalecany model: " + Lyrics.recommendedModel + "."
-                                : "Wymaga mocniejszego sprzętu (min. 4 wątki procesora i 8 GB RAM). Twój: " + Lyrics.hardwareSummary + "."
+                                ? qsTr("Lyrics without timestamps get them from singing recognition (whisper.cpp, locally). Your hardware: %1 — recommended model: %2.").arg(Lyrics.hardwareSummary).arg(Lyrics.recommendedModel)
+                                : qsTr("Requires stronger hardware (at least 4 CPU threads and 8 GB of RAM). Yours: %1.").arg(Lyrics.hardwareSummary)
                             color: Theme.textDim
                             font.pixelSize: 12
                             wrapMode: Text.WordWrap
@@ -152,7 +152,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     visible: Lyrics.autoAlign && !Lyrics.sttReady
-                    text: "Potrzebne składniki (program whisper.cpp i model " + Lyrics.sttModel + ", " + Lyrics.modelSize(Lyrics.sttModel) + ") pobierzesz w Ustawieniach → Teksty utworów."
+                    text: qsTr("You'll download the required components (the whisper.cpp program and the %1 model, %2) in Settings → Lyrics.").arg(Lyrics.sttModel).arg(Lyrics.modelSize(Lyrics.sttModel))
                     color: Theme.warning
                     font.pixelSize: 12
                     wrapMode: Text.WordWrap

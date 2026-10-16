@@ -1,5 +1,5 @@
-; Instalator Nokturn dla Windows (Inno Setup 6.7+).
-; Budowanie: .\build-installer.ps1 (kompiluje aplikację, generuje grafiki i uruchamia ISCC).
+; Nokturn installer for Windows (Inno Setup 6.7+).
+; Build: .\build-installer.ps1 (builds the app, generates the artwork and runs ISCC).
 
 #define AppName "Nokturn"
 #ifndef AppVersion
@@ -38,8 +38,8 @@ CloseApplications=yes
 RestartApplications=no
 
 [Languages]
-Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -54,5 +54,5 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{a
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
-; Aktualizacja z poziomu aplikacji (instalator w trybie /SILENT) — od razu uruchamiamy nową wersję.
+; In-app update (the installer runs with /SILENT) — start the new version right away.
 Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent

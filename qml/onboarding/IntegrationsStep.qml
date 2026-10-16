@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Krok 6: Discord i sterowanie (skróty, klawisze multimedialne).
+// Step 6: Discord and controls (shortcuts, media keys).
 Item {
     id: root
     readonly property bool linux: Qt.platform.os === "linux"
@@ -30,8 +30,8 @@ Item {
         spacing: 24
 
         StepTitle {
-            title: "Integracje"
-            subtitle: "Pokaż znajomym, czego słuchasz, i steruj muzyką z klawiatury."
+            title: qsTr("Integrations")
+            subtitle: qsTr("Show your friends what you're listening to and control the music from the keyboard.")
         }
 
         RowLayout {
@@ -41,15 +41,15 @@ Item {
             StepCard {
                 Layout.preferredWidth: 100
                 icon: "chat"
-                title: "Status na Discordzie"
-                description: "„Słucha” z tytułem, wykonawcą, okładką i paskiem postępu. Działa z aplikacją Discord uruchomioną na tym komputerze."
+                title: qsTr("Discord status")
+                description: qsTr("“Listening” with the title, artist, cover and a progress bar. Works with the Discord app running on this computer.")
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
                     Text {
                         Layout.fillWidth: true
-                        text: "Pokazuj, czego słuchasz"
+                        text: qsTr("Show what you're listening to")
                         color: Theme.text
                         font.pixelSize: 14
                         font.weight: Font.DemiBold
@@ -64,8 +64,8 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         text: Discord.builtInClientId && Discord.clientId !== ""
-                            ? "Używany jest wbudowany identyfikator aplikacji."
-                            : "Discord wymaga identyfikatora aplikacji: utwórz ją na discord.com/developers/applications (jej nazwa pojawi się w statusie), skopiuj „Application ID” i wklej poniżej."
+                            ? qsTr("The built-in application ID is used.")
+                            : qsTr("Discord requires an application ID: create one at discord.com/developers/applications (its name will show in the status), copy the “Application ID” and paste it below.")
                         color: Theme.textDim
                         font.pixelSize: 12
                         wrapMode: Text.WordWrap
@@ -74,7 +74,7 @@ Item {
                         Layout.fillWidth: true
                         implicitHeight: 40
                         icon: "key"
-                        placeholderText: "Application ID, np. 1234567890123456789"
+                        placeholderText: qsTr("Application ID, e.g. 1234567890123456789")
                         text: Discord.clientId
                         inputMethodHints: Qt.ImhDigitsOnly
                         onEditingFinished: Discord.clientId = text
@@ -97,10 +97,10 @@ Item {
             StepCard {
                 Layout.preferredWidth: 100
                 icon: "tune"
-                title: "Sterowanie"
+                title: qsTr("Controls")
                 description: root.linux
-                    ? "Klawisze multimedialne, kontrolki w panelu GNOME/KDE i playerctl działają od razu (MPRIS)."
-                    : "Najważniejsze skróty klawiszowe — pełna lista jest w Ustawieniach."
+                    ? qsTr("Media keys, GNOME/KDE panel controls and playerctl work right away (MPRIS).")
+                    : qsTr("The most important keyboard shortcuts — the full list is in Settings.")
 
                 GridLayout {
                     Layout.fillWidth: true
@@ -109,12 +109,12 @@ Item {
                     rowSpacing: 10
                     Repeater {
                         model: [
-                            { keys: ["Spacja"], label: "Odtwórz / pauza" },
-                            { keys: ["Ctrl", "→"], label: "Następny utwór" },
-                            { keys: ["Ctrl", "←"], label: "Poprzedni utwór" },
-                            { keys: ["Ctrl", "K"], label: "Szukaj" },
-                            { keys: ["F11"], label: "Tryb pełnoekranowy" },
-                            { keys: ["Alt", "←"], label: "Wstecz" }
+                            { keys: [qsTr("Space")], label: qsTr("Play / pause") },
+                            { keys: ["Ctrl", "→"], label: qsTr("Next track") },
+                            { keys: ["Ctrl", "←"], label: qsTr("Previous track") },
+                            { keys: ["Ctrl", "K"], label: qsTr("Search") },
+                            { keys: ["F11"], label: qsTr("Full-screen mode") },
+                            { keys: ["Alt", "←"], label: qsTr("Back") }
                         ]
                         RowLayout {
                             id: shortcut

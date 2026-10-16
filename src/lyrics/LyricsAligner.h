@@ -5,11 +5,11 @@
 #include <QList>
 #include <QString>
 
-// Dopasowanie tekstu (bez czasów) do transkrypcji z rozpoznawania mowy (słowa z czasami).
-// Globalne wyrównanie sekwencji (Needleman–Wunsch z darmowymi przerwami na końcach):
-// słowa tekstu i transkrypcji są porównywane "rozmyto" (odległość Levenshteina),
-// bo rozpoznawanie śpiewu nad muzyką często myli pojedyncze litery.
-// Linie bez dopasowanych słów dostają czas interpolowany z sąsiadów.
+// Aligning lyrics (without timestamps) to the transcription from speech recognition (words with timestamps).
+// Global sequence alignment (Needleman–Wunsch with free end gaps):
+// lyric and transcription words are compared "fuzzily" (Levenshtein distance),
+// because recognizing singing over music often confuses single letters.
+// Lines without matched words get a time interpolated from their neighbors.
 namespace LyricsAligner {
 
 struct Word
@@ -21,9 +21,9 @@ struct Word
 
 struct Result
 {
-    Lyrics lyrics;          // kopia wejścia z uzupełnionymi czasami (synced = true)
-    double coverage = 0;    // udział słów tekstu, które udało się dopasować (0..1)
-    int anchoredLines = 0;  // linie z co najmniej jednym dopasowanym słowem
+    Lyrics lyrics;          // a copy of the input with the timestamps filled in (synced = true)
+    double coverage = 0;    // share of lyric words that were matched (0..1)
+    int anchoredLines = 0;  // lines with at least one matched word
 };
 
 QString normalize(const QString &word);

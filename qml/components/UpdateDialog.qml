@@ -4,8 +4,8 @@ import QtQuick.Effects
 import QtQuick.Layouts
 import Nokturn
 
-// Okienko „Dostępna nowa wersja” (Updater): lista zmian z wydania na GitHubie,
-// pobieranie z postępem i instalacja jednym kliknięciem.
+// “New version available” dialog (Updater): the change list from the GitHub release,
+// download with progress and one-click install.
 Item {
     id: root
     readonly property bool busy: Updater.state === "downloading" || Updater.state === "installing"
@@ -15,7 +15,7 @@ Item {
     opacity: shown ? 1 : 0
     Behavior on opacity { NumberAnimation { duration: Theme.normal } }
 
-    // Przyciemnienie tła — kliknięcie obok zamyka (o ile nic się nie pobiera)
+    // Dimmed background — clicking outside closes it (unless something is downloading)
     Rectangle {
         anchors.fill: parent
         color: Qt.rgba(0, 0, 0, 0.55)
@@ -44,7 +44,7 @@ Item {
             shadowOpacity: 0.6
             shadowVerticalOffset: 14
         }
-        MouseArea { anchors.fill: parent }   // kliknięcia w kartę nie zamykają okienka
+        MouseArea { anchors.fill: parent }   // clicks on the card don't close the dialog
 
         ColumnLayout {
             id: content
@@ -57,21 +57,21 @@ Item {
                 ColumnLayout {
                     spacing: 3
                     Text {
-                        text: "Dostępna nowa wersja"
+                        text: qsTr("New version available")
                         color: Theme.text
                         font.family: Theme.fontDisplay
                         font.pixelSize: 22
                         font.weight: Font.Bold
                     }
                     Text {
-                        text: "Nokturn " + Updater.latestVersion + "  ·  masz " + Updater.currentVersion
+                        text: qsTr("Nokturn %1  ·  you have %2").arg(Updater.latestVersion).arg(Updater.currentVersion)
                         color: Theme.textDim
                         font.pixelSize: 14
                     }
                 }
             }
 
-            // Lista zmian (opis wydania w Markdown)
+            // Change list (release notes in Markdown)
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(220, notes.implicitHeight + 28)
@@ -102,7 +102,7 @@ Item {
                 }
             }
 
-            // Postęp pobierania
+            // Download progress
             ColumnLayout {
                 Layout.fillWidth: true
                 visible: root.busy
@@ -122,8 +122,8 @@ Item {
                 }
                 Text {
                     text: Updater.state === "installing"
-                          ? "Uruchamiam instalator — Nokturn za chwilę uruchomi się ponownie…"
-                          : "Pobieranie… " + Math.round(Updater.progress * 100) + "%"
+                          ? qsTr("Starting the installer — Nokturn will restart in a moment…")
+                          : qsTr("Downloading… %1%").arg(Math.round(Updater.progress * 100))
                     color: Theme.textDim
                     font.pixelSize: 13
                 }
@@ -135,18 +135,18 @@ Item {
                 visible: !root.busy
 
                 PillButton {
-                    text: "Pomiń tę wersję"
+                    text: qsTr("Skip this version")
                     kind: "ghost"
                     onClicked: Updater.skip()
                 }
                 Item { Layout.fillWidth: true }
                 PillButton {
-                    text: "Później"
+                    text: qsTr("Later")
                     kind: "secondary"
                     onClicked: Updater.later()
                 }
                 PillButton {
-                    text: Updater.canInstall ? "Zaktualizuj teraz" : "Pobierz"
+                    text: Updater.canInstall ? qsTr("Update now") : qsTr("Download")
                     icon: "refresh"
                     onClicked: Updater.install()
                 }

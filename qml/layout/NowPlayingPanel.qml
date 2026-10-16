@@ -5,7 +5,7 @@ import QtQuick.Effects
 import QtQuick.Controls.Basic
 import Nokturn
 
-// Prawy panel: okładka z wysuwającą się płytą winylową, szczegóły utworu, kolejka.
+// Right panel: cover with a vinyl record sliding out, track details, queue.
 Panel {
     id: root
     tint: Theme.alpha(Theme.surface, 0.55)
@@ -52,7 +52,7 @@ Panel {
                     Layout.fillWidth: true
                     Text {
                         Layout.fillWidth: true
-                        text: "Teraz odtwarzane"
+                        text: qsTr("Now playing")
                         color: Theme.text
                         font.family: Theme.fontDisplay
                         font.pixelSize: 16
@@ -66,7 +66,7 @@ Panel {
                     }
                 }
 
-                // Okładka + płyta winylowa
+                // Cover + vinyl record
                 Item {
                     id: art
                     Layout.fillWidth: true
@@ -141,7 +141,7 @@ Panel {
                             }
                         }
 
-                        // Statyczny odblask
+                        // Static glare
                         Shape {
                             anchors.fill: parent
                             preferredRendererType: Shape.CurveRenderer
@@ -216,7 +216,7 @@ Panel {
                             showDot: false
                             onClicked: {
                                 Player.toggleLiked()
-                                Nav.toast(Player.liked ? "Dodano do Ulubionych" : "Usunięto z Ulubionych", "heart")
+                                Nav.toast(Player.liked ? qsTr("Added to Liked") : qsTr("Removed from Liked"), "heart")
                             }
                         }
                     }
@@ -269,14 +269,14 @@ Panel {
                 RowLayout {
                     Layout.fillWidth: true
                     SegmentedTabs {
-                        model: ["Kolejka", "Tekst"]
+                        model: [qsTr("Queue"), qsTr("Lyrics", "panel tab")]
                         currentIndex: Nav.panelTab === "lyrics" ? 1 : 0
                         onActivated: i => Nav.panelTab = i === 1 ? "lyrics" : "queue"
                     }
                     Item { Layout.fillWidth: true }
                     Text {
                         visible: !root.lyricsTab
-                        text: Player.shuffle ? "Losowo" : "Po kolei"
+                        text: Player.shuffle ? qsTr("Shuffle") : qsTr("In order")
                         color: Theme.textFaint
                         font.pixelSize: 12
                     }
@@ -298,7 +298,7 @@ Panel {
                 Text {
                     visible: !root.lyricsTab && root.upNext.length === 0
                     Layout.fillWidth: true
-                    text: Player.hasTrack ? "To już koniec kolejki" : "Kolejka jest pusta — wybierz coś z biblioteki"
+                    text: Player.hasTrack ? qsTr("That's the end of the queue") : qsTr("The queue is empty — pick something from the library")
                     color: Theme.textFaint
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap

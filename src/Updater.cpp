@@ -20,7 +20,7 @@
 namespace {
 
 const char *kReleaseApi = "https://api.github.com/repos/zr3mb/apkadomuzy/releases/latest";
-constexpr int kCheckInterval = 6 * 60 * 60 * 1000;   // ponowne sprawdzenie co 6 godzin
+constexpr int kCheckInterval = 6 * 60 * 60 * 1000;   // check again every 6 hours
 
 QNetworkRequest githubRequest(const QUrl &url)
 {
@@ -56,7 +56,7 @@ Updater *Updater::create(QQmlEngine *, QJSEngine *)
 Updater::Updater(QObject *parent)
     : QObject(parent)
 {
-    // Pierwsze sprawdzenie chwilę po starcie — nie konkuruje z wczytywaniem biblioteki.
+    // First check shortly after startup — it doesn't compete with loading the library.
     QTimer::singleShot(5000, this, [this] { check(false); });
     m_timer.setInterval(kCheckInterval);
     connect(&m_timer, &QTimer::timeout, this, [this] { check(false); });
@@ -82,7 +82,7 @@ void Updater::check(bool manual)
     if (m_state != QLatin1String("idle"))
         return;
     setState(QStringLiteral("checking"));
-    // NOKTURN_UPDATE_API podmienia adres API (testy z lokalnym, udawanym wydaniem).
+    // NOKTURN_UPDATE_API overrides the API URL (testing with a local, fake release).
     QString api = qEnvironmentVariable("NOKTURN_UPDATE_API");
     if (api.isEmpty())
         api = QString::fromLatin1(kReleaseApi);
@@ -95,9 +95,9 @@ void Updater::onRelease(QNetworkReply *reply, bool manual)
     reply->deleteLater();
     setState(QStringLiteral("idle"));
     if (reply->error() != QNetworkReply::NoError) {
-        // Brak wydań (404) albo brak sieci — przy automatycznym sprawdzaniu po cichu.
+        // No releases (404) or no network — silent during automatic checks.
         if (manual)
-            emit notice(QStringLiteral("Nie udało się sprawdzić aktualizacji"), QStringLiteral("close"));
+            emit notice(tr("Couldn't check for updates"), QStringLiteral("close"));
         return;
     }
     const QJsonObject release = QJsonDocument::fromJson(reply->readAll()).object();
@@ -105,7 +105,7 @@ void Updater::onRelease(QNetworkReply *reply, bool manual)
     const QVersionNumber latest = parseVersion(tag);
     if (latest.isNull() || latest <= QVersionNumber::fromString(currentVersion())) {
         if (manual)
-            emit notice(QStringLiteral("Masz najnowszą wersję"), QStringLiteral("check"));
+            emit notice(tr("You have the latest version"), QStringLiteral("check"));
         return;
     }
 
@@ -130,7 +130,7 @@ void Updater::onRelease(QNetworkReply *reply, bool manual)
         }
     }
 
-    // „Pomiń tę wersję” wycisza automatyczne okienko — ręczne sprawdzenie pokazuje je zawsze.
+    // "Skip this version" silences the automatic dialog — a manual check always shows it.
     const QString skipped = AppPaths::settings()->value("update/skipped").toString();
     m_prompt = manual || skipped != m_latest;
     emit changed();
@@ -168,13 +168,13 @@ void Updater::startDownload()
     m_installerPath = dir + QChar('/') + m_installerUrl.fileName();
     m_file.setFileName(m_installerPath);
     if (!m_file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        fail(QStringLiteral("Nie udało się zapisać aktualizacji"));
+        fail(tr("Couldn't save the update"));
         return;
     }
     m_progress = 0;
     setState(QStringLiteral("downloading"));
 
-    // Instalator (~90 MB) trafia od razu na dysk, a skrót liczymy w locie.
+    // The installer (~90 MB) goes straight to disk, and the hash is computed on the fly.
     auto hash = std::make_shared<QCryptographicHash>(QCryptographicHash::Sha256);
     QNetworkReply *reply = m_net.get(githubRequest(m_installerUrl));
     connect(reply, &QNetworkReply::readyRead, this, [this, reply, hash] {
@@ -193,7 +193,7 @@ void Updater::startDownload()
         m_file.write(rest);
         m_file.close();
         if (reply->error() != QNetworkReply::NoError) {
-            fail(QStringLiteral("Nie udało się pobrać aktualizacji: ") + reply->errorString());
+            fail(tr("Couldn't download the update: %1").arg(reply->errorString()));
             return;
         }
         const QByteArray actual = hash->result().toHex();
@@ -202,7 +202,7 @@ void Updater::startDownload()
             return;
         }
         if (!m_shaUrl.isValid()) {
-            fail(QStringLiteral("Wydanie nie ma sumy kontrolnej — przerwano"));
+            fail(tr("The release has no checksum — aborted"));
             return;
         }
         QNetworkReply *sums = m_net.get(githubRequest(m_shaUrl));
@@ -218,16 +218,16 @@ void Updater::verifyAndRun(const QByteArray &expectedSha)
 {
     if (expectedSha.isEmpty()) {
         QFile::remove(m_installerPath);
-        fail(QStringLiteral("Pobrana aktualizacja nie zgadza się z sumą kontrolną — przerwano"));
+        fail(tr("The downloaded update doesn't match the checksum — aborted"));
         return;
     }
     setState(QStringLiteral("installing"));
-    // Tryb cichy: okno postępu bez pytań. Instalator zamyka Nokturna, nadpisuje pliki
-    // w tym samym folderze (ten sam AppId) i uruchamia nową wersję.
+    // Silent mode: a progress window without questions. The installer closes Nokturn, overwrites the files
+    // in the same folder (same AppId) and starts the new version.
     const QStringList args = { QStringLiteral("/SILENT"), QStringLiteral("/SUPPRESSMSGBOXES"),
                                QStringLiteral("/NORESTART"), QStringLiteral("/NOCANCEL") };
     if (!QProcess::startDetached(m_installerPath, args)) {
-        fail(QStringLiteral("Nie udało się uruchomić instalatora"));
+        fail(tr("Couldn't start the installer"));
         return;
     }
     AppPaths::settings()->sync();

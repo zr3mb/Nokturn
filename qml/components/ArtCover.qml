@@ -2,8 +2,8 @@ import QtQuick
 import QtQuick.Shapes
 import Nokturn
 
-// Okładka: prawdziwy obrazek (gdy jest), a pod nim — i zamiast niego — generatywny
-// gradient w kolorach albumu z jednym z czterech motywów graficznych.
+// Cover art: the real image (when there is one), and under it — or instead of it — a generative
+// gradient in the album's colors with one of four graphic motifs.
 Item {
     id: root
     property color colorA: "#a3bcab"
@@ -13,8 +13,8 @@ Item {
     property bool decorated: true
     property string source: ""
     readonly property bool hasPicture: picture.status === Image.Ready
-    // fillItem rysuje teksturę w jej naturalnym rozmiarze — skalujemy ją tak, by pokryła kształt
-    // (jak PreserveAspectCrop), i centrujemy. Dotyczy też miniatur 16:9 z teledysków.
+    // fillItem draws the texture at its natural size — we scale it to cover the shape
+    // (like PreserveAspectCrop) and center it. Also applies to 16:9 music-video thumbnails.
     readonly property real texW: Math.max(1, picture.implicitWidth)
     readonly property real texH: Math.max(1, picture.implicitHeight)
     readonly property real fillScale: Math.max(w / texW, h / texH)
@@ -77,7 +77,7 @@ Item {
         }
     }
 
-    // Motyw 0 — koncentryczne okręgi
+    // Motif 0 — concentric circles
     Shape {
         anchors.fill: parent
         visible: root.decorated && !root.hasPicture && root.variant === 0
@@ -90,7 +90,7 @@ Item {
         }
     }
 
-    // Motyw 1 — słońce nad horyzontem
+    // Motif 1 — sun over the horizon
     Shape {
         anchors.fill: parent
         visible: root.decorated && !root.hasPicture && root.variant === 1
@@ -110,7 +110,7 @@ Item {
         }
     }
 
-    // Motyw 2 — fale
+    // Motif 2 — waves
     Shape {
         anchors.fill: parent
         visible: root.decorated && !root.hasPicture && root.variant === 2
@@ -121,7 +121,7 @@ Item {
         }
     }
 
-    // Motyw 3 — nachodzące koła
+    // Motif 3 — overlapping circles
     Shape {
         anchors.fill: parent
         visible: root.decorated && !root.hasPicture && root.variant === 3
@@ -140,7 +140,7 @@ Item {
         }
     }
 
-    // Prawdziwa okładka wypełnia ten sam zaokrąglony kształt
+    // The real cover fills the same rounded shape
     Image {
         id: picture
         width: root.w

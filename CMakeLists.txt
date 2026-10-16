@@ -8,23 +8,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Multimedia Concurrent Network WebSockets)
 find_package(TagLib 2 REQUIRED)
 if(UNIX AND NOT APPLE)
-    find_package(Qt6 6.8 REQUIRED COMPONENTS DBus)   # MPRIS (klawisze multimedialne, panel systemowy)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS DBus)   # MPRIS (media keys, system panel)
 endif()
 
-# Identyfikator aplikacji Discord (discord.com/developers) dla statusu "Słucha …".
-# Pusty = użytkownik wpisuje własny w Ustawieniach.
+# Discord application ID (discord.com/developers) for the "Listening to …" status.
+# Empty = the user enters their own in Settings.
 set(NOKTURN_DISCORD_CLIENT_ID "" CACHE STRING "Application ID aplikacji Discord dla Rich Presence")
 
 qt_standard_project_setup(REQUIRES 6.8)
 if(QT_KNOWN_POLICY_QTP0004)
-    qt_policy(SET QTP0004 NEW)   # qmldir w podkatalogach qml/components, qml/layout, qml/pages
+    qt_policy(SET QTP0004 NEW)   # qmldir in the subdirectories qml/components, qml/layout, qml/pages
 endif()
 
 qt_add_executable(Nokturn
     src/main.cpp
 )
 
-# Singletons zdefiniowane w QML
+# Singletons defined in QML
 set_source_files_properties(
     qml/Theme.qml
     qml/Icons.qml
@@ -57,6 +57,7 @@ qt_add_qml_module(Nokturn
         src/lyrics/LyricsService.h    src/lyrics/LyricsService.cpp
         src/platform/DiscordPresence.h src/platform/DiscordPresence.cpp
         src/Updater.h           src/Updater.cpp
+        src/Language.h          src/Language.cpp
     QML_FILES
         qml/Main.qml
         qml/Theme.qml
@@ -132,12 +133,18 @@ qt_add_qml_module(Nokturn
         qml/onboarding/DoneStep.qml
 )
 
+# Translations (English is the source language; see src/Language.h)
+qt_add_resources(Nokturn "i18n"
+    PREFIX "/"
+    FILES i18n/pl.json i18n/en.json
+)
+
 set_target_properties(Nokturn PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
 )
 
-# Na Linuksie program nazywa się "nokturn" (konwencja + brak kolizji z katalogiem modułu QML "Nokturn").
+# On Linux the program is called "nokturn" (convention + no clash with the "Nokturn" QML module directory).
 if(UNIX AND NOT APPLE)
     set_target_properties(Nokturn PROPERTIES OUTPUT_NAME nokturn)
 endif()
@@ -159,7 +166,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(WIN32)
-    # System Media Transport Controls (okienko multimediów Windows) + klawisze multimedialne
+    # System Media Transport Controls (Windows media flyout) + media keys
     target_sources(Nokturn PRIVATE
         src/platform/WinRtMedia.h
         src/platform/WindowsMediaControls.h src/platform/WindowsMediaControls.cpp)

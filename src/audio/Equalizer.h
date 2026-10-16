@@ -10,10 +10,10 @@
 class QQmlEngine;
 class QJSEngine;
 
-// Korektor parametryczny w stylu "Fruity Parametric EQ": 7 pasm (filtry biquad wg RBJ),
-// wzmocnienie wstępne (preamp) i limiter chroniący przed przesterem.
-// Parametry zmienia QML (wątek GUI); przetwarzanie dźwięku też odbywa się w wątku GUI,
-// w AudioEngine::push(), więc nie potrzeba blokad.
+// Parametric equalizer in the style of "Fruity Parametric EQ": 7 bands (RBJ biquad filters),
+// a preamp and a limiter that protects against clipping.
+// Parameters are changed from QML (GUI thread); audio processing also runs on the GUI thread,
+// in AudioEngine::push(), so no locks are needed.
 class Equalizer : public QObject
 {
     Q_OBJECT
@@ -25,15 +25,15 @@ class Equalizer : public QObject
     Q_PROPERTY(double preamp READ preamp WRITE setPreamp NOTIFY changed)
     Q_PROPERTY(QVariantList bands READ bands NOTIFY changed)
     Q_PROPERTY(int revision READ revision NOTIFY changed)
-    // Charakterystyki do wykresu: 180 punktów logarytmicznie od 20 Hz do 20 kHz (dB).
+    // Responses for the graph: 180 points spaced logarithmically from 20 Hz to 20 kHz (dB).
     Q_PROPERTY(QVariantList curve READ curve NOTIFY changed)
     Q_PROPERTY(QVariantList bandCurves READ bandCurves NOTIFY changed)
     Q_PROPERTY(QString preset READ preset NOTIFY changed)
     Q_PROPERTY(QStringList presets READ presets CONSTANT)
     Q_PROPERTY(double maxGain READ maxGain CONSTANT)
     Q_PROPERTY(double maxPreamp READ maxPreamp CONSTANT)
-    Q_PROPERTY(qreal peak READ peak NOTIFY metersChanged)            // dBFS po korekcji, przed limiterem
-    Q_PROPERTY(qreal reduction READ reduction NOTIFY metersChanged)  // ile dB ścina limiter
+    Q_PROPERTY(qreal peak READ peak NOTIFY metersChanged)            // dBFS after EQ, before the limiter
+    Q_PROPERTY(qreal reduction READ reduction NOTIFY metersChanged)  // how many dB the limiter takes off
     Q_PROPERTY(bool clipping READ clipping NOTIFY metersChanged)
 
 public:
@@ -41,7 +41,7 @@ public:
     Q_ENUM(Type)
 
     static constexpr int kBands = 7;
-    static constexpr int kMaxStages = 4;      // zbocze filtrów odcinających: 12 / 24 / 48 dB/okt.
+    static constexpr int kMaxStages = 4;      // slope of cut filters: 12 / 24 / 48 dB/oct.
     static constexpr int kMaxChannels = 8;
 
     struct Band
@@ -51,7 +51,7 @@ public:
         double freq = 1000.0;
         double gain = 0.0;
         double q = 0.9;
-        int slope = 1;                         // liczba sekcji biquad dla Low/High Cut (1, 2, 4)
+        int slope = 1;                         // number of biquad sections for Low/High Cut (1, 2, 4)
     };
 
     static Equalizer *instance();
@@ -66,6 +66,7 @@ public:
     QVariantList bandCurves() const { return m_bandCurves; }
     QString preset() const { return m_preset; }
     QStringList presets() const;
+    Q_INVOKABLE QString presetLabel(const QString &id) const;   // translated preset name ("Custom" included)
     double maxGain() const { return 30.0; }
     double maxPreamp() const { return 24.0; }
     qreal peak() const { return m_peakDb; }
@@ -85,11 +86,11 @@ public:
     Q_INVOKABLE void resetBand(int band);
     Q_INVOKABLE void applyPreset(const QString &name);
 
-    // Charakterystyka (dB) w `points` punktach rozłożonych logarytmicznie od 20 Hz do 20 kHz.
+    // Response (dB) at `points` points spaced logarithmically from 20 Hz to 20 kHz.
     Q_INVOKABLE QVariantList response(int points) const;
     Q_INVOKABLE QVariantList bandResponse(int band, int points) const;
 
-    // --- tor audio ---
+    // --- audio path ---
     void setSampleRate(int rate);
     void process(float *interleaved, qsizetype frames, int channels);
     void resetState();
@@ -128,7 +129,7 @@ private:
     QVariantList m_curve;
     QVariantList m_bandCurves;
 
-    // limiter i mierniki
+    // limiter and meters
     double m_limGain = 1.0;
     float m_blockPeak = 0.0f;
     double m_blockReduction = 0.0;

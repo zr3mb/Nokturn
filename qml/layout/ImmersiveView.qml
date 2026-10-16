@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import Nokturn
 
-// Tryb pełnoekranowy "Teraz odtwarzane": duża okładka, mocniejsze tło, szeroki wizualizer.
+// Full-screen "Now playing" mode: big cover, a stronger background, a wide visualizer.
 Item {
     id: root
     readonly property bool open: Nav.immersive
@@ -25,7 +25,7 @@ Item {
         boost: 2.0
     }
 
-    // Blokuje kliknięcia do warstwy pod spodem
+    // Blocks clicks to the layer underneath
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
@@ -46,7 +46,7 @@ Item {
         opacity: 1 - root.enter
     }
 
-    // Górny pasek
+    // Top bar
     Item {
         anchors { left: parent.left; right: parent.right; top: parent.top }
         height: 64
@@ -70,7 +70,7 @@ Item {
             spacing: 2
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "ODTWARZANIE Z"
+                text: qsTr("PLAYING FROM")
                 color: Theme.textFaint
                 font.pixelSize: 11
                 font.weight: Font.DemiBold
@@ -139,7 +139,7 @@ Item {
             transform: Translate { x: root.enter * 40 }
 
             Text {
-                text: Player.playing ? "TERAZ ODTWARZANE" : "WSTRZYMANO"
+                text: Player.playing ? qsTr("NOW PLAYING") : qsTr("PAUSED")
                 color: Qt.lighter(Theme.accent, 1.15)
                 font.pixelSize: 12
                 font.weight: Font.Bold
@@ -193,7 +193,7 @@ Item {
                     onMoved: v => Player.seek(v * Player.duration)
                 }
                 Text {
-                    text: Player.live ? "NA ŻYWO" : Theme.formatTime(Player.duration)
+                    text: Player.live ? qsTr("LIVE") : Theme.formatTime(Player.duration)
                     color: Player.live ? Theme.warning : Theme.textDim
                     font.pixelSize: 13
                     font.features: { "tnum": 1 }
@@ -246,7 +246,7 @@ Item {
                     showDot: false
                     onClicked: {
                         Player.toggleLiked()
-                        Nav.toast(Player.liked ? "Dodano do Ulubionych" : "Usunięto z Ulubionych", "heart")
+                        Nav.toast(Player.liked ? qsTr("Added to Liked") : qsTr("Removed from Liked"), "heart")
                     }
                 }
             }

@@ -19,7 +19,7 @@ SpectrumAnalyzer::SpectrumAnalyzer(int bands)
 
 void SpectrumAnalyzer::buildBands()
 {
-    // Pasma od 40 Hz do 16 kHz (albo Nyquista), rozłożone logarytmicznie.
+    // Bands from 40 Hz to 16 kHz (or Nyquist), spaced logarithmically.
     const double lo = 40.0;
     const double hi = std::min(16000.0, m_sampleRate / 2.0);
     const double binHz = double(m_sampleRate) / kFftSize;
@@ -28,7 +28,7 @@ void SpectrumAnalyzer::buildBands()
         const double f = lo * std::pow(hi / lo, double(b) / m_bands);
         m_edges[b] = std::clamp(int(std::round(f / binHz)), 1, kFftSize / 2 - 1);
     }
-    // Każde pasmo musi mieć co najmniej jeden bin.
+    // Every band must have at least one bin.
     for (int b = 1; b <= m_bands; ++b)
         m_edges[b] = std::max(m_edges[b], m_edges[b - 1] + 1);
 }
@@ -87,7 +87,7 @@ void SpectrumAnalyzer::compute(QList<qreal> &out)
         return;
     }
 
-    // Najnowsze próbki z bufora pierścieniowego, w kolejności bit-reversal.
+    // The newest samples from the ring buffer, in bit-reversal order.
     const int bits = int(std::log2(kFftSize));
     for (int i = 0; i < kFftSize; ++i) {
         int rev = 0;
@@ -97,7 +97,7 @@ void SpectrumAnalyzer::compute(QList<qreal> &out)
         m_fft[rev] = { s, 0.0f };
     }
 
-    // Iteracyjne FFT radix-2
+    // Iterative radix-2 FFT
     for (int len = 2; len <= kFftSize; len <<= 1) {
         const float angle = -2.0f * float(M_PI) / len;
         const std::complex<float> wlen(std::cos(angle), std::sin(angle));
@@ -113,14 +113,14 @@ void SpectrumAnalyzer::compute(QList<qreal> &out)
         }
     }
 
-    // Pełnoskalowa sinusoida z oknem Hanna daje amplitudę ≈ N/4.
+    // A full-scale sine with a Hann window gives an amplitude of ≈ N/4.
     const float reference = kFftSize / 4.0f;
     for (int b = 0; b < m_bands; ++b) {
         float peak = 0.0f;
         for (int k = m_edges[b]; k < m_edges[b + 1]; ++k)
             peak = std::max(peak, std::abs(m_fft[k]));
         const float x = float(b) / (m_bands - 1);
-        // dBFS + lekkie podbicie góry (muzyka naturalnie traci energię w wysokich pasmach)
+        // dBFS + a slight treble lift (music naturally loses energy in the high bands)
         const float db = 20.0f * std::log10(std::max(peak / reference, 1e-6f)) + x * 9.0f;
         out[b] = std::clamp((db + 62.0f) / 56.0f, 0.0f, 1.0f);
     }

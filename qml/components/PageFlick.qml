@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Controls.Basic
 import Nokturn
 
-// Przewijana strona: kolumna sekcji z marginesami i cienkim paskiem przewijania.
+// Scrollable page: a column of sections with margins and a thin scroll bar.
 Flickable {
     id: root
     default property alias content: column.data

@@ -7,8 +7,8 @@
 
 class QAudioBuffer;
 
-// Analiza widma odtwarzanego dźwięku: zbiera próbki z QAudioBufferOutput,
-// liczy FFT (okno Hanna) i zwraca poziomy w pasmach rozłożonych logarytmicznie.
+// Spectrum analysis of the playing audio: collects samples from QAudioBufferOutput,
+// computes an FFT (Hann window) and returns levels in logarithmically spaced bands.
 class SpectrumAnalyzer
 {
 public:
@@ -20,7 +20,7 @@ public:
     void pushSamples(const float *mono, size_t count, int sampleRate);
     void clear();
 
-    // Wartości 0..1 dla każdego pasma, wyliczone z najnowszych kFftSize próbek.
+    // Values 0..1 for each band, computed from the newest kFftSize samples.
     void compute(QList<qreal> &out);
 
 private:
@@ -33,5 +33,5 @@ private:
     int m_filled = 0;
     std::vector<float> m_window;
     std::vector<std::complex<float>> m_fft;
-    std::vector<int> m_edges;   // granice pasm w indeksach binów FFT
+    std::vector<int> m_edges;   // band edges in FFT bin indices
 };

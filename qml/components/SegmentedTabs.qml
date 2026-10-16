@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Zakładki z przesuwającym się podświetleniem: styl "pill" (pigułki) lub "underline" (podkreślenie).
+// Tabs with a sliding highlight: "pill" or "underline" style.
 Item {
     id: root
     property var model: []

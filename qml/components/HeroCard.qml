@@ -4,7 +4,7 @@ import QtQuick.Shapes
 import QtQuick.Effects
 import Nokturn
 
-// Duża karta "Kontynuuj słuchanie" z wędrującą poświatą i wizualizerem w tle.
+// Big "Continue listening" card with a wandering glow and a visualizer in the background.
 Item {
     id: root
     implicitHeight: 236
@@ -93,9 +93,9 @@ Item {
                 Layout.fillWidth: true
                 Text {
                     Layout.fillWidth: true
-                    text: Player.playing ? "TERAZ ODTWARZANE"
-                        : Player.hasTrack ? "KONTYNUUJ SŁUCHANIE"
-                        : Library.localCount > 0 ? "GOTOWE DO SŁUCHANIA" : "ZACZNIJ TUTAJ"
+                    text: Player.playing ? qsTr("NOW PLAYING")
+                        : Player.hasTrack ? qsTr("CONTINUE LISTENING")
+                        : Library.localCount > 0 ? qsTr("READY TO PLAY") : qsTr("START HERE")
                     color: Qt.lighter(Theme.accent, 1.15)
                     font.pixelSize: 11
                     font.weight: Font.Bold
@@ -104,7 +104,7 @@ Item {
                 PillButton {
                     kind: "ghost"
                     icon: "expand"
-                    text: "Pełny ekran"
+                    text: qsTr("Full screen")
                     fontSize: 13
                     implicitHeight: 34
                     visible: Player.hasTrack
@@ -114,7 +114,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: Player.hasTrack ? Player.title
-                      : Library.localCount > 0 ? "Twoja biblioteka czeka" : "Dodaj swoją muzykę"
+                      : Library.localCount > 0 ? qsTr("Your library is waiting") : qsTr("Add your music")
                 color: Theme.text
                 font.family: Theme.fontDisplay
                 font.pixelSize: 34
@@ -126,8 +126,8 @@ Item {
                 text: Player.hasTrack ? Player.artist + "  ·  " + Player.album
                       : Library.scanning ? Library.scanStatus
                       : Library.localCount > 0
-                        ? Theme.plural(Library.localCount, "utwór", "utwory", "utworów") + " z Twoich folderów"
-                        : "Wskaż folder z plikami — Nokturn odczyta tagi i okładki."
+                        ? qsTr("%n tracks from your folders", "", Library.localCount)
+                        : qsTr("Point to a folder with files — Nokturn will read the tags and covers.")
                 color: Theme.textDim
                 font.pixelSize: 15
                 elide: Text.ElideRight
@@ -146,14 +146,14 @@ Item {
 
                 PillButton {
                     icon: Library.localCount > 0 ? "play" : "folder"
-                    text: Library.localCount > 0 ? "Odtwarzaj wszystko" : "Dodaj folder z muzyką"
+                    text: Library.localCount > 0 ? qsTr("Play everything") : qsTr("Add a music folder")
                     onClicked: Library.localCount > 0 ? Player.play() : Nav.addFolder()
                 }
                 PillButton {
                     visible: Library.localCount > 1
                     kind: "secondary"
                     icon: "shuffle"
-                    text: "Losowo"
+                    text: qsTr("Shuffle")
                     onClicked: { Player.shuffle = true; Player.play() }
                 }
             }
@@ -186,7 +186,7 @@ Item {
                         }
                     }
                     Text {
-                        text: Player.live ? "Transmisja na żywo"
+                        text: Player.live ? qsTr("Live broadcast")
                                           : Theme.formatTime(Player.position) + " / " + Theme.formatTime(Player.duration)
                         color: Theme.textDim
                         font.pixelSize: 12

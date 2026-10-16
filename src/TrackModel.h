@@ -7,8 +7,8 @@
 
 struct Track
 {
-    QString id;          // ścieżka pliku (lokalne), "yt:<videoId>" albo "demo:…"
-    QString path;        // ścieżka do pliku audio, videoId (YouTube) albo puste (demo)
+    QString id;          // file path (local), "yt:<videoId>" or "demo:…"
+    QString path;        // path to the audio file, videoId (YouTube) or empty (demo)
     QString title;
     QString artist;
     QString albumArtist;
@@ -16,26 +16,26 @@ struct Track
     QString genre;
     int year = 0;
     int trackNo = 0;
-    int duration = 0;    // sekundy, 0 = strumień na żywo
+    int duration = 0;    // seconds, 0 = live stream
     QString source;      // "local" | "youtube" | "radio"
     QString quality;
-    QString cover;       // URL obrazka okładki (file:///…) albo puste
+    QString cover;       // cover image URL (file:///…) or empty
     QColor colorA;
     QColor colorB;
-    int seed = 0;        // wariant okładki generatywnej
+    int seed = 0;        // generative cover variant
     bool liked = false;
-    bool demo = false;   // przykładowy utwór ze źródła, które nie jest jeszcze podłączone
-    bool transient = false; // tylko wynik wyszukiwania online — nie należy do biblioteki
-    qint64 size = 0;     // do wykrywania zmian w pliku
+    bool demo = false;   // sample track from a source that isn't connected yet
+    bool transient = false; // only an online search result — not part of the library
+    qint64 size = 0;     // to detect changes in the file
     qint64 mtime = 0;
-    qint64 added = 0;    // kiedy plik pojawił się w bibliotece (ms od epoki)
+    qint64 added = 0;    // when the file appeared in the library (ms since the epoch)
 };
 
 class TrackModel : public QAbstractListModel
 {
     Q_OBJECT
     QML_ELEMENT
-    QML_UNCREATABLE("TrackModel jest udostępniany przez Library")
+    QML_UNCREATABLE("TrackModel is provided by Library")
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
 

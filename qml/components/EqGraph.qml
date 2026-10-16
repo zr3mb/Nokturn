@@ -2,11 +2,11 @@ import QtQuick
 import QtQuick.Shapes
 import Nokturn
 
-// Wykres korektora: siatka częstotliwości/dB, widmo grającego dźwięku, krzywa wypadkowa,
-// krzywa zaznaczonego pasma i przeciągane punkty pasm.
-//  - przeciąganie: częstotliwość (poziomo) i wzmocnienie (pionowo)
-//  - kółko myszy: szerokość pasma (Q)
-//  - dwuklik: zeruje wzmocnienie, prawy przycisk: włącza / wyłącza pasmo
+// Equalizer graph: frequency/dB grid, spectrum of the playing audio, the combined curve,
+// the selected band's curve and draggable band points.
+//  - drag: frequency (horizontal) and gain (vertical)
+//  - mouse wheel: bandwidth (Q)
+//  - double-click: resets the gain, right button: enables / disables the band
 Item {
     id: g
     property var colors: []
@@ -43,7 +43,7 @@ Item {
     function filled(pts) {
         return [Qt.point(padL, yOf(0))].concat(pts).concat([Qt.point(padL + plotW, yOf(0))])
     }
-    // Ścieżki SVG z punktów — PathSvg niezawodnie odświeża się przy każdej zmianie.
+    // SVG paths from points — PathSvg reliably refreshes on every change.
     function svg(pts, close) {
         if (pts.length === 0) return ""
         let s = "M " + pts[0].x.toFixed(1) + " " + pts[0].y.toFixed(1)
@@ -54,7 +54,7 @@ Item {
 
     readonly property var curvePts: linePoints(curve)
     readonly property var bandPts: linePoints(bandCurve)
-    // Widmo: 48 pasm z analizatora (40 Hz – 16 kHz, rozkład logarytmiczny)
+    // Spectrum: 48 bands from the analyzer (40 Hz – 16 kHz, logarithmic spacing)
     readonly property var spectrumPts: {
         const s = Player.spectrum
         const pts = [Qt.point(xOf(40), padT + plotH)]
@@ -74,7 +74,7 @@ Item {
         border.color: Qt.rgba(1, 1, 1, 0.06)
     }
 
-    // ---- siatka ------------------------------------------------------------------
+    // ---- grid ---------------------------------------------------------------------
     Repeater {
         model: [24, 18, 12, 6, 0, -6, -12, -18, -24]
         Item {
@@ -119,7 +119,7 @@ Item {
         }
     }
 
-    // ---- widmo i krzywe -----------------------------------------------------------------
+    // ---- spectrum and curves -------------------------------------------------------------
     Item {
         x: g.padL
         y: g.padT
@@ -127,8 +127,8 @@ Item {
         height: g.plotH
         clip: true
 
-        // Widmo dźwięku (po korekcji) zmienia się co klatkę — prosty renderer geometrii jest tu
-        // znacznie tańszy niż wygładzający CurveRenderer.
+        // The audio spectrum (after EQ) changes every frame — the simple geometry renderer is
+        // much cheaper here than the smoothing CurveRenderer.
         Shape {
             x: -g.padL
             y: -g.padT
@@ -153,7 +153,7 @@ Item {
             height: g.height
             preferredRendererType: Shape.CurveRenderer
 
-            // zaznaczone pasmo
+            // selected band
             ShapePath {
                 strokeColor: Theme.alpha(g.colors[g.selected] || Theme.accent, 0.7)
                 strokeWidth: 1.5
@@ -161,7 +161,7 @@ Item {
                 PathSvg { path: g.svg(g.filled(g.bandPts), true) }
             }
 
-            // krzywa wypadkowa
+            // combined curve
             ShapePath {
                 strokeColor: "transparent"
                 fillGradient: LinearGradient {
@@ -183,9 +183,9 @@ Item {
         }
     }
 
-    // ---- punkty pasm ----------------------------------------------------------------
+    // ---- band points ----------------------------------------------------------------
     Repeater {
-        model: 7   // stała liczba — delegaty nie są tworzone od nowa w trakcie przeciągania
+        model: 7   // fixed count — delegates are not recreated while dragging
 
         Item {
             id: node
@@ -230,7 +230,7 @@ Item {
                 }
             }
 
-            // Odczyt wartości nad punktem
+            // Value readout above the point
             Rectangle {
                 visible: node.active
                 width: readout.implicitWidth + 16

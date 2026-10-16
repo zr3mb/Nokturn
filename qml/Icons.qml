@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 
-// Ścieżki SVG ikon (siatka 24×24, styl Material).
+// SVG icon paths (24×24 grid, Material style).
 QtObject {
     readonly property var paths: ({
         home: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",

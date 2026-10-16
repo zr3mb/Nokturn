@@ -10,8 +10,8 @@
 
 class QProcess;
 
-// Zamienia videoId na bezpośredni adres strumienia audio przy pomocy yt-dlp
-// (dba on o szyfrowanie podpisów i zmiany po stronie YouTube — aktualizuje się go osobno).
+// Turns a videoId into a direct audio stream URL with yt-dlp
+// (it handles signature deciphering and changes on YouTube's side — it's updated separately).
 class StreamResolver : public QObject
 {
     Q_OBJECT
@@ -25,7 +25,7 @@ public:
     qreal downloadProgress() const { return m_progress; }
 
     void detect();
-    void download();          // oficjalne wydanie z GitHuba, weryfikowane sumą SHA-256
+    void download();          // official release from GitHub, verified with SHA-256
     void setCookies(const YtCookies &cookies) { m_cookies = cookies; }
 
     void resolve(const QString &videoId);
@@ -55,6 +55,6 @@ private:
     QHash<QString, QProcess *> m_running;
     QNetworkAccessManager m_net;
     bool m_downloading = false;
-    bool m_quiet = false;              // trwa ciche uaktualnienie (bez powiadomień)
+    bool m_quiet = false;              // a quiet upgrade is in progress (no notifications)
     qreal m_progress = 0;
 };

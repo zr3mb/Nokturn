@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Mała animowana ikonka "gra teraz" (trzy skaczące słupki).
+// Small animated "now playing" icon (three bouncing bars).
 Item {
     id: root
     property bool running: true

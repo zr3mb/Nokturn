@@ -2,6 +2,7 @@
 
 #include "AppPaths.h"
 
+#include <QHash>
 #include <QJSEngine>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -30,38 +31,54 @@ std::array<Band, Equalizer::kBands> flatBands()
     } };
 }
 
+// Preset ids are English; the displayed name goes through tr() (Equalizer::presetLabel).
 struct Preset { const char *name; double preamp; void (*apply)(std::array<Band, Equalizer::kBands> &); };
 
 const Preset kPresets[] = {
-    { "Płasko", 0.0, [](auto &) {} },
-    { "Bass boost", 0.0, [](auto &b) {
+    { QT_TR_NOOP("Flat"), 0.0, [](auto &) {} },
+    { QT_TR_NOOP("Bass boost"), 0.0, [](auto &b) {
         b[1].gain = 8.0; b[2].gain = -1.5;
     } },
-    { "Ekstremalny bas", 0.0, [](auto &b) {
+    { QT_TR_NOOP("Extreme bass"), 0.0, [](auto &b) {
         b[1].freq = 70.0; b[1].gain = 18.0;
         b[2].freq = 50.0; b[2].gain = 6.0; b[2].q = 1.2;
         b[3].freq = 300.0; b[3].gain = -4.0; b[3].q = 0.8;
     } },
-    { "V-shape", 0.0, [](auto &b) {
+    { QT_TR_NOOP("V-shape"), 0.0, [](auto &b) {
         b[1].gain = 6.0; b[3].gain = -4.0; b[3].q = 0.6; b[5].gain = 6.0;
     } },
-    { "Wokal", 0.0, [](auto &b) {
+    { QT_TR_NOOP("Vocal"), 0.0, [](auto &b) {
         b[0].enabled = true; b[0].freq = 80.0;
         b[2].gain = -2.0; b[4].freq = 3000.0; b[4].gain = 4.0; b[4].q = 1.0; b[5].gain = 2.0;
     } },
-    { "Soprany", 0.0, [](auto &b) {
+    { QT_TR_NOOP("Treble"), 0.0, [](auto &b) {
         b[4].gain = 3.0; b[5].freq = 6000.0; b[5].gain = 8.0;
     } },
-    { "Głośność+", 12.0, [](auto &b) {
+    { QT_TR_NOOP("Loudness+"), 12.0, [](auto &b) {
         b[1].gain = 3.0; b[5].gain = 2.0;
     } },
-    { "Radio lo-fi", 4.0, [](auto &b) {
+    { QT_TR_NOOP("Lo-fi radio"), 4.0, [](auto &b) {
         b[0].enabled = true; b[0].freq = 300.0; b[0].slope = 4;
         b[3].freq = 1200.0; b[3].gain = 4.0;
         b[6].enabled = true; b[6].freq = 3500.0; b[6].slope = 4;
     } },
 };
 
+
+// Presets were saved under their Polish names before 0.3 — map them to the current ids.
+QString migratePresetName(const QString &name)
+{
+    static const QHash<QString, QString> old {
+        { QStringLiteral("P\u0142asko"), QStringLiteral("Flat") },   // i18n-ignore
+        { QStringLiteral("Ekstremalny bas"), QStringLiteral("Extreme bass") },   // i18n-ignore
+        { QStringLiteral("Wokal"), QStringLiteral("Vocal") },   // i18n-ignore
+        { QStringLiteral("Soprany"), QStringLiteral("Treble") },   // i18n-ignore
+        { QStringLiteral("G\u0142o\u015bno\u015b\u0107+"), QStringLiteral("Loudness+") },   // i18n-ignore
+        { QStringLiteral("Radio lo-fi"), QStringLiteral("Lo-fi radio") },
+        { QStringLiteral("W\u0142asne"), QStringLiteral("Custom") },   // i18n-ignore
+    };
+    return old.value(name, name);
+}
 } // namespace
 
 Equalizer *Equalizer::instance()
@@ -81,14 +98,14 @@ Equalizer::Equalizer(QObject *parent)
     : QObject(parent)
     , m_bands(flatBands())
 {
-    m_preset = QStringLiteral("Płasko");
+    m_preset = QStringLiteral("Flat");
     load();
     for (int b = 0; b < kBands; ++b)
         rebuild(b);
     updateCurves();
 }
 
-// ---- parametry ----------------------------------------------------------------
+// ---- parameters ---------------------------------------------------------------
 
 QVariantList Equalizer::bands() const
 {
@@ -110,6 +127,13 @@ QStringList Equalizer::presets() const
     for (const Preset &p : kPresets)
         out << QString::fromUtf8(p.name);
     return out;
+}
+
+QString Equalizer::presetLabel(const QString &id) const
+{
+    if (id == QLatin1String("Custom"))
+        return tr("Custom");
+    return tr(id.toUtf8().constData());
 }
 
 void Equalizer::setEnabled(bool on)
@@ -227,7 +251,7 @@ void Equalizer::setBands(const std::array<Band, kBands> &bands)
 void Equalizer::touch(bool keepPreset)
 {
     if (!keepPreset)
-        m_preset = QStringLiteral("Własne");
+        m_preset = QStringLiteral("Custom");
     ++m_revision;
     updateCurves();
     save();
@@ -243,7 +267,7 @@ void Equalizer::updateCurves()
         m_bandCurves << QVariant(bandResponse(b, points));
 }
 
-// ---- projektowanie filtrów (RBJ Audio EQ Cookbook) ------------------------------------
+// ---- filter design (RBJ Audio EQ Cookbook) ------------------------------------
 
 int Equalizer::stages(const Band &band)
 {
@@ -357,7 +381,7 @@ QVariantList Equalizer::bandResponse(int band, int points) const
     return out;
 }
 
-// ---- przetwarzanie ---------------------------------------------------------------
+// ---- processing ----------------------------------------------------------------
 
 void Equalizer::setSampleRate(int rate)
 {
@@ -382,11 +406,11 @@ void Equalizer::resetState()
 void Equalizer::process(float *interleaved, qsizetype frames, int channels)
 {
     if (!m_enabled || channels <= 0)
-        return;   // obejście — sygnał bez zmian
+        return;   // bypass — the signal is unchanged
 
     const int ch = std::min(channels, kMaxChannels);
     const double pre = std::pow(10.0, m_preamp / 20.0);
-    const double threshold = 0.966;                                   // -0,3 dBFS
+    const double threshold = 0.966;                                   // -0.3 dBFS
     const double release = 1.0 - std::exp(-1.0 / (0.15 * m_rate));   // ~150 ms
 
     std::array<bool, kBands> on {};
@@ -423,7 +447,7 @@ void Equalizer::process(float *interleaved, qsizetype frames, int channels)
         }
         blockPeak = std::max(blockPeak, float(framePeak));
 
-        // Limiter szczytowy (natychmiastowy atak, łagodne puszczanie, kanały sprzężone).
+        // Peak limiter (instant attack, gentle release, linked channels).
         double g = 1.0;
         if (m_limiter) {
             const double target = framePeak > threshold ? threshold / framePeak : 1.0;
@@ -434,7 +458,7 @@ void Equalizer::process(float *interleaved, qsizetype frames, int channels)
             g = m_limGain;
             minGain = std::min(minGain, g);
         }
-        // Bez limitera nadmiar jest po prostu ścinany — to słyszalny przester.
+        // Without the limiter the excess is simply clipped — that's audible distortion.
         for (int c = 0; c < ch; ++c)
             frame[c] = float(std::clamp(values[c] * g, -1.0, 1.0));
     }
@@ -461,7 +485,7 @@ void Equalizer::tickMeters(double dt)
         emit metersChanged();
 }
 
-// ---- zapis ---------------------------------------------------------------------
+// ---- saving ---------------------------------------------------------------------
 
 void Equalizer::save() const
 {
@@ -486,7 +510,7 @@ void Equalizer::load()
     m_enabled = root.value("enabled").toBool(true);
     m_limiter = root.value("limiter").toBool(true);
     m_preamp = std::clamp(root.value("preamp").toDouble(), -maxPreamp(), maxPreamp());
-    m_preset = root.value("preset").toString(QStringLiteral("Własne"));
+    m_preset = migratePresetName(root.value("preset").toString(QStringLiteral("Custom")));
     const QJsonArray bands = root.value("bands").toArray();
     for (int i = 0; i < kBands && i < bands.size(); ++i) {
         const QJsonObject o = bands.at(i).toObject();

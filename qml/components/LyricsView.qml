@@ -3,9 +3,9 @@ import QtQuick.Layouts
 import QtQuick.Controls.Basic
 import Nokturn
 
-// Tekst odtwarzanego utworu. Z czasami: bieżąca linia jest podświetlona i płynnie przewijana
-// na środek, a kliknięcie linii przewija utwór. Bez czasów: zwykły tekst do czytania
-// (opcjonalnie z przyciskiem dopasowania czasu przez rozpoznawanie mowy — alpha).
+// Lyrics of the playing track. With timestamps: the current line is highlighted and smoothly scrolled
+// to the center, and clicking a line seeks the track. Without timestamps: plain text to read
+// (optionally with a button for timing by speech recognition — alpha).
 Item {
     id: root
     property real fontSize: 17
@@ -15,10 +15,10 @@ Item {
 
     readonly property int current: Lyrics.synced ? Lyrics.lineAt(Player.position + 0.15) : -1
     readonly property var currentLine: current >= 0 && current < Lyrics.lines.length ? Lyrics.lines[current] : null
-    // Po ostatnim słowie linii (np. w przerwie instrumentalnej) podświetlenie gaśnie.
+    // After the last word of a line (e.g. in an instrumental break) the highlight fades out.
     readonly property bool currentActive: currentLine !== null && (currentLine.end < 0 || Player.position < currentLine.end)
 
-    // Ręczne przewinięcie wstrzymuje śledzenie na kilka sekund.
+    // Manual scrolling pauses following for a few seconds.
     property bool follow: true
     Timer { id: resumeFollow; interval: 4000; onTriggered: { root.follow = true; root.recenter() } }
 
@@ -44,7 +44,7 @@ Item {
 
     NumberAnimation { id: scroll; target: list; property: "contentY"; duration: 620; easing.type: Easing.OutCubic }
 
-    // ---- stany bez tekstu ----------------------------------------------------
+    // ---- states without lyrics ----------------------------------------------
     ColumnLayout {
         anchors.centerIn: parent
         width: Math.min(parent.width - 24, 320)
@@ -67,10 +67,10 @@ Item {
         Text {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
-            text: Lyrics.state === "loading" ? "Szukam tekstu…"
-                : Lyrics.state === "missing" ? "Brak tekstu dla tego utworu"
-                : Lyrics.state === "error" ? "Nie udało się pobrać tekstu"
-                : "Włącz utwór, żeby zobaczyć tekst"
+            text: Lyrics.state === "loading" ? qsTr("Looking for lyrics…")
+                : Lyrics.state === "missing" ? qsTr("No lyrics for this track")
+                : Lyrics.state === "error" ? qsTr("Couldn't download the lyrics")
+                : qsTr("Play a track to see its lyrics")
             color: Theme.textDim
             font.pixelSize: 14
             wrapMode: Text.WordWrap
@@ -89,14 +89,14 @@ Item {
             visible: Lyrics.state === "error" || Lyrics.state === "missing"
             kind: "ghost"
             icon: "refresh"
-            text: "Spróbuj ponownie"
+            text: qsTr("Try again")
             fontSize: 13
             implicitHeight: 34
             onClicked: Lyrics.retry()
         }
     }
 
-    // ---- tekst ---------------------------------------------------------------
+    // ---- lyrics ---------------------------------------------------------------
     ListView {
         id: list
         anchors { left: parent.left; right: parent.right; top: parent.top; bottom: footer.top; bottomMargin: 8 }
@@ -143,7 +143,7 @@ Item {
                 Behavior on scale { NumberAnimation { duration: 360; easing.type: Easing.OutCubic } }
             }
 
-            // Delikatna poświata pod bieżącą linią w kolorze akcentu
+            // A soft glow under the current line in the accent color
             Rectangle {
                 anchors { left: label.left; bottom: label.bottom; bottomMargin: -3 }
                 visible: Lyrics.synced && !line.blank
@@ -166,7 +166,7 @@ Item {
         }
     }
 
-    // ---- stopka: źródło, dopasowanie (alpha) ----------------------------------
+    // ---- footer: source, timing (alpha) ----------------------------------------
     ColumnLayout {
         id: footer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -174,7 +174,7 @@ Item {
         visible: Lyrics.state === "ready"
         height: visible ? implicitHeight : 0
 
-        // Postęp rozpoznawania mowy
+        // Speech recognition progress
         ColumnLayout {
             Layout.fillWidth: true
             visible: Lyrics.aligning
@@ -185,7 +185,7 @@ Item {
                 Spinner { size: 14; color: Theme.accent }
                 Text {
                     Layout.fillWidth: true
-                    text: (Lyrics.alignStage || "Dopasowywanie czasu") + " · " + Math.round(Lyrics.alignProgress * 100) + "%"
+                    text: (Lyrics.alignStage || qsTr("Aligning the timing")) + " · " + Math.round(Lyrics.alignProgress * 100) + "%"
                     color: Theme.textDim
                     font.pixelSize: 12
                     elide: Text.ElideRight
@@ -217,7 +217,7 @@ Item {
             visible: Lyrics.canAlign && !Lyrics.aligning
             kind: "secondary"
             icon: "sparkle"
-            text: "Dopasuj czas (alpha)"
+            text: qsTr("Align the timing (alpha)")
             fontSize: 12
             implicitHeight: 30
             onClicked: Lyrics.alignNow()
@@ -231,9 +231,9 @@ Item {
                 if (Lyrics.source !== "")
                     parts.push(Lyrics.source)
                 if (Lyrics.origin === "stt")
-                    parts.push("czas dopasowany automatycznie (alpha)")
+                    parts.push(qsTr("timing aligned automatically (alpha)"))
                 else if (!Lyrics.synced)
-                    parts.push("bez synchronizacji")
+                    parts.push(qsTr("not synced"))
                 return parts.join(" · ")
             }
             color: Theme.textFaint
