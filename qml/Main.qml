@@ -101,6 +101,11 @@ ApplicationWindow {
             anchors.fill: parent
         }
 
+        // Nowa wersja z GitHub Releases
+        UpdateDialog {
+            anchors.fill: parent
+        }
+
         Toast {
             id: toast
             bottomOffset: playerBar.height + 22
@@ -172,6 +177,11 @@ ApplicationWindow {
 
     Connections {
         target: Lyrics
+        function onNotice(text, icon) { toast.show(text, icon) }
+    }
+
+    Connections {
+        target: Updater
         function onNotice(text, icon) { toast.show(text, icon) }
     }
 

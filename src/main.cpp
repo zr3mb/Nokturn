@@ -9,6 +9,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationName(QStringLiteral("Nokturn"));
     QGuiApplication::setApplicationDisplayName(QStringLiteral("Nokturn"));
     QGuiApplication::setOrganizationName(QStringLiteral("Nokturn"));
+    QGuiApplication::setApplicationVersion(QStringLiteral(NOKTURN_VERSION));
     // Wayland/X11: powiązanie okna z plikiem nokturn.desktop (ikona, nazwa w panelu, MPRIS).
     QGuiApplication::setDesktopFileName(QStringLiteral("nokturn"));
 

@@ -56,6 +56,7 @@ qt_add_qml_module(Nokturn
         src/lyrics/SpeechEngine.h     src/lyrics/SpeechEngine.cpp
         src/lyrics/LyricsService.h    src/lyrics/LyricsService.cpp
         src/platform/DiscordPresence.h src/platform/DiscordPresence.cpp
+        src/Updater.h           src/Updater.cpp
     QML_FILES
         qml/Main.qml
         qml/Theme.qml
@@ -93,6 +94,7 @@ qt_add_qml_module(Nokturn
         qml/components/ThinScrollBar.qml
         qml/components/Toast.qml
         qml/components/Toggle.qml
+        qml/components/UpdateDialog.qml
         qml/components/TrackListHeader.qml
         qml/components/TrackRow.qml
         qml/components/Visualizer.qml
@@ -146,7 +148,9 @@ target_link_libraries(Nokturn PRIVATE
     TagLib::tag
     $<$<PLATFORM_ID:Windows>:crypt32>
 )
-target_compile_definitions(Nokturn PRIVATE NOKTURN_DISCORD_CLIENT_ID="${NOKTURN_DISCORD_CLIENT_ID}")
+target_compile_definitions(Nokturn PRIVATE
+    NOKTURN_DISCORD_CLIENT_ID="${NOKTURN_DISCORD_CLIENT_ID}"
+    NOKTURN_VERSION="${PROJECT_VERSION}")
 
 if(UNIX AND NOT APPLE)
     target_sources(Nokturn PRIVATE src/platform/Mpris.h src/platform/Mpris.cpp)

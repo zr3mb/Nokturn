@@ -24,6 +24,23 @@ pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,qt6-base,qt6-declarative,qt6-mu
 .\build.ps1 -Deploy    # samodzielny folder dist\ (działa bez MSYS2)
 ```
 
+## Instalator i aktualizacje (Windows)
+
+```powershell
+.\build-installer.ps1                                  # installer\Nokturn-<wersja>-setup.exe (Inno Setup 6, dołącza Deno)
+.\release.ps1 -Version 0.2.0 -Notes "- Co się zmieniło"  # nowa wersja dla użytkowników
+```
+
+`release.ps1` podbija numer w `CMakeLists.txt`, buduje instalator, liczy SHA-256, commituje, taguje `v0.2.0`,
+wypycha i tworzy **GitHub Release** z instalatorem (wymaga `gh` i publicznego repozytorium). Bez `-Notes`
+lista zmian jest generowana z commitów.
+
+Aplikacja (`src/Updater.*`) sprawdza `releases/latest` 5 s po starcie i co 6 godzin. Gdy wydanie jest nowsze,
+pokazuje okienko z listą zmian: *Zaktualizuj teraz* pobiera instalator, sprawdza SHA-256 (pole `digest` z API
+albo plik `.sha256`), uruchamia go z `/SILENT` i zamyka Nokturna — instalator nadpisuje poprzednią wersję
+i sam uruchamia nową. *Pomiń tę wersję* wycisza okienko do następnego wydania; ręcznie: *Ustawienia → Sprawdź
+aktualizacje*. Na Linuksie przycisk otwiera stronę wydania. `NOKTURN_UPDATE_API=<url>` podmienia adres API (testy).
+
 ## Integracja z systemem
 
 - **Windows — System Media Transport Controls:** Nokturn pojawia się w systemowym okienku multimediów (przy

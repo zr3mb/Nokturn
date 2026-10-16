@@ -54,3 +54,5 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{a
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; Aktualizacja z poziomu aplikacji (instalator w trybie /SILENT) — od razu uruchamiamy nową wersję.
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent

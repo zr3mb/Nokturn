@@ -349,9 +349,17 @@ Item {
                 spacing: 14
                 LogoMark {}
                 ColumnLayout {
+                    Layout.fillWidth: true
                     spacing: 2
-                    Text { text: "Nokturn 0.1 — podgląd interfejsu"; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                    Text { text: "Nokturn " + Updater.currentVersion; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
                     Text { text: "C++20 · Qt 6 · Qt Quick"; color: Theme.textFaint; font.pixelSize: 12 }
+                }
+                PillButton {
+                    text: Updater.available ? "Zaktualizuj do " + Updater.latestVersion : "Sprawdź aktualizacje"
+                    kind: "secondary"
+                    icon: "refresh"
+                    busy: Updater.state === "checking"
+                    onClicked: Updater.check(true)
                 }
             }
         }
