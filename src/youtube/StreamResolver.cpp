@@ -114,9 +114,14 @@ QStringList StreamResolver::baseArguments() const
         QStringLiteral("--print"), QStringLiteral("urls"),
     };
     // yt-dlp potrzebuje środowiska JavaScript do pełnej obsługi YouTube (domyślnie szuka Deno).
+    // Instalator Windows dołącza deno.exe obok Nokturn.exe — ma pierwszeństwo.
+    const QString bundled = QStandardPaths::findExecutable(QStringLiteral("deno"),
+                                                           { QCoreApplication::applicationDirPath() });
     const QString deno = QStandardPaths::findExecutable(QStringLiteral("deno"));
     const QString node = QStandardPaths::findExecutable(QStringLiteral("node"));
-    if (deno.isEmpty() && !node.isEmpty())
+    if (!bundled.isEmpty())
+        args << QStringLiteral("--js-runtimes") << QStringLiteral("deno:") + bundled;
+    else if (deno.isEmpty() && !node.isEmpty())
         args << QStringLiteral("--js-runtimes") << QStringLiteral("node:") + node;
     return args;
 }
