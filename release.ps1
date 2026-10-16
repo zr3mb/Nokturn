@@ -8,26 +8,27 @@ param(
     [string]$Notes = '',
     [string]$NotesFile = ''
 )
-$ErrorActionPreference = 'Stop'
+# Bez $ErrorActionPreference = 'Stop': w PowerShellu 5.1 ostrzeżenia narzędzi na stderr
+# (np. windeployqt) przerwałyby wtedy wydanie. Błędy sprawdzamy jawnie.
 $root = $PSScriptRoot
 Set-Location $root
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-    Write-Error "Wersja musi mieć postać X.Y.Z (np. 0.2.0)"
+    throw "Wersja musi mieć postać X.Y.Z (np. 0.2.0)"
 }
 $cmake = Join-Path $root 'CMakeLists.txt'
 $current = (Select-String -Path $cmake -Pattern 'project\(Nokturn VERSION ([\d.]+)').Matches[0].Groups[1].Value
 if ([version]$Version -le [version]$current) {
-    Write-Error "Nowa wersja ($Version) musi być wyższa niż obecna ($current)"
+    throw "Nowa wersja ($Version) musi być wyższa niż obecna ($current)"
 }
 if (git status --porcelain --untracked-files=no) {
-    Write-Error "Masz niezacommitowane zmiany — najpierw je zacommituj"
+    throw "Masz niezacommitowane zmiany — najpierw je zacommituj"
 }
 if ((git rev-parse --abbrev-ref HEAD) -ne 'main') {
-    Write-Error "Wydania robimy z gałęzi main"
+    throw "Wydania robimy z gałęzi main"
 }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    Write-Error "Brak GitHub CLI (gh) — zainstaluj: winget install GitHub.cli"
+    throw "Brak GitHub CLI (gh) — zainstaluj: winget install GitHub.cli"
 }
 
 # 1. Numer wersji (trafia do aplikacji przez NOKTURN_VERSION i do instalatora)
@@ -46,8 +47,10 @@ Set-Content $sha "$hash  $setupName" -Encoding ascii -NoNewline
 # 3. Commit, tag, wypchnięcie
 git add $cmake
 git commit -m "Wersja $Version"
+if ($LASTEXITCODE) { throw "Nie udało się zacommitować wersji" }
 git tag "v$Version"
 git push origin main "v$Version"
+if ($LASTEXITCODE) { throw "Nie udało się wypchnąć wersji $Version" }
 
 # 4. GitHub Release z instalatorem
 $ghArgs = @("v$Version", $setup, $sha, '--title', "Nokturn $Version")
@@ -55,4 +58,5 @@ if ($NotesFile) { $ghArgs += @('--notes-file', $NotesFile) }
 elseif ($Notes) { $ghArgs += @('--notes', $Notes) }
 else { $ghArgs += '--generate-notes' }
 gh release create @ghArgs
+if ($LASTEXITCODE) { throw "Nie udało się utworzyć wydania na GitHubie" }
 Write-Host "Opublikowano Nokturn $Version"
