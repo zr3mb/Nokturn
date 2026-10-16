@@ -24,6 +24,17 @@ pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,qt6-base,qt6-declarative,qt6-mu
 .\build.ps1 -Deploy    # samodzielny folder dist\ (działa bez MSYS2)
 ```
 
+## Integracja z systemem
+
+- **Windows — System Media Transport Controls:** Nokturn pojawia się w systemowym okienku multimediów (przy
+  regulacji głośności, w Szybkich ustawieniach, na ekranie blokady) z tytułem, wykonawcą, albumem, okładką i osią
+  czasu. Przyciski Odtwórz / Pauza / Dalej / Wstecz / Stop oraz przewijanie z systemu sterują odtwarzaczem.
+  **Klawisze multimedialne** na klawiaturze trafiają do aktywnej sesji SMTC, więc działają także przy
+  zminimalizowanym oknie. Gdyby SMTC było niedostępne, klawisze są rejestrowane jako skróty globalne
+  (`RegisterHotKey`). Implementacja korzysta bezpośrednio z ABI WinRT (`src/platform/WinRtMedia.h`), więc działa
+  z MinGW bez C++/WinRT; linkowane są tylko systemowe `runtimeobject`, `shlwapi` i `shcore`.
+- **Linux — MPRIS:** to samo przez D-Bus (panel GNOME/KDE, klawisze multimedialne, `playerctl`).
+
 ## Budowanie (Linux)
 
 Wymagane: Qt **6.8+** (moduły base, declarative, multimedia z backendem FFmpeg, websockets, dbus), TagLib **2**,
@@ -200,6 +211,7 @@ Dla tekstów bez znaczników czasu można włączyć w *Ustawienia → Teksty ut
 | `src/lyrics/SpeechEngine.*` | whisper.cpp: pobieranie z weryfikacją SHA-256, dekodowanie do 16 kHz, transkrypcja, wykrywanie sprzętu |
 | `src/lyrics/LyricsService.*` | Singleton `Lyrics` dla QML: źródła tekstu, cache, bieżąca linia, dopasowanie (alpha) |
 | `src/platform/DiscordPresence.*` | Singleton `Discord`: IPC Discorda (Rich Presence), status „Słucha” |
+| `src/platform/WindowsMediaControls.*`, `WinRtMedia.h` | Windows: SMTC (okienko multimediów, ekran blokady) i klawisze multimedialne |
 | `src/platform/Mpris.*` | MPRIS 2 na Linuksie (D-Bus): klawisze multimedialne, kontrolki w panelu systemu |
 | `src/TagLibPath.h` | Ścieżka pliku dla TagLib (wchar_t na Windows, bajty systemu plików na Linuksie) |
 | `packaging/linux/` | Plik `.desktop`, ikona SVG, metainfo (AppStream) |

@@ -11,6 +11,9 @@
 #ifdef NOKTURN_MPRIS
 #  include "platform/Mpris.h"
 #endif
+#ifdef NOKTURN_SMTC
+#  include "platform/WindowsMediaControls.h"
+#endif
 
 #include <QAudioFormat>
 #include <QFileInfo>
@@ -110,7 +113,10 @@ PlayerController::PlayerController(QObject *parent)
 
     DiscordPresence::instance()->attach(this);
 #ifdef NOKTURN_MPRIS
-    new Mpris(this);
+    new Mpris(this);   // Linux: MPRIS (panel systemu, klawisze multimedialne)
+#endif
+#ifdef NOKTURN_SMTC
+    new WindowsMediaControls(this);   // Windows: okienko multimediów, ekran blokady, klawisze multimedialne
 #endif
 
     // Przywróć ostatnio słuchany utwór (wstrzymany, w tym samym miejscu).

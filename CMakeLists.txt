@@ -155,6 +155,15 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(WIN32)
+    # System Media Transport Controls (okienko multimediów Windows) + klawisze multimedialne
+    target_sources(Nokturn PRIVATE
+        src/platform/WinRtMedia.h
+        src/platform/WindowsMediaControls.h src/platform/WindowsMediaControls.cpp)
+    target_link_libraries(Nokturn PRIVATE runtimeobject shlwapi shcore)
+    target_compile_definitions(Nokturn PRIVATE NOKTURN_SMTC)
+endif()
+
+if(WIN32)
     install(TARGETS Nokturn RUNTIME DESTINATION .)
 else()
     include(GNUInstallDirs)
