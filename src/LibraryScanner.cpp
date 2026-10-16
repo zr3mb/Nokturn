@@ -1,5 +1,7 @@
 #include "LibraryScanner.h"
 
+#include "TagLibPath.h"
+
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -125,8 +127,8 @@ Track readFile(const QString &path, const QFileInfo &fi, const QString &coverDir
     QByteArray picture;
     int sampleRate = 0, bitrate = 0;
 
-    const std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
-    TagLib::FileRef ref(wpath.c_str(), true, TagLib::AudioProperties::Average);
+    const TagLibPath native(path);
+    TagLib::FileRef ref(native.get(), true, TagLib::AudioProperties::Average);
     if (!ref.isNull()) {
         if (const TagLib::Tag *tag = ref.tag()) {
             t.title = qs(tag->title());

@@ -52,6 +52,8 @@ public:
 
     static QList<Track> parseTracks(const QJsonValue &root);
     static QVariantList parsePlaylists(const QJsonValue &root);
+    // Wynik wyszukiwania odpowiadający lokalnemu plikowi (tytuł, wykonawca, długość ±12 s); -1 = brak.
+    static int bestMatch(const Track &local, const QList<Track> &results);
     static Lyrics parseTimedLyrics(const QJsonValue &root);
     static Lyrics parsePlainLyrics(const QJsonValue &root);
 

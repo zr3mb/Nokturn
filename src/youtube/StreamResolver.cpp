@@ -10,6 +10,7 @@
 #include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QSysInfo>
 #include <QTimer>
 #include <QUrlQuery>
 #include <QUuid>
@@ -21,6 +22,31 @@
 namespace {
 
 const char *kReleaseBase = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
+
+// Nazwa pliku w katalogu narzędzi i nazwa samodzielnej wersji w wydaniu na GitHubie
+// (Linux: "yt-dlp_linux" nie wymaga Pythona, w przeciwieństwie do "yt-dlp").
+QString engineFileName()
+{
+#ifdef Q_OS_WIN
+    return QStringLiteral("yt-dlp.exe");
+#else
+    return QStringLiteral("yt-dlp");
+#endif
+}
+
+QString releaseAsset()
+{
+#if defined(Q_OS_WIN)
+    return QStringLiteral("yt-dlp.exe");
+#elif defined(Q_OS_MACOS)
+    return QStringLiteral("yt-dlp_macos");
+#else
+    const QString arch = QSysInfo::currentCpuArchitecture();
+    if (arch == QLatin1String("arm64"))
+        return QStringLiteral("yt-dlp_linux_aarch64");
+    return QStringLiteral("yt-dlp_linux");
+#endif
+}
 
 void hideConsole(QProcess *process)
 {
@@ -51,8 +77,8 @@ QString StreamResolver::toolsDir() const
 void StreamResolver::detect()
 {
     const QStringList candidates = {
-        toolsDir() + QStringLiteral("/yt-dlp.exe"),
-        QCoreApplication::applicationDirPath() + QStringLiteral("/yt-dlp.exe"),
+        toolsDir() + QChar('/') + engineFileName(),
+        QCoreApplication::applicationDirPath() + QChar('/') + engineFileName(),
         QStandardPaths::findExecutable(QStringLiteral("yt-dlp")),
     };
     m_enginePath.clear();
@@ -179,7 +205,7 @@ void StreamResolver::download()
             return;
         }
         const QByteArray sums = sumsReply->readAll();
-        QNetworkReply *binReply = m_net.get(QNetworkRequest(QUrl(QString::fromLatin1(kReleaseBase) + "yt-dlp.exe")));
+        QNetworkReply *binReply = m_net.get(QNetworkRequest(QUrl(QString::fromLatin1(kReleaseBase) + releaseAsset())));
         connect(binReply, &QNetworkReply::downloadProgress, this, [this](qint64 received, qint64 total) {
             m_progress = total > 0 ? qreal(received) / total : 0;
             emit engineChanged();
@@ -203,7 +229,7 @@ void StreamResolver::finishDownload(const QByteArray &binary, const QByteArray &
     const QByteArray hash = QCryptographicHash::hash(binary, QCryptographicHash::Sha256).toHex();
     bool verified = false;
     for (const QByteArray &line : sums.split('\n')) {
-        if (line.trimmed().endsWith(" yt-dlp.exe") && line.startsWith(hash)) {
+        if (line.trimmed().endsWith(" " + releaseAsset().toLatin1()) && line.startsWith(hash)) {
             verified = true;
             break;
         }
@@ -213,8 +239,12 @@ void StreamResolver::finishDownload(const QByteArray &binary, const QByteArray &
         emit notice(QStringLiteral("Pobrany yt-dlp nie zgadza się z sumą kontrolną — przerwano"), QStringLiteral("close"));
         return;
     }
-    QSaveFile out(toolsDir() + QStringLiteral("/yt-dlp.exe"));
+    const QString target = toolsDir() + QChar('/') + engineFileName();
+    QSaveFile out(target);
     if (out.open(QIODevice::WriteOnly) && out.write(binary) == binary.size() && out.commit()) {
+        QFile::setPermissions(target, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner
+                                          | QFileDevice::ReadGroup | QFileDevice::ExeGroup
+                                          | QFileDevice::ReadOther | QFileDevice::ExeOther);
         m_cache.clear();
         detect();
         emit notice(QStringLiteral("Silnik odtwarzania YouTube jest gotowy"), QStringLiteral("check"));

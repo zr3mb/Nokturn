@@ -10,10 +10,11 @@ Item {
     property int revealDelay: 0
     property bool showAlbum: true
     property var queue: null   // wiersze, które staną się kolejką po kliknięciu (null = cała biblioteka)
+    property string context: "" // źródło kolejki ("playlist:…", "album:…") — od niego zależy miks
 
     function play() {
         if (current) Player.toggle()
-        else if (queue) Player.playFrom(queue, trackIndex)
+        else if (queue) Player.playFrom(queue, trackIndex, context)
         else Player.playIndex(trackIndex)
     }
 

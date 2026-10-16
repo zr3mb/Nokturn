@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSettings>
+#include <QStandardPaths>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
@@ -21,6 +22,7 @@ const char *kLoginUrl =
     "&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop"
     "%26hl%3Dpl%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F";
 
+#ifdef Q_OS_WIN
 QString appPath(const QString &exe)
 {
     // Rejestr: HKLM/HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths\<exe>
@@ -34,6 +36,7 @@ QString appPath(const QString &exe)
     }
     return {};
 }
+#endif
 
 #ifdef Q_OS_WIN
 struct WindowScan
@@ -100,6 +103,37 @@ BrowserLogin::~BrowserLogin()
 
 QString BrowserLogin::findBrowser(QString *displayName)
 {
+#ifndef Q_OS_WIN
+    // Linux: przeglądarki z rodziny Chromium w PATH. Wersje ze Snapa na końcu — ich izolacja
+    // nie pozwala na profil w ukrytym katalogu (~/.local/share), więc działają tylko awaryjnie.
+    struct Candidate { const char *exe; const char *name; };
+    const QList<Candidate> candidates = {
+        { "google-chrome-stable", "Google Chrome" }, { "google-chrome", "Google Chrome" },
+        { "chromium", "Chromium" }, { "chromium-browser", "Chromium" },
+        { "brave-browser", "Brave" }, { "brave", "Brave" },
+        { "microsoft-edge-stable", "Microsoft Edge" }, { "microsoft-edge", "Microsoft Edge" },
+        { "vivaldi-stable", "Vivaldi" },
+    };
+    QString fallback, fallbackName;
+    for (const Candidate &c : candidates) {
+        const QString path = QStandardPaths::findExecutable(QString::fromLatin1(c.exe));
+        if (path.isEmpty())
+            continue;
+        if (QFileInfo(path).canonicalFilePath().startsWith(QLatin1String("/snap/")) || path.startsWith(QLatin1String("/snap/"))) {
+            if (fallback.isEmpty()) {
+                fallback = path;
+                fallbackName = QString::fromLatin1(c.name);
+            }
+            continue;
+        }
+        if (displayName)
+            *displayName = QString::fromLatin1(c.name);
+        return path;
+    }
+    if (displayName && !fallback.isEmpty())
+        *displayName = fallbackName;
+    return fallback;
+#else
     struct Candidate { const char *exe; const char *name; QStringList paths; };
     const QString pf = qEnvironmentVariable("ProgramFiles");
     const QString pf86 = qEnvironmentVariable("ProgramFiles(x86)");
@@ -126,13 +160,19 @@ QString BrowserLogin::findBrowser(QString *displayName)
         }
     }
     return {};
+#endif
 }
 
 QString BrowserLogin::status() const
 {
     switch (m_stage) {
     case Stage::Interactive:
+#ifdef Q_OS_WIN
         return QStringLiteral("Zaloguj się w otwartym oknie. Gdy zobaczysz YouTube Music, okno zamknie się samo.");
+#else
+        // Na Linuksie (zwłaszcza Wayland) nie da się podejrzeć tytułu cudzego okna.
+        return QStringLiteral("Zaloguj się w otwartym oknie, a gdy zobaczysz YouTube Music, zamknij je.");
+#endif
     case Stage::Closing:
     case Stage::Reading:
         return QStringLiteral("Odczytuję sesję YouTube…");
@@ -220,6 +260,8 @@ void BrowserLogin::closeInteractiveWindow()
     // Łagodne zamknięcie (jak kliknięcie X) — Chrome zapisze wtedy ciasteczka na dysk.
     for (HWND hwnd : scanWindows(m_process.processId()).windows)
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
+#else
+    m_process.terminate();   // SIGTERM — Chrome zamyka się porządnie i zapisuje ciasteczka
 #endif
     m_closeTimer.start();
 }
@@ -347,6 +389,8 @@ void BrowserLogin::stopAll()
         if (stage == Stage::Interactive || stage == Stage::Closing)
             for (HWND hwnd : scanWindows(m_process.processId()).windows)
                 PostMessageW(hwnd, WM_CLOSE, 0, 0);
+#else
+        m_process.terminate();
 #endif
         if (!m_process.waitForFinished(4000))
             m_process.kill();

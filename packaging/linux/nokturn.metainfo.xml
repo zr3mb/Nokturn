@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>nokturn</id>
+  <name>Nokturn</name>
+  <summary>Music player for local files and YouTube Music</summary>
+  <summary xml:lang="pl">Odtwarzacz muzyki: pliki lokalne i YouTube Music</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <launchable type="desktop-id">nokturn.desktop</launchable>
+  <description>
+    <p xml:lang="pl">Nokturn odtwarza pliki lokalne i utwory z YouTube Music, pokazuje teksty utworów,
+      miksuje utwory w playlistach płynnymi przejściami i ma 7-pasmowy korektor parametryczny.</p>
+    <p>Nokturn plays local files and YouTube Music, shows lyrics, mixes playlist tracks with
+      DJ-style transitions and has a 7-band parametric equalizer.</p>
+  </description>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Player</category>
+  </categories>
+</component>

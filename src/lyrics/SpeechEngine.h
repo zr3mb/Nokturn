@@ -40,6 +40,15 @@ public:
     static QString modelSize(const QString &model);
 
     bool engineReady() const { return !m_enginePath.isEmpty(); }
+    // Gotowa paczka whisper.cpp jest tylko dla Windows; na Linuksie instaluje się ją z repozytorium.
+    static bool canDownloadEngine()
+    {
+#ifdef Q_OS_WIN
+        return true;
+#else
+        return false;
+#endif
+    }
     bool modelReady(const QString &model) const;
     bool downloading() const { return m_downloading; }
     qreal downloadProgress() const { return m_progress; }

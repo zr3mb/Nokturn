@@ -1,6 +1,7 @@
 #include "YtMusicApi.h"
 
 #include "LibraryScanner.h"
+#include "lyrics/LyricsAligner.h"
 
 #include <QDate>
 #include <QJsonArray>
@@ -459,4 +460,51 @@ void YtMusicApi::fetchLyrics(const QString &videoId, LyricsCallback callback)
             });
         });
     });
+}
+
+// ---- dopasowanie plików lokalnych -----------------------------------------------
+
+namespace {
+
+// "Tytuł (feat. X) - Remastered 2011" -> "tytuł"
+QString coreTitle(const QString &title)
+{
+    static const QRegularExpression extras(
+        QStringLiteral("\\s*(\\(|\\[|\\s-\\s).*(feat|ft\\.|remaster|live|version|wersja|edit|mix|mono|stereo|deluxe).*$"),
+        QRegularExpression::CaseInsensitiveOption);
+    QString t = title;
+    t.remove(extras);
+    return LyricsAligner::normalize(t);
+}
+
+} // namespace
+
+int YtMusicApi::bestMatch(const Track &local, const QList<Track> &results)
+{
+    const QString title = coreTitle(local.title);
+    const QString artist = LyricsAligner::normalize(local.artist);
+    int best = -1;
+    double bestScore = 0;
+    for (int i = 0; i < results.size(); ++i) {
+        const Track &r = results.at(i);
+        const double ts = LyricsAligner::similarity(title, coreTitle(r.title));
+        if (ts < 0.6)
+            continue;
+        const QString ra = LyricsAligner::normalize(r.artist);
+        const double as = artist.isEmpty() ? 0.5
+                        : (ra.contains(artist) || artist.contains(ra)) ? 1.0
+                        : LyricsAligner::similarity(artist, ra);
+        double score = ts * 2 + as;
+        if (local.duration > 0 && r.duration > 0) {
+            const int diff = std::abs(local.duration - r.duration);
+            if (diff > 12)
+                continue;   // inna wersja (np. koncertowa)
+            score += 1.0 - diff / 12.0;
+        }
+        if (score > bestScore) {
+            bestScore = score;
+            best = i;
+        }
+    }
+    return bestScore >= 2.0 ? best : -1;
 }

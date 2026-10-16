@@ -9,13 +9,17 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationName(QStringLiteral("Nokturn"));
     QGuiApplication::setApplicationDisplayName(QStringLiteral("Nokturn"));
     QGuiApplication::setOrganizationName(QStringLiteral("Nokturn"));
+    // Wayland/X11: powiązanie okna z plikiem nokturn.desktop (ikona, nazwa w panelu, MPRIS).
+    QGuiApplication::setDesktopFileName(QStringLiteral("nokturn"));
 
     // Styl "Basic" pozwala w pełni przestylizować kontrolki w QML.
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
+#ifdef Q_OS_WIN
     QFont font(QStringLiteral("Segoe UI Variable Text"));
     font.setHintingPreference(QFont::PreferNoHinting);
     QGuiApplication::setFont(font);
+#endif
 
     QQmlApplicationEngine engine;
     QObject::connect(

@@ -223,8 +223,12 @@ void SpeechEngine::detect()
         const QString local = QCoreApplication::applicationDirPath() + QChar('/') + engineFileName();
         if (QFile::exists(local))
             m_enginePath = local;
-        else
-            m_enginePath = QStandardPaths::findExecutable(QStringLiteral("whisper-cli"));
+        // Pakiety dystrybucji: "whisper-cli" (Arch, Fedora, Homebrew), "whisper-cpp" (Nix, część innych).
+        for (const char *name : { "whisper-cli", "whisper-cpp" }) {
+            if (!m_enginePath.isEmpty())
+                break;
+            m_enginePath = QStandardPaths::findExecutable(QString::fromLatin1(name));
+        }
     }
     emit stateChanged();
 }

@@ -11,13 +11,19 @@
 #include <QMediaPlayer>
 #include <QObject>
 #include <QTimer>
+#include <QHash>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
+
+#include <array>
 
 class TrackModel;
 struct Track;
 
 // Odtwarzacz: QMediaPlayer (backend FFmpeg) + kolejka + widmo z prawdziwego dźwięku.
+// Dwa "decki" (dwa QMediaPlayer) pozwalają miksować utwory: następny jest ładowany zawczasu
+// i startuje w trakcie końcówki bieżącego (przejścia w AudioEngine). Ustawienia miksu są
+// globalne (crossfade) albo osobne dla playlisty / albumu ("Miks" jak w Spotify).
 class PlayerController : public QObject
 {
     Q_OBJECT
@@ -50,6 +56,17 @@ class PlayerController : public QObject
     Q_PROPERTY(QList<qreal> spectrum READ spectrum NOTIFY spectrumChanged)
     Q_PROPERTY(qreal level READ level NOTIFY spectrumChanged)
 
+    // ---- miksowanie ----
+    Q_PROPERTY(int crossfade READ crossfade WRITE setCrossfade NOTIFY mixChanged)               // s, 0 = wyłączone
+    Q_PROPERTY(QString crossfadeStyle READ crossfadeStyle WRITE setCrossfadeStyle NOTIFY mixChanged)
+    Q_PROPERTY(bool smartTransitions READ smartTransitions WRITE setSmartTransitions NOTIFY mixChanged)
+    Q_PROPERTY(QStringList mixStyles READ mixStyles CONSTANT)
+    Q_PROPERTY(int mixRevision READ mixRevision NOTIFY mixChanged)
+    Q_PROPERTY(QString queueContext READ queueContext NOTIFY queueChanged)
+    Q_PROPERTY(bool mixActive READ mixActive NOTIFY mixChanged)          // bieżąca kolejka będzie miksowana
+    Q_PROPERTY(bool transitioning READ transitioning NOTIFY transitionChanged)
+    Q_PROPERTY(QString transitionLabel READ transitionLabel NOTIFY transitionChanged)
+
 public:
     explicit PlayerController(QObject *parent = nullptr);
     ~PlayerController() override;
@@ -71,7 +88,7 @@ public:
     bool liked() const;
 
     double position() const;
-    bool playing() const { return m_player.playbackState() == QMediaPlayer::PlayingState; }
+    bool playing() const { return player().playbackState() == QMediaPlayer::PlayingState; }
     bool buffering() const;
     double volume() const { return m_volume; }
     bool muted() const { return m_muted; }
@@ -81,13 +98,27 @@ public:
     QList<qreal> spectrum() const { return m_spectrum; }
     qreal level() const { return m_level; }
 
+    int crossfade() const { return m_crossfade; }
+    void setCrossfade(int seconds);
+    QString crossfadeStyle() const { return m_crossfadeStyle; }
+    void setCrossfadeStyle(const QString &style);
+    bool smartTransitions() const { return m_smart; }
+    void setSmartTransitions(bool on);
+    QStringList mixStyles() const;
+    int mixRevision() const { return m_mixRevision; }
+    QString queueContext() const { return m_context; }
+    bool mixActive() const { return effectiveMix().enabled; }
+    bool transitioning() const { return m_engine.inTransition(); }
+    QString transitionLabel() const { return m_transitionLabel; }
+
     void setVolume(double v);
     void setMuted(bool m);
     void setShuffle(bool s);
     void setRepeatMode(int r);
 
     // Odtwarza wiersz `row`; kolejką stają się `rows` (np. album, playlista, wyniki wyszukiwania).
-    Q_INVOKABLE void playFrom(const QVariantList &rows, int row);
+    // `context` identyfikuje źródło kolejki ("playlist:…", "album:…") — od niego zależy miks.
+    Q_INVOKABLE void playFrom(const QVariantList &rows, int row, const QString &context = {});
     // Odtwarza wiersz `row` z kolejką = cała lokalna biblioteka.
     Q_INVOKABLE void playIndex(int row);
     // Przeskakuje do utworu w bieżącej kolejce (np. kliknięcie w "Następne").
@@ -100,6 +131,16 @@ public:
     Q_INVOKABLE void seek(double seconds);
     Q_INVOKABLE void cycleRepeat();
     Q_INVOKABLE void toggleLiked();
+
+    // Miks playlisty / albumu: { enabled, style, length }.
+    Q_INVOKABLE QVariantMap mixFor(const QString &context) const;
+    Q_INVOKABLE void setMix(const QString &context, bool enabled, const QString &style, int length);
+    Q_INVOKABLE QString mixStyleName(const QString &style) const;
+    Q_INVOKABLE QString mixStyleDescription(const QString &style) const;
+
+    // Dla integracji (Discord, MPRIS)
+    QString currentTrackId() const { return m_currentId; }
+    const Track *currentTrack() const { return current(); }
 
 signals:
     void currentChanged();
@@ -115,10 +156,45 @@ signals:
     void repeatModeChanged();
     void queueChanged();
     void spectrumChanged();
+    void mixChanged();
+    void transitionChanged();
+    void seeked(double seconds);
     void notice(const QString &text, const QString &icon);
 
 private:
     static constexpr int kBars = 48;
+
+    struct Deck
+    {
+        QMediaPlayer *player = nullptr;
+        QAudioOutput *clock = nullptr;          // wyciszone — wyznacza tempo odtwarzania
+        QAudioBufferOutput *buffers = nullptr;
+        QString trackId;
+        QString resolving;                      // videoId, na którego adres czekamy
+    };
+
+    struct MixConfig
+    {
+        bool enabled = false;
+        QString style = QStringLiteral("auto");
+        int length = 8;
+    };
+
+    QMediaPlayer &player() { return *m_decks[m_active].player; }
+    const QMediaPlayer &player() const { return *m_decks[m_active].player; }
+    int standby() const { return 1 - m_active; }
+    void setupDeck(int d);
+    void onDeckMediaStatus(int d, QMediaPlayer::MediaStatus status);
+    MixConfig effectiveMix() const;
+    void loadMixSettings();
+    void saveMixSettings();
+    int nextQueuePos() const;
+    void preloadNext();
+    void cancelPreload();
+    bool standbyReady() const;
+    void updateMix(double dt);
+    void startTransition(AudioEngine::Style style, double seconds, const QString &label);
+    void stopTransition();
 
     const Track *current() const;
     bool canPlay(int row, bool explain);
@@ -134,10 +210,9 @@ private:
     void applyVolume();
 
     TrackModel *m_tracks = nullptr;
-    QMediaPlayer m_player;
-    QAudioOutput m_output;              // wyciszone — służy odtwarzaczowi tylko za zegar
-    AudioEngine m_engine;               // właściwe wyjście: korektor + QAudioSink
-    QAudioBufferOutput *m_bufferOutput = nullptr;
+    AudioEngine m_engine;               // właściwe wyjście: mikser decków + korektor + QAudioSink
+    std::array<Deck, AudioEngine::kDecks> m_decks;
+    int m_active = 0;
     SpectrumAnalyzer m_analyzer;
 
     QString m_currentId;
@@ -146,8 +221,20 @@ private:
     int m_queuePos = -1;
     QStringList m_history;
     qint64 m_pendingSeek = -1;
-    QString m_resolvingId;            // videoId, dla którego czekamy na adres strumienia
     bool m_autoplayAfterResolve = false;
+    QString m_context;
+
+    // miksowanie
+    int m_crossfade = 0;
+    QString m_crossfadeStyle = QStringLiteral("fade");
+    bool m_smart = true;
+    QHash<QString, MixConfig> m_mixes;
+    int m_mixRevision = 0;
+    int m_plannedPos = -1;             // pozycja w kolejce utworu załadowanego na drugi deck
+    QString m_plannedId;
+    double m_silence = 0;              // jak długo bieżący utwór milczy (s) — inteligentne przejścia
+    double m_quiet = 0;                // jak długo bieżący utwór jest wyraźnie wyciszony (s)
+    QString m_transitionLabel;
 
     double m_volume = 0.72;
     bool m_muted = false;

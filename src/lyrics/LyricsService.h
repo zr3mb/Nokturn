@@ -43,6 +43,7 @@ class LyricsService : public QObject
     Q_PROPERTY(QString sttModel READ sttModel WRITE setSttModel NOTIFY settingsChanged)
     Q_PROPERTY(QStringList sttModels READ sttModels CONSTANT)
     Q_PROPERTY(bool sttEngineReady READ sttEngineReady NOTIFY sttChanged)
+    Q_PROPERTY(bool sttCanDownloadEngine READ sttCanDownloadEngine CONSTANT)
     Q_PROPERTY(bool sttModelReady READ sttModelReady NOTIFY sttChanged)
     Q_PROPERTY(bool sttReady READ sttReady NOTIFY sttChanged)
     Q_PROPERTY(bool sttDownloading READ sttDownloading NOTIFY sttChanged)
@@ -74,6 +75,7 @@ public:
     void setSttModel(const QString &model);
     QStringList sttModels() const { return SpeechEngine::modelNames(); }
     bool sttEngineReady() const { return m_speech.engineReady(); }
+    bool sttCanDownloadEngine() const { return SpeechEngine::canDownloadEngine(); }
     bool sttModelReady() const { return m_speech.modelReady(m_model); }
     bool sttReady() const { return sttEngineReady() && sttModelReady(); }
     bool sttDownloading() const { return m_speech.downloading(); }
@@ -90,6 +92,7 @@ public:
     Q_INVOKABLE void alignNow();
     Q_INVOKABLE void cancelAlign();
     Q_INVOKABLE void downloadSttEngine() { m_speech.downloadEngine(); }
+    Q_INVOKABLE void redetectStt() { m_speech.detect(); }
     Q_INVOKABLE void downloadSttModel() { m_speech.downloadModel(m_model); }
     Q_INVOKABLE void cancelSttDownload() { m_speech.cancelDownload(); }
     Q_INVOKABLE void removeSttModel(const QString &model) { m_speech.removeModel(model); }

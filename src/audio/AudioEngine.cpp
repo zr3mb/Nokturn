@@ -10,7 +10,10 @@
 #include <QMediaDevices>
 #include <QMutex>
 
+#include <utility>
+
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 // Bufor pierścieniowy czytany przez QAudioSink (w wątku audio) i zapisywany z wątku GUI.
@@ -59,6 +62,12 @@ public:
         m_played.clear();
     }
 
+    int takeUnderruns()
+    {
+        QMutexLocker lock(&m_mutex);
+        return std::exchange(m_underruns, 0);
+    }
+
 protected:
     qint64 writeData(const char *, qint64) override { return -1; }
 
@@ -72,8 +81,10 @@ protected:
         if (!m_primed && m_count >= m_prebuffer)
             m_primed = true;
         const size_t take = m_primed ? std::min(frames, m_count) : 0;
-        if (m_primed && take < frames)
+        if (m_primed && take < frames) {
             m_primed = false;
+            ++m_underruns;
+        }
 
         for (size_t f = 0; f < frames; ++f) {
             const float *src = f < take ? &m_data[((m_read + f) % m_capacity) * m_channels] : nullptr;
@@ -105,7 +116,39 @@ private:
     size_t m_count = 0;
     bool m_primed = false;
     std::vector<float> m_played;
+    int m_underruns = 0;
 };
+
+namespace {
+
+constexpr double kPi = 3.14159265358979323846;
+
+double toDb(double energy)
+{
+    return energy > 1e-12 ? 10.0 * std::log10(energy) : -120.0;
+}
+
+double smoothstep(double a, double b, double x)
+{
+    const double t = std::clamp((x - a) / (b - a), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+// Równa moc: przy przenikaniu suma energii nie zapada się w środku przejścia.
+double fadeIn(double t)  { return std::sin(std::clamp(t, 0.0, 1.0) * kPi / 2); }
+double fadeOut(double t) { return std::cos(std::clamp(t, 0.0, 1.0) * kPi / 2); }
+
+} // namespace
+
+void AudioEngine::Stage::consume(size_t n, int ch)
+{
+    read += n;
+    // Zwolnij przeczytaną część, gdy urośnie (bez przesuwania przy każdym bloku).
+    if (read * size_t(ch) > 1 << 16 && read * size_t(ch) * 2 > data.size()) {
+        data.erase(data.begin(), data.begin() + std::ptrdiff_t(read * size_t(ch)));
+        read = 0;
+    }
+}
 
 AudioEngine::AudioEngine(QObject *parent)
     : QObject(parent)
@@ -145,9 +188,9 @@ QAudioFormat AudioEngine::bufferFormat() const
     return f;
 }
 
-void AudioEngine::push(const QAudioBuffer &buffer)
+void AudioEngine::push(int deck, const QAudioBuffer &buffer)
 {
-    if (!buffer.isValid())
+    if (!buffer.isValid() || deck < 0 || deck >= kDecks)
         return;
     const QAudioFormat in = buffer.format();
     const int outCh = m_format.channelCount();
@@ -167,30 +210,302 @@ void AudioEngine::push(const QAudioBuffer &buffer)
                 m_scratch[f * outCh + c] = in.normalizedSampleValue(data + f * bpf + std::min(c, inCh - 1) * bps);
     }
 
-    Equalizer::instance()->process(m_scratch.data(), frames, outCh);
-    m_ring->append(m_scratch.data(), size_t(frames));
+    // Poziom głośności decku (do wykrywania ciszy i wyciszeń na końcu utworu).
+    if (frames > 0) {
+        double energy = 0;
+        for (float v : m_scratch)
+            energy += double(v) * v;
+        energy /= double(m_scratch.size());
+        Levels &l = m_levels[deck];
+        const double alpha = 1.0 - std::exp(-double(frames) / (0.1 * m_format.sampleRate()));
+        l.shortEnergy += alpha * (energy - l.shortEnergy);
+        l.sumEnergy += energy * double(frames);
+        l.frames += double(frames);
+    }
+
+    Stage &stage = m_stage[deck];
+    stage.data.insert(stage.data.end(), m_scratch.begin(), m_scratch.end());
+    pump();
 
     // Diagnostyka (NOKTURN_AUDIO_DEBUG=1): czy próbki przychodzą w tempie odtwarzania.
     static const bool debug = qEnvironmentVariableIsSet("NOKTURN_AUDIO_DEBUG");
-    if (debug) {
+    if (debug && deck == m_active) {
         static QElapsedTimer clock;
         static qint64 total = 0;
         if (!clock.isValid())
             clock.start();
         total += frames;
         if (clock.elapsed() >= 3000) {
-            qInfo("audio: %.2f s dźwięku w %.2f s (format %d Hz / %d kan.)",
+            qInfo("audio: %.2f s dźwięku w %.2f s (format %d Hz / %d kan., niedobory bufora: %d, przejście: %s)",
                   double(total) / m_format.sampleRate(), clock.elapsed() / 1000.0,
-                  m_format.sampleRate(), outCh);
+                  m_format.sampleRate(), outCh, m_ring->takeUnderruns(), m_tr.active ? "tak" : "nie");
             total = 0;
             clock.restart();
         }
     }
 }
 
+// ---- miksowanie -----------------------------------------------------------------
+
+void AudioEngine::emit_(const float *frames, size_t count)
+{
+    const int ch = m_format.channelCount();
+    m_out.assign(frames, frames + count * size_t(ch));
+    Equalizer::instance()->process(m_out.data(), qsizetype(count), ch);
+    m_ring->append(m_out.data(), count);
+}
+
+void AudioEngine::pump()
+{
+    const int ch = m_format.channelCount();
+    if (!m_tr.active) {
+        Stage &s = m_stage[m_active];
+        if (const size_t n = s.frames(ch)) {
+            emit_(s.at(0, ch), n);
+            s.consume(n, ch);
+        }
+        Stage &other = m_stage[1 - m_active];      // poza przejściem drugi deck milczy
+        if (const size_t n = other.frames(ch))
+            other.consume(n, ch);
+        return;
+    }
+
+    Stage &a = m_stage[m_tr.from];
+    Stage &b = m_stage[m_tr.to];
+    const size_t rate = size_t(m_format.sampleRate());
+
+    if (!m_tr.started) {
+        // Cisza na początku nowego utworu (do 4 s) jest pomijana — przejście zaczyna się od muzyki.
+        if (m_tr.t.trimIntro) {
+            const size_t maxTrim = rate * 4;
+            while (b.frames(ch) > 0 && m_tr.trimmed < maxTrim) {
+                const float *f = b.at(0, ch);
+                float peak = 0;
+                for (int c = 0; c < ch; ++c)
+                    peak = std::max(peak, std::abs(f[c]));
+                if (peak > 0.004f)   // ~ -48 dBFS
+                    break;
+                b.consume(1, ch);
+                ++m_tr.trimmed;
+            }
+        }
+        if (b.frames(ch) > 0)
+            m_tr.started = true;
+        if (!m_tr.started) {
+            // Nowy utwór jeszcze nie gra — stary leci dalej bez zmian.
+            if (const size_t n = a.frames(ch)) {
+                emit_(a.at(0, ch), n);
+                a.consume(n, ch);
+            }
+            return;
+        }
+    }
+
+    while (m_tr.active) {
+        const size_t availA = a.frames(ch);
+        const size_t availB = b.frames(ch);
+        if (availB == 0)
+            break;
+        size_t n;
+        if (availA >= availB)
+            n = availB;
+        else if (a.ended || availB > rate * 35 / 100)
+            n = availB;    // stary utwór skończył się (albo się zaciął) — brakujące próbki to cisza
+        else
+            n = availA;    // poczekaj na stary deck, żeby nie rozjechać obu strumieni
+        n = std::min(n, m_tr.length - m_tr.pos);
+        if (n == 0)
+            break;
+        mix(n);
+        if (m_tr.pos >= m_tr.length)
+            finishTransition();
+    }
+    if (!m_tr.active) {
+        Stage &s = m_stage[m_active];
+        if (const size_t n = s.frames(ch)) {
+            emit_(s.at(0, ch), n);
+            s.consume(n, ch);
+        }
+    }
+}
+
+void AudioEngine::mix(size_t n)
+{
+    const int ch = m_format.channelCount();
+    const double rate = m_format.sampleRate();
+    Stage &a = m_stage[m_tr.from];
+    Stage &b = m_stage[m_tr.to];
+    const size_t availA = std::min(n, a.frames(ch));
+    m_out.resize(n * size_t(ch));
+
+    const double len = double(m_tr.length);
+    const Style style = m_tr.t.style;
+
+    // Zamiana basu: zwrotnica 180 Hz z dwóch filtrów jednobiegunowych.
+    const double lpAlpha = 1.0 - std::exp(-2.0 * kPi * 180.0 / rate);
+    // Wzniesienie: filtr górnoprzepustowy na starym utworze, przestrajany co 32 ramki.
+    double hb0 = 1, hb1 = 0, hb2 = 0, ha1 = 0, ha2 = 0;
+    const size_t echoFrames = m_tr.echo.size() / size_t(std::max(1, ch));
+
+    for (size_t i = 0; i < n; ++i) {
+        const double t = double(m_tr.pos + i) / len;
+
+        if (style == Style::Rise && i % 32 == 0) {
+            const double sweep = std::clamp(t / 0.85, 0.0, 1.0);
+            const double fc = 30.0 * std::pow(4000.0 / 30.0, sweep * sweep);
+            const double w0 = 2 * kPi * fc / rate;
+            const double alpha = std::sin(w0) / (2 * 0.8);
+            const double cosw = std::cos(w0);
+            const double a0 = 1 + alpha;
+            hb0 = (1 + cosw) / 2 / a0;
+            hb1 = -(1 + cosw) / a0;
+            hb2 = (1 + cosw) / 2 / a0;
+            ha1 = -2 * cosw / a0;
+            ha2 = (1 - alpha) / a0;
+        }
+
+        for (int c = 0; c < ch; ++c) {
+            const double xa = i < availA ? a.at(i, ch)[c] : 0.0;
+            const double xb = b.at(i, ch)[c];
+            const int k = std::min(c, 1);
+            double y = 0;
+            switch (style) {
+            case Style::Fade:
+                y = xa * fadeOut(t) + xb * fadeIn(t);
+                break;
+            case Style::Rise: {
+                const double ya = hb0 * xa + hb1 * m_tr.hpX1[k] + hb2 * m_tr.hpX2[k] - ha1 * m_tr.hpY1[k] - ha2 * m_tr.hpY2[k];
+                m_tr.hpX2[k] = m_tr.hpX1[k];
+                m_tr.hpX1[k] = xa;
+                m_tr.hpY2[k] = m_tr.hpY1[k];
+                m_tr.hpY1[k] = ya;
+                const double gA = t < 0.7 ? 1.0 : fadeOut((t - 0.7) / 0.3);
+                const double gB = t < 0.35 ? 0.0 : fadeIn((t - 0.35) / 0.65);
+                y = ya * gA + xb * gB;
+                break;
+            }
+            case Style::BassSwap: {
+                m_tr.lpA[k] += lpAlpha * (xa - m_tr.lpA[k]);
+                m_tr.lpA2[k] += lpAlpha * (m_tr.lpA[k] - m_tr.lpA2[k]);
+                m_tr.lpB[k] += lpAlpha * (xb - m_tr.lpB[k]);
+                m_tr.lpB2[k] += lpAlpha * (m_tr.lpB[k] - m_tr.lpB2[k]);
+                const double lowA = m_tr.lpA2[k], highA = xa - lowA;
+                const double lowB = m_tr.lpB2[k], highB = xb - lowB;
+                // Góry przenikają przez całe przejście, bas przełącza się szybko w połowie
+                // (jak u DJ-a: nigdy dwie stopy perkusji naraz).
+                const double swap = smoothstep(0.46, 0.54, t);
+                y = highA * fadeOut(t) + highB * fadeIn(t) + lowA * (1.0 - swap) + lowB * swap;
+                break;
+            }
+            case Style::Echo: {
+                const double dry = t < 0.25 ? fadeOut(t / 0.25) : 0.0;
+                double wet = 0;
+                if (echoFrames > 0) {
+                    float &slot = m_tr.echo[m_tr.echoPos * size_t(ch) + size_t(c)];
+                    wet = slot;
+                    slot = float(xa * dry * 0.55 + wet * 0.45);
+                }
+                const double gB = t < 0.3 ? 0.0 : fadeIn((t - 0.3) / 0.7);
+                y = xa * dry + wet * (1.0 - smoothstep(0.8, 1.0, t)) + xb * gB;
+                break;
+            }
+            }
+            m_out[i * size_t(ch) + size_t(c)] = float(y);
+        }
+        if (style == Style::Echo && echoFrames > 0)
+            m_tr.echoPos = (m_tr.echoPos + 1) % echoFrames;
+    }
+
+    a.consume(availA, ch);
+    b.consume(n, ch);
+    m_tr.pos += n;
+    Equalizer::instance()->process(m_out.data(), qsizetype(n), ch);
+    m_ring->append(m_out.data(), n);
+}
+
+void AudioEngine::beginTransition(int from, int to, const Transition &t)
+{
+    if (from == to || from < 0 || to < 0 || from >= kDecks || to >= kDecks)
+        return;
+    m_tr = TransitionState {};
+    m_tr.active = true;
+    m_tr.from = from;
+    m_tr.to = to;
+    m_tr.t = t;
+    m_tr.length = std::max<size_t>(1, size_t(std::max(0.2, t.seconds) * m_format.sampleRate()));
+    if (t.style == Style::Echo)
+        m_tr.echo.assign(size_t(0.375 * m_format.sampleRate()) * size_t(m_format.channelCount()), 0.0f);
+    m_active = from;
+    pump();
+}
+
+void AudioEngine::finishTransition()
+{
+    const int from = m_tr.from;
+    m_stage[from].clear();
+    m_active = m_tr.to;
+    m_tr = TransitionState {};
+    emit transitionFinished(from);
+}
+
+void AudioEngine::finishTransitionNow()
+{
+    if (!m_tr.active)
+        return;
+    finishTransition();
+    pump();
+}
+
+double AudioEngine::transitionProgress() const
+{
+    return m_tr.active && m_tr.length > 0 ? double(m_tr.pos) / double(m_tr.length) : 0.0;
+}
+
+void AudioEngine::setDeckEnded(int deck)
+{
+    if (deck < 0 || deck >= kDecks)
+        return;
+    m_stage[deck].ended = true;
+    pump();
+}
+
+void AudioEngine::dropDeck(int deck)
+{
+    if (deck >= 0 && deck < kDecks)
+        m_stage[deck].clear();
+}
+
+void AudioEngine::setActiveDeck(int deck)
+{
+    if (deck >= 0 && deck < kDecks)
+        m_active = deck;
+}
+
+double AudioEngine::shortLevelDb(int deck) const
+{
+    return toDb(m_levels[deck].shortEnergy);
+}
+
+double AudioEngine::averageLevelDb(int deck) const
+{
+    const Levels &l = m_levels[deck];
+    return l.frames > 0 ? toDb(l.sumEnergy / l.frames) : -120.0;
+}
+
+void AudioEngine::resetLevels(int deck)
+{
+    if (deck >= 0 && deck < kDecks)
+        m_levels[deck] = Levels {};
+}
+
+// ---- reszta ---------------------------------------------------------------------
+
 void AudioEngine::flush()
 {
     m_ring->clear();
+    for (Stage &s : m_stage)
+        s.clear();
+    m_tr = TransitionState {};
     Equalizer::instance()->resetState();
 }
 

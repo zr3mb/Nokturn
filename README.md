@@ -5,9 +5,11 @@ Odtwarzacz muzyki z wielu źródeł (pliki lokalne, YouTube Music, radio interne
 **Działa:** pliki lokalne (skanowanie folderów, tagi i okładki przez TagLib, odtwarzanie przez
 Qt Multimedia / FFmpeg) oraz **YouTube Music** (logowanie w przeglądarce, polubione, playlisty,
 wyszukiwanie, odtwarzanie przez yt-dlp). Wizualizer pokazuje prawdziwe widmo (FFT).
+Do tego teksty utworów, miksowanie utworów płynnymi przejściami (jak „Miks” w Spotify) i status
+„Słucha” na Discordzie. Działa na **Windows** i **Linuksie**.
 Radio i własne strumienie są na razie tylko interfejsem.
 
-C++20 · Qt 6.8+ (Qt Quick / QML, Qt Multimedia, Qt WebSockets) · TagLib 2 · CMake
+C++20 · Qt 6.8+ (Qt Quick / QML, Qt Multimedia, Qt WebSockets, Qt DBus na Linuksie) · TagLib 2 · CMake
 
 ## Budowanie (Windows, MSYS2 UCRT64)
 
@@ -22,7 +24,41 @@ pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,qt6-base,qt6-declarative,qt6-mu
 .\build.ps1 -Deploy    # samodzielny folder dist\ (działa bez MSYS2)
 ```
 
-Narzędzie deweloperskie: `Nokturn.exe --tour <folder>` przechodzi po wszystkich ekranach i zapisuje ich zrzuty PNG.
+## Budowanie (Linux)
+
+Wymagane: Qt **6.8+** (moduły base, declarative, multimedia z backendem FFmpeg, websockets, dbus), TagLib **2**,
+CMake, Ninja, kompilator C++20.
+
+```bash
+# Arch / Manjaro
+sudo pacman -S cmake ninja qt6-base qt6-declarative qt6-multimedia qt6-multimedia-ffmpeg qt6-websockets taglib
+# Fedora 41+
+sudo dnf install cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtmultimedia-devel qt6-qtwebsockets-devel taglib-devel
+# Debian 13 / Ubuntu 25.04+ (starsze wydania mają Qt < 6.8 albo TagLib 1 — użyj Qt z instalatora qt.io / aqtinstall)
+sudo apt install cmake ninja-build g++ qt6-base-dev qt6-declarative-dev qt6-multimedia-dev qt6-websockets-dev libtag-dev
+```
+
+```bash
+./build.sh --run        # kompilacja + uruchomienie
+./build.sh --install    # instalacja do ~/.local (program "nokturn", ikona, plik .desktop) — PREFIX=… zmienia miejsce
+./build.sh --appimage   # samodzielny Nokturn-x86_64.AppImage (pobiera linuxdeploy)
+QT_DIR=~/Qt/6.8.3/gcc_64 ./build.sh   # Qt spoza systemu
+```
+
+Na Linuksie:
+- program nazywa się `nokturn`, dane i ustawienia są w `~/.local/share/Nokturn/Nokturn/`;
+- **MPRIS** — klawisze multimedialne, kontrolki w panelu GNOME/KDE i `playerctl` działają od razu;
+- **logowanie do YouTube Music** używa Chrome / Chromium / Brave / Edge / Vivaldi z PATH (wersje ze Snapa
+  tylko awaryjnie — izolacja Snapa nie pozwala na profil w ukrytym katalogu). Okno logowania trzeba zamknąć
+  samemu po zalogowaniu (na Waylandzie nie da się odczytać tytułu cudzego okna);
+- **ciasteczka** są szyfrowane kluczem z systemowego magazynu haseł (GNOME Keyring / KWallet przez `secret-tool`,
+  pakiet `libsecret-tools` / `libsecret`); bez niego plik jest jawny, ale z prawami `0600`;
+- **yt-dlp** jest pobierany jako samodzielny plik `yt-dlp_linux` (lub `_aarch64`), też z weryfikacją SHA-256;
+- **whisper.cpp** (dopasowanie czasu tekstów) instaluje się z repozytorium dystrybucji — Nokturn szuka poleceń
+  `whisper-cli` i `whisper-cpp`.
+
+Narzędzie deweloperskie: `Nokturn.exe --tour <folder>` (Linux: `nokturn --tour <folder>`) przechodzi po wszystkich
+ekranach i zapisuje ich zrzuty PNG.
 
 ## Pliki lokalne — jak to działa
 
@@ -60,6 +96,42 @@ Narzędzie deweloperskie: `Nokturn.exe --tour <folder>` przechodzi po wszystkich
 - **Uwaga:** to nieoficjalny sposób korzystania z YouTube Music, niezgodny z regulaminem YouTube. Zmiany po stronie
   YouTube mogą go psuć (wtedy pomaga *Aktualizuj* przy yt-dlp), a w skrajnym razie grożą ograniczeniem konta.
 
+## Miksowanie utworów — jak to działa
+
+- **Gdzie:** przycisk **Miks** na stronie playlisty, albumu lub wykonawcy (jak w Spotify) — ustawienia są osobne dla
+  każdej playlisty: styl przejścia i długość (2–16 s). Globalny **crossfade** dla pozostałych kolejek jest
+  w *Ustawienia → Odtwarzanie* (0 = wyłączony). Miks playlisty ma pierwszeństwo przed crossfade.
+- **Style przejść:**
+  - *Przenikanie* — klasyczne, o stałej mocy (sin/cos);
+  - *Wzniesienie* — filtr górnoprzepustowy stopniowo wycina doły kończącego się utworu, następny wchodzi później;
+  - *Zamiana basu* — góry przenikają przez całe przejście, a bas przełącza się szybko w połowie (jak u DJ-a: nigdy
+    dwie stopy perkusji naraz);
+  - *Echo* — kończący się utwór odchodzi w echo (375 ms), z którego wyłania się następny;
+  - *Automatycznie* — energiczna końcówka dostaje zamianę basu, spokojna — przenikanie.
+- **Inteligentne przejścia** (domyślnie włączone): cisza na końcu nagrania (< −50 dBFS przez 0,8 s) od razu
+  uruchamia następny utwór, wyciszenie zapisane w nagraniu (≥ 14 dB poniżej średniej przez 1 s) zaczyna
+  przejście wcześniej, a cisza na początku następnego utworu (do 4 s) jest pomijana.
+- **Jak:** odtwarzacz ma dwa „decki” (dwa `QMediaPlayer`). Następny utwór jest ładowany na drugi deck kilkanaście
+  sekund przed końcem (adres strumienia YouTube też), a w trakcie przejścia próbki obu decków są sumowane przez
+  `AudioEngine` — przed korektorem, więc korektor, limiter i wizualizer działają na tym, co słychać. Obwiednia
+  rusza dopiero, gdy nadejdą pierwsze próbki nowego utworu, więc opóźnienie startu nie robi dziury.
+  Przewinięcie, „następny” albo pauza w trakcie przejścia są obsługiwane (przejście kończy się od razu).
+- Diagnostyka: `NOKTURN_AUDIO_DEBUG=1` wypisuje co 3 s tempo próbek i liczbę niedoborów bufora.
+
+## Status na Discordzie
+
+- *Ustawienia → Discord*: status **„Słucha”** z tytułem, wykonawcą, okładką (adres z YouTube Music; dla plików
+  lokalnych okładka dopasowanego utworu z YouTube Music) i paskiem postępu; przy utworach z YouTube — przycisk
+  „Posłuchaj w YouTube Music”. Po wstrzymaniu status znika (opcjonalnie zostaje).
+- Działa przez lokalne IPC aplikacji Discord (Windows: `\\.\pipe\discord-ipc-N`, Linux: `discord-ipc-N`
+  w `$XDG_RUNTIME_DIR`, także Discord z Flatpaka/Snapa i Vesktop). Nic nie idzie przez internet z Nokturna.
+- Discord wymaga **identyfikatora aplikacji**: utwórz aplikację na
+  [discord.com/developers/applications](https://discord.com/developers/applications) (jej nazwa pojawi się jako
+  „Słucha <nazwa>”), skopiuj *Application ID* i wklej w ustawieniach. Można go też wbudować przy kompilacji:
+  `-DNOKTURN_DISCORD_CLIENT_ID=…` (Linux: `DISCORD_CLIENT_ID=… ./build.sh`). Opcjonalnie dodaj w *Rich Presence →
+  Art Assets* obrazek `nokturn` — pokaże się zamiast okładki, gdy jej nie ma w sieci.
+- Starsze klienty Discorda, które nie znają nowszych pól (typ statusu, przyciski), dostają wersję podstawową.
+
 ## Teksty utworów — jak to działa
 
 - **Gdzie:** zakładka *Tekst* w panelu „Teraz odtwarzane” (albo przycisk z liniami tekstu na pasku odtwarzacza)
@@ -96,19 +168,23 @@ Dla tekstów bez znaczników czasu można włączyć w *Ustawienia → Teksty ut
 | `src/TrackModel.*` | Model listy utworów (`QAbstractListModel`) |
 | `src/LibraryScanner.*` | Skan folderów w wątku roboczym: TagLib, okładki, paleta kolorów, (de)serializacja cache |
 | `src/Library.*` | Singleton `Library`: foldery, skanowanie, albumy, wykonawcy, playlisty, wyszukiwanie |
-| `src/PlayerController.*` | Singleton `Player`: QMediaPlayer, kolejka, historia, zapis stanu |
+| `src/PlayerController.*` | Singleton `Player`: dwa decki QMediaPlayer, kolejka, historia, miksowanie, zapis stanu |
 | `src/SpectrumAnalyzer.*` | FFT (2048, okno Hanna) z `QAudioBufferOutput` → 48 pasm logarytmicznych |
 | `src/AppPaths.h` | Katalog danych i ustawienia (`settings.ini`) |
 | `src/youtube/BrowserLogin.*` | Okno logowania w Chrome/Edge/Brave + DevTools Protocol (WebSocket) |
-| `src/youtube/YtCookies.*` | Ciasteczka: szyfrowanie DPAPI, `SAPISIDHASH`, eksport cookies.txt |
+| `src/youtube/YtCookies.*` | Ciasteczka: szyfrowanie (DPAPI / Secret Service), `SAPISIDHASH`, eksport cookies.txt |
 | `src/youtube/YtMusicApi.*` | Klient InnerTube i parser odpowiedzi (utwory, playlisty, konto) |
 | `src/youtube/StreamResolver.*` | yt-dlp: pobieranie z weryfikacją SHA-256, adresy strumieni, cache |
 | `src/youtube/YouTubeService.*` | Singleton `YouTube` dla QML: stan konta, synchronizacja, cache biblioteki |
-| `src/audio/AudioEngine.*`, `src/audio/Equalizer.*` | Własny tor wyjściowy (bufor + `QAudioSink`) i 7-pasmowy korektor parametryczny |
+| `src/audio/AudioEngine.*`, `src/audio/Equalizer.*` | Własny tor wyjściowy: mikser decków (style przejść), bufor + `QAudioSink`, 7-pasmowy korektor parametryczny |
 | `src/lyrics/Lyrics.*` | Struktura tekstu, parser LRC, (de)serializacja cache |
 | `src/lyrics/LyricsAligner.*` | Wyrównanie tekstu z transkrypcją (czasy linii) |
 | `src/lyrics/SpeechEngine.*` | whisper.cpp: pobieranie z weryfikacją SHA-256, dekodowanie do 16 kHz, transkrypcja, wykrywanie sprzętu |
 | `src/lyrics/LyricsService.*` | Singleton `Lyrics` dla QML: źródła tekstu, cache, bieżąca linia, dopasowanie (alpha) |
+| `src/platform/DiscordPresence.*` | Singleton `Discord`: IPC Discorda (Rich Presence), status „Słucha” |
+| `src/platform/Mpris.*` | MPRIS 2 na Linuksie (D-Bus): klawisze multimedialne, kontrolki w panelu systemu |
+| `src/TagLibPath.h` | Ścieżka pliku dla TagLib (wchar_t na Windows, bajty systemu plików na Linuksie) |
+| `packaging/linux/` | Plik `.desktop`, ikona SVG, metainfo (AppStream) |
 | `qml/Theme.qml` | Paleta, czcionki, czasy animacji; akcent płynnie zmienia się wraz z okładką |
 | `qml/Nav.qml` | Nawigacja (historia wstecz/dalej), stan paneli, powiadomienia |
 | `qml/Icons.qml` | Wektorowe ikony (ścieżki SVG) |

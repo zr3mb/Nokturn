@@ -40,6 +40,16 @@ Item {
                  colorA: p.colorA, colorB: p.colorB, seed: p.seed, cover: p.cover || "", icon: p.icon, round: false,
                  rows: Library.playlistRows(index), loading: Library.playlistLoading(index) }
     }
+    // Identyfikator kolejki dla ustawień miksu (osobny dla każdej playlisty / albumu / wykonawcy).
+    readonly property string context: {
+        const a = args || {}
+        if (a.kind === "album") return "album:" + a.key
+        if (a.kind === "artist") return "artist:" + a.artist
+        const p = Library.playlists[a.index || 0]
+        if (!p) return ""
+        return p.kind === "ytplaylist" ? "yt:" + p.ytId : "playlist:" + p.kind
+    }
+    readonly property var mix: { Player.mixRevision; return Player.mixFor(context) }
     readonly property int totalSeconds: Library.totalDuration(info.rows)
     readonly property real pad: 34
 
@@ -160,7 +170,7 @@ Item {
                             size: 58
                             playing: page.playingHere
                             enabled: page.info.rows.length > 0
-                            onClicked: page.playingHere ? Player.toggle() : Player.playFrom(page.info.rows, page.info.rows[0])
+                            onClicked: page.playingHere ? Player.toggle() : Player.playFrom(page.info.rows, page.info.rows[0], page.context)
                         }
                         IconButton {
                             icon: "shuffle"
@@ -170,8 +180,30 @@ Item {
                             onClicked: {
                                 Player.shuffle = true
                                 const rows = page.info.rows
-                                if (rows.length) Player.playFrom(rows, rows[Math.floor(Math.random() * rows.length)])
+                                if (rows.length) Player.playFrom(rows, rows[Math.floor(Math.random() * rows.length)], page.context)
                             }
+                        }
+                        // "Miks" jak w Spotify: płynne, DJ-skie przejścia między utworami tej playlisty.
+                        PillButton {
+                            visible: page.context !== ""
+                            kind: page.mix.enabled ? "primary" : "ghost"
+                            icon: "mix"
+                            text: page.mix.enabled ? "Miks · " + Player.mixStyleName(page.mix.style) : "Miks"
+                            fontSize: 13
+                            implicitHeight: 40
+                            onClicked: {
+                                Player.setMix(page.context, !page.mix.enabled, page.mix.style, page.mix.length)
+                                Nav.toast(page.mix.enabled ? "Miksowanie włączone — utwory będą przechodzić płynnie"
+                                                           : "Miksowanie wyłączone", "mix")
+                            }
+                        }
+                        IconButton {
+                            visible: page.context !== "" && page.mix.enabled
+                            icon: "tune"
+                            iconSize: 22
+                            implicitWidth: 42; implicitHeight: 42
+                            showDot: false
+                            onClicked: mixPopup.open()
                         }
                         IconButton {
                             icon: "more"
@@ -230,7 +262,125 @@ Item {
             number: index + 1
             showAlbum: page.info.label !== "ALBUM"
             queue: page.info.rows
+            context: page.context
             revealDelay: index < 16 ? 180 + index * 30 : 0
+        }
+    }
+
+    // Ustawienia miksu tej playlisty
+    Popup {
+        id: mixPopup
+        anchors.centerIn: parent
+        width: Math.min(560, page.width - 60)
+        modal: true
+        focus: true
+        padding: 26
+        background: Rectangle {
+            radius: 22
+            color: Theme.surfaceHi
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.07)
+        }
+        Overlay.modal: Rectangle { color: "#88000000" }
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+            NumberAnimation { property: "scale"; from: 0.95; to: 1; duration: 320; easing.type: Easing.OutBack }
+        }
+        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 160 } }
+
+        contentItem: ColumnLayout {
+            spacing: 16
+            RowLayout {
+                Layout.fillWidth: true
+                Icon { name: "mix"; size: 22; color: Theme.accent }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Miks: " + page.info.title
+                    color: Theme.text
+                    font.family: Theme.fontDisplay
+                    font.pixelSize: 20
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                }
+                IconButton { icon: "close"; showDot: false; onClicked: mixPopup.close() }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "Styl przejścia"
+                color: Theme.textDim
+                font.pixelSize: 12
+                font.weight: Font.Bold
+                font.letterSpacing: 1.2
+            }
+            Flow {
+                Layout.fillWidth: true
+                spacing: 8
+                Repeater {
+                    model: Player.mixStyles
+                    PillButton {
+                        required property string modelData
+                        kind: page.mix.style === modelData ? "primary" : "secondary"
+                        text: Player.mixStyleName(modelData)
+                        fontSize: 13
+                        implicitHeight: 34
+                        onClicked: Player.setMix(page.context, true, modelData, page.mix.length)
+                    }
+                }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: Player.mixStyleDescription(page.mix.style)
+                color: Theme.textDim
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
+            }
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: 6
+                text: "Długość przejścia"
+                color: Theme.textDim
+                font.pixelSize: 12
+                font.weight: Font.Bold
+                font.letterSpacing: 1.2
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+                ProgressSlider {
+                    Layout.fillWidth: true
+                    value: (page.mix.length - 2) / 14
+                    labelFor: function(v) { return Math.round(2 + v * 14) + " s" }
+                    onMoved: v => Player.setMix(page.context, true, page.mix.style, Math.round(2 + v * 14))
+                }
+                Text {
+                    text: page.mix.length + " s"
+                    color: Theme.text
+                    font.pixelSize: 14
+                    font.features: { "tnum": 1 }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                spacing: 12
+                Text {
+                    Layout.fillWidth: true
+                    text: "Inteligentne przejścia (pomijanie ciszy, wykrywanie wyciszeń) — wspólne dla wszystkich miksów."
+                    color: Theme.textFaint
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+                Toggle { checked: Player.smartTransitions; onToggled: c => Player.smartTransitions = c }
+            }
+            PillButton {
+                Layout.alignment: Qt.AlignRight
+                kind: "ghost"
+                text: "Wyłącz miks"
+                onClicked: {
+                    Player.setMix(page.context, false, page.mix.style, page.mix.length)
+                    mixPopup.close()
+                }
+            }
         }
     }
 }

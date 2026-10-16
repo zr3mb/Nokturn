@@ -17,8 +17,9 @@ struct YtCookie
     bool httpOnly = false;
 };
 
-// Ciasteczka konta YouTube. Na dysku są szyfrowane DPAPI (tylko bieżący użytkownik Windows
-// może je odczytać) — to pełny dostęp do konta, więc nie trzymamy ich jawnym tekstem.
+// Ciasteczka konta YouTube. Na dysku są szyfrowane: Windows — DPAPI (tylko bieżący użytkownik
+// może je odczytać), Linux — kluczem z systemowego magazynu haseł (Secret Service przez secret-tool).
+// To pełny dostęp do konta, więc nie trzymamy ich jawnym tekstem.
 class YtCookies
 {
 public:

@@ -5,14 +5,39 @@
 #include "TrackModel.h"
 #include "audio/Equalizer.h"
 #include "lyrics/LyricsService.h"
+#include "platform/DiscordPresence.h"
 #include "youtube/YouTubeService.h"
+
+#ifdef NOKTURN_MPRIS
+#  include "platform/Mpris.h"
+#endif
 
 #include <QAudioFormat>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QRandomGenerator>
 #include <QtMultimedia/qtaudio.h>
 
 #include <algorithm>
+
+namespace {
+
+const QStringList kMixStyles = { QStringLiteral("auto"), QStringLiteral("fade"), QStringLiteral("rise"),
+                                 QStringLiteral("bass"), QStringLiteral("echo") };
+
+AudioEngine::Style styleFromId(const QString &id)
+{
+    if (id == QLatin1String("rise"))
+        return AudioEngine::Style::Rise;
+    if (id == QLatin1String("bass"))
+        return AudioEngine::Style::BassSwap;
+    if (id == QLatin1String("echo"))
+        return AudioEngine::Style::Echo;
+    return AudioEngine::Style::Fade;
+}
+
+} // namespace
 
 PlayerController::PlayerController(QObject *parent)
     : QObject(parent)
@@ -21,14 +46,20 @@ PlayerController::PlayerController(QObject *parent)
     , m_spectrum(kBars, 0.0)
     , m_targets(kBars, 0.0)
 {
-    // Odtwarzacz gra do wyciszonego wyjścia (to ono wyznacza tempo odtwarzania), a słyszalny
-    // dźwięk idzie osobnym torem: próbki -> korektor -> AudioEngine (QAudioSink).
-    m_output.setVolume(0.0f);
-    m_player.setAudioOutput(&m_output);
-    m_bufferOutput = new QAudioBufferOutput(m_engine.bufferFormat(), this);
-    m_player.setAudioBufferOutput(m_bufferOutput);
-    connect(m_bufferOutput, &QAudioBufferOutput::audioBufferReceived, this,
-            [this](const QAudioBuffer &buffer) { m_engine.push(buffer); });
+    // Każdy deck gra do wyciszonego wyjścia (to ono wyznacza tempo odtwarzania), a słyszalny
+    // dźwięk idzie osobnym torem: próbki -> mikser -> korektor -> AudioEngine (QAudioSink).
+    for (int d = 0; d < AudioEngine::kDecks; ++d)
+        setupDeck(d);
+
+    connect(&m_engine, &AudioEngine::transitionFinished, this, [this](int fromDeck) {
+        Deck &old = m_decks[fromDeck];
+        old.player->stop();
+        old.player->setSource(QUrl());
+        old.trackId.clear();
+        old.resolving.clear();
+        m_transitionLabel.clear();
+        emit transitionChanged();
+    });
 
     auto settings = AppPaths::settings();
     m_volume = std::clamp(settings->value("player/volume", 0.72).toDouble(), 0.0, 1.0);
@@ -36,22 +67,7 @@ PlayerController::PlayerController(QObject *parent)
     m_shuffle = settings->value("player/shuffle", false).toBool();
     m_repeat = std::clamp(settings->value("player/repeat", 0).toInt(), 0, 2);
     applyVolume();
-
-    connect(&m_player, &QMediaPlayer::playbackStateChanged, this, [this] {
-        m_engine.setPaused(!playing());
-        emit playingChanged();
-        emit positionChanged();
-        ensureTicking();
-    });
-    connect(&m_player, &QMediaPlayer::mediaStatusChanged, this, &PlayerController::onMediaStatus);
-    connect(&m_player, &QMediaPlayer::durationChanged, this, &PlayerController::durationChanged);
-    connect(&m_player, &QMediaPlayer::positionChanged, this, [this] {
-        if (!playing())
-            emit positionChanged();
-    });
-    connect(&m_player, &QMediaPlayer::errorOccurred, this, [this](QMediaPlayer::Error, const QString &message) {
-        emit notice(QStringLiteral("Nie można odtworzyć: ") + message, QStringLiteral("close"));
-    });
+    loadMixSettings();
 
     connect(m_tracks, &QAbstractItemModel::modelReset, this, &PlayerController::onModelReset);
     connect(m_tracks, &QAbstractItemModel::dataChanged, this, [this](const QModelIndex &from, const QModelIndex &to) {
@@ -62,18 +78,23 @@ PlayerController::PlayerController(QObject *parent)
     // Utwory z YouTube: adres strumienia dostarcza yt-dlp (asynchronicznie).
     StreamResolver *resolver = YouTubeService::instance()->resolver();
     connect(resolver, &StreamResolver::resolved, this, [this](const QString &videoId, const QUrl &url) {
-        if (videoId != m_resolvingId)
-            return;   // np. wynik prefetchu albo utwór już zmieniony
-        m_resolvingId.clear();
-        m_player.setSource(url);
-        if (m_autoplayAfterResolve)
-            m_player.play();
+        for (int d = 0; d < AudioEngine::kDecks; ++d) {
+            Deck &deck = m_decks[d];
+            if (deck.resolving != videoId)
+                continue;   // np. wynik prefetchu albo utwór już zmieniony
+            deck.resolving.clear();
+            deck.player->setSource(url);
+            if (d == m_active && m_autoplayAfterResolve)
+                deck.player->play();
+        }
         emit bufferingChanged();
     });
     connect(resolver, &StreamResolver::failed, this, [this](const QString &videoId, const QString &error) {
-        if (videoId != m_resolvingId)
+        if (m_decks[standby()].resolving == videoId)
+            cancelPreload();   // następny utwór się nie załaduje — przejście będzie zwykłe
+        if (m_decks[m_active].resolving != videoId)
             return;
-        m_resolvingId.clear();
+        m_decks[m_active].resolving.clear();
         emit bufferingChanged();
         emit notice(QStringLiteral("Nie udało się odtworzyć z YouTube: ") + error, QStringLiteral("close"));
     });
@@ -86,6 +107,11 @@ PlayerController::PlayerController(QObject *parent)
     m_timer.setTimerType(Qt::PreciseTimer);
     connect(&m_timer, &QTimer::timeout, this, &PlayerController::tick);
     m_clock.start();
+
+    DiscordPresence::instance()->attach(this);
+#ifdef NOKTURN_MPRIS
+    new Mpris(this);
+#endif
 
     // Przywróć ostatnio słuchany utwór (wstrzymany, w tym samym miejscu).
     const QString lastId = settings->value("player/lastId").toString();
@@ -102,6 +128,44 @@ PlayerController::PlayerController(QObject *parent)
 PlayerController::~PlayerController()
 {
     saveState();
+}
+
+void PlayerController::setupDeck(int d)
+{
+    Deck &deck = m_decks[d];
+    deck.player = new QMediaPlayer(this);
+    deck.clock = new QAudioOutput(this);
+    deck.clock->setVolume(0.0f);
+    deck.player->setAudioOutput(deck.clock);
+    deck.buffers = new QAudioBufferOutput(m_engine.bufferFormat(), this);
+    deck.player->setAudioBufferOutput(deck.buffers);
+    connect(deck.buffers, &QAudioBufferOutput::audioBufferReceived, this,
+            [this, d](const QAudioBuffer &buffer) { m_engine.push(d, buffer); });
+
+    connect(deck.player, &QMediaPlayer::playbackStateChanged, this, [this, d] {
+        if (d != m_active)
+            return;
+        m_engine.setPaused(!playing());
+        emit playingChanged();
+        emit positionChanged();
+        ensureTicking();
+    });
+    connect(deck.player, &QMediaPlayer::mediaStatusChanged, this,
+            [this, d](QMediaPlayer::MediaStatus status) { onDeckMediaStatus(d, status); });
+    connect(deck.player, &QMediaPlayer::durationChanged, this, [this, d] {
+        if (d == m_active)
+            emit durationChanged();
+    });
+    connect(deck.player, &QMediaPlayer::positionChanged, this, [this, d] {
+        if (d == m_active && !playing())
+            emit positionChanged();
+    });
+    connect(deck.player, &QMediaPlayer::errorOccurred, this, [this, d](QMediaPlayer::Error, const QString &message) {
+        if (d == m_active)
+            emit notice(QStringLiteral("Nie można odtworzyć: ") + message, QStringLiteral("close"));
+        else if (!m_engine.inTransition())
+            cancelPreload();
+    });
 }
 
 void PlayerController::saveState() const
@@ -148,21 +212,21 @@ int PlayerController::duration() const
 {
     if (current() && current()->duration > 0)
         return current()->duration;
-    return int(m_player.duration() / 1000);
+    return int(player().duration() / 1000);
 }
 
 double PlayerController::position() const
 {
     if (m_pendingSeek >= 0)
         return m_pendingSeek / 1000.0;
-    return m_player.position() / 1000.0;
+    return player().position() / 1000.0;
 }
 
 bool PlayerController::buffering() const
 {
-    if (!m_resolvingId.isEmpty())
+    if (!m_decks[m_active].resolving.isEmpty())
         return true;
-    const auto s = m_player.mediaStatus();
+    const auto s = player().mediaStatus();
     return s == QMediaPlayer::LoadingMedia || s == QMediaPlayer::StalledMedia;
 }
 
@@ -219,6 +283,8 @@ void PlayerController::setShuffle(bool s)
     if (s == m_shuffle)
         return;
     m_shuffle = s;
+    if (!m_engine.inTransition())
+        cancelPreload();   // zaplanowany następny utwór mógł być wybrany inną metodą
     emit shuffleChanged();
 }
 
@@ -228,6 +294,8 @@ void PlayerController::setRepeatMode(int r)
     if (r == m_repeat)
         return;
     m_repeat = r;
+    if (!m_engine.inTransition())
+        cancelPreload();
     emit repeatModeChanged();
     emit queueChanged();
 }
@@ -271,6 +339,10 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
     if (row < 0)
         return;
 
+    // Zmiana utworu przez użytkownika przerywa przejście i porzuca przygotowany następny utwór.
+    stopTransition();
+    cancelPreload();
+
     if (!m_currentId.isEmpty() && m_currentId != id) {
         m_history << m_currentId;
         if (m_history.size() > 200)
@@ -283,20 +355,25 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
         m_engine.flush();
         m_analyzer.clear();
     }
+    m_engine.setActiveDeck(m_active);
+    m_engine.resetLevels(m_active);
+    m_silence = 0;
 
+    Deck &deck = m_decks[m_active];
+    deck.trackId = id;
     const Track &t = m_tracks->at(row);
     if (t.source == QLatin1String("youtube")) {
-        m_player.stop();
-        m_player.setSource(QUrl());
-        m_resolvingId = t.path;
+        deck.player->stop();
+        deck.player->setSource(QUrl());
+        deck.resolving = t.path;
         m_autoplayAfterResolve = autoplay;
         YouTubeService::instance()->resolver()->resolve(t.path);
         Library::instance()->ensurePalette(row);
     } else {
-        m_resolvingId.clear();
-        m_player.setSource(QUrl::fromLocalFile(t.path));
+        deck.resolving.clear();
+        deck.player->setSource(QUrl::fromLocalFile(t.path));
         if (autoplay)
-            m_player.play();
+            deck.player->play();
     }
 
     emitTrackChanged();
@@ -327,7 +404,7 @@ void PlayerController::prefetchNext()
         YouTubeService::instance()->resolver()->prefetch(m_tracks->at(row).path);
 }
 
-void PlayerController::playFrom(const QVariantList &rows, int row)
+void PlayerController::playFrom(const QVariantList &rows, int row, const QString &context)
 {
     if (!canPlay(row, true))
         return;
@@ -343,10 +420,16 @@ void PlayerController::playFrom(const QVariantList &rows, int row)
         queue.prepend(id);
     m_queue = queue;
     m_queuePos = int(m_queue.indexOf(id));
+    if (context != m_context) {
+        m_context = context;
+        emit mixChanged();
+    }
 
     if (id == m_currentId) {
+        if (!m_engine.inTransition())
+            cancelPreload();
         if (!playing())
-            m_player.play();
+            player().play();
         emit queueChanged();
         return;
     }
@@ -356,7 +439,7 @@ void PlayerController::playFrom(const QVariantList &rows, int row)
 
 void PlayerController::playIndex(int row)
 {
-    playFrom(Library::instance()->libraryRows(), row);
+    playFrom(Library::instance()->libraryRows(), row, QStringLiteral("library"));
 }
 
 void PlayerController::jumpTo(int row)
@@ -379,49 +462,75 @@ void PlayerController::play()
     if (!hasTrack()) {
         const QVariantList local = Library::instance()->libraryRows();
         if (!local.isEmpty())
-            playFrom(local, local.first().toInt());
+            playFrom(local, local.first().toInt(), QStringLiteral("library"));
         else
             emit notice(QStringLiteral("Dodaj folder z muzyką, żeby zacząć słuchać"), QStringLiteral("folder"));
         return;
     }
-    if (!m_resolvingId.isEmpty()) {
+    if (!m_decks[m_active].resolving.isEmpty()) {
         m_autoplayAfterResolve = true;
         return;
     }
-    m_player.play();
+    if (m_engine.inTransition())
+        m_decks[standby()].player->play();   // dogrywający się poprzedni utwór
+    player().play();
 }
 
 void PlayerController::pause()
 {
     m_autoplayAfterResolve = false;
-    m_player.pause();
+    if (m_engine.inTransition())
+        m_decks[standby()].player->pause();
+    player().pause();
 }
+
 void PlayerController::toggle()
 {
-    const bool active = playing() || (!m_resolvingId.isEmpty() && m_autoplayAfterResolve);
+    const bool active = playing() || (!m_decks[m_active].resolving.isEmpty() && m_autoplayAfterResolve);
     active ? pause() : play();
 }
-void PlayerController::next()   { advance(true); }
+
+void PlayerController::next() { advance(true); }
+
+int PlayerController::nextQueuePos() const
+{
+    if (m_queue.isEmpty())
+        return -1;
+    if (m_shuffle && m_queue.size() > 1) {
+        int pos;
+        do {
+            pos = int(QRandomGenerator::global()->bounded(int(m_queue.size())));
+        } while (pos == m_queuePos);
+        return pos;
+    }
+    const int pos = m_queuePos + 1;
+    if (pos < m_queue.size())
+        return pos;
+    return m_repeat == 0 ? -1 : 0;
+}
 
 void PlayerController::advance(bool userInitiated)
 {
     if (m_queue.isEmpty())
         return;
 
-    int pos = m_queuePos + 1;
-    if (m_shuffle && m_queue.size() > 1) {
-        do {
-            pos = int(QRandomGenerator::global()->bounded(int(m_queue.size())));
-        } while (pos == m_queuePos);
-    } else if (pos >= m_queue.size()) {
-        if (!userInitiated && m_repeat == 0) {
-            // Koniec kolejki — zatrzymaj się na początku ostatniego utworu.
-            m_player.pause();
-            m_player.setPosition(0);
-            emit positionChanged();
-            return;
+    int pos;
+    if (!userInitiated && m_plannedPos >= 0 && m_plannedPos < m_queue.size()) {
+        pos = m_plannedPos;   // ten sam wybór, który był przygotowany do miksu (ważne przy losowaniu)
+    } else if (m_shuffle && m_queue.size() > 1) {
+        pos = nextQueuePos();
+    } else {
+        pos = m_queuePos + 1;
+        if (pos >= m_queue.size()) {
+            if (!userInitiated && m_repeat == 0) {
+                // Koniec kolejki — zatrzymaj się na początku ostatniego utworu.
+                player().pause();
+                player().setPosition(0);
+                emit positionChanged();
+                return;
+            }
+            pos = 0;
         }
-        pos = 0;
     }
     m_queuePos = pos;
     m_pendingSeek = -1;
@@ -453,13 +562,18 @@ void PlayerController::seek(double seconds)
 {
     if (!hasTrack())
         return;
+    stopTransition();
     const qint64 ms = qint64(std::max(0.0, seconds) * 1000);
-    if (m_player.mediaStatus() == QMediaPlayer::LoadingMedia || m_player.mediaStatus() == QMediaPlayer::NoMedia)
+    if (player().mediaStatus() == QMediaPlayer::LoadingMedia || player().mediaStatus() == QMediaPlayer::NoMedia)
         m_pendingSeek = ms;
     else
-        m_player.setPosition(ms);
+        player().setPosition(ms);
     m_engine.flush();
+    m_engine.setActiveDeck(m_active);
+    // Przewinięcie przed końcówkę: przygotowany następny utwór zostaje, ale wykrywanie ciszy rusza od nowa.
+    m_silence = 0;
     emit positionChanged();
+    emit seeked(ms / 1000.0);
 }
 
 void PlayerController::cycleRepeat()
@@ -472,14 +586,22 @@ void PlayerController::toggleLiked()
     m_tracks->toggleLiked(m_index);
 }
 
-void PlayerController::onMediaStatus(QMediaPlayer::MediaStatus status)
+void PlayerController::onDeckMediaStatus(int d, QMediaPlayer::MediaStatus status)
 {
+    if (d != m_active) {
+        // Drugi deck: albo przygotowany następny utwór, albo dogrywający się poprzedni.
+        if (status == QMediaPlayer::EndOfMedia && m_engine.inTransition())
+            m_engine.setDeckEnded(d);
+        else if (status == QMediaPlayer::InvalidMedia && !m_engine.inTransition())
+            cancelPreload();
+        return;
+    }
     emit bufferingChanged();
     switch (status) {
     case QMediaPlayer::LoadedMedia:
     case QMediaPlayer::BufferedMedia:
         if (m_pendingSeek >= 0) {
-            m_player.setPosition(m_pendingSeek);
+            player().setPosition(m_pendingSeek);
             m_pendingSeek = -1;
             emit positionChanged();
         }
@@ -487,8 +609,8 @@ void PlayerController::onMediaStatus(QMediaPlayer::MediaStatus status)
         break;
     case QMediaPlayer::EndOfMedia:
         if (m_repeat == 2) {
-            m_player.setPosition(0);
-            m_player.play();
+            player().setPosition(0);
+            player().play();
         } else {
             advance(false);
         }
@@ -506,15 +628,20 @@ void PlayerController::onModelReset()
     // Po ponownym skanowaniu wiersze mogły się przesunąć — szukamy utworów po identyfikatorach.
     m_index = m_tracks->rowOf(m_currentId);
     if (m_index < 0 && !m_currentId.isEmpty()) {
-        m_player.stop();
-        m_player.setSource(QUrl());
+        stopTransition();
+        player().stop();
+        player().setSource(QUrl());
         m_currentId.clear();
-        m_resolvingId.clear();
+        m_decks[m_active].resolving.clear();
     }
+    if (!m_plannedId.isEmpty() && m_tracks->rowOf(m_plannedId) < 0 && !m_engine.inTransition())
+        cancelPreload();
     m_queue.erase(std::remove_if(m_queue.begin(), m_queue.end(),
                                  [this](const QString &id) { return m_tracks->rowOf(id) < 0; }),
                   m_queue.end());
     m_queuePos = int(m_queue.indexOf(m_currentId));
+    if (!m_plannedId.isEmpty())
+        m_plannedPos = int(m_queue.indexOf(m_plannedId));
     m_history.erase(std::remove_if(m_history.begin(), m_history.end(),
                                    [this](const QString &id) { return m_tracks->rowOf(id) < 0; }),
                     m_history.end());
@@ -525,6 +652,283 @@ void PlayerController::onModelReset()
     emit durationChanged();
     emit likedChanged();
     emit queueChanged();
+}
+
+// ---- miksowanie -----------------------------------------------------------------
+
+QStringList PlayerController::mixStyles() const
+{
+    return kMixStyles;
+}
+
+QString PlayerController::mixStyleName(const QString &style) const
+{
+    if (style == QLatin1String("fade"))
+        return QStringLiteral("Przenikanie");
+    if (style == QLatin1String("rise"))
+        return QStringLiteral("Wzniesienie");
+    if (style == QLatin1String("bass"))
+        return QStringLiteral("Zamiana basu");
+    if (style == QLatin1String("echo"))
+        return QStringLiteral("Echo");
+    return QStringLiteral("Automatycznie");
+}
+
+QString PlayerController::mixStyleDescription(const QString &style) const
+{
+    if (style == QLatin1String("fade"))
+        return QStringLiteral("Klasyczne przenikanie o stałej głośności.");
+    if (style == QLatin1String("rise"))
+        return QStringLiteral("Filtr stopniowo wycina doły kończącego się utworu, a następny wchodzi coraz pełniej.");
+    if (style == QLatin1String("bass"))
+        return QStringLiteral("Jak u DJ-a: góry przenikają, a bas przełącza się w połowie — bez dwóch stóp naraz.");
+    if (style == QLatin1String("echo"))
+        return QStringLiteral("Kończący się utwór odchodzi w echo, a z niego wyłania się następny.");
+    return QStringLiteral("Przejście dobierane do końcówki utworu: wyciszenia i cisza są wykrywane, energiczne końcówki dostają zamianę basu.");
+}
+
+void PlayerController::loadMixSettings()
+{
+    auto settings = AppPaths::settings();
+    m_crossfade = std::clamp(settings->value("mix/crossfade", 0).toInt(), 0, 12);
+    m_crossfadeStyle = settings->value("mix/style", QStringLiteral("fade")).toString();
+    if (!kMixStyles.contains(m_crossfadeStyle))
+        m_crossfadeStyle = QStringLiteral("fade");
+    m_smart = settings->value("mix/smart", true).toBool();
+    const QJsonObject mixes = QJsonDocument::fromJson(settings->value("mix/playlists").toString().toUtf8()).object();
+    for (auto it = mixes.begin(); it != mixes.end(); ++it) {
+        const QJsonObject o = it.value().toObject();
+        MixConfig c;
+        c.enabled = o.value("enabled").toBool();
+        c.style = kMixStyles.contains(o.value("style").toString()) ? o.value("style").toString() : QStringLiteral("auto");
+        c.length = std::clamp(o.value("length").toInt(8), 2, 16);
+        m_mixes.insert(it.key(), c);
+    }
+}
+
+void PlayerController::saveMixSettings()
+{
+    auto settings = AppPaths::settings();
+    settings->setValue("mix/crossfade", m_crossfade);
+    settings->setValue("mix/style", m_crossfadeStyle);
+    settings->setValue("mix/smart", m_smart);
+    QJsonObject mixes;
+    for (auto it = m_mixes.cbegin(); it != m_mixes.cend(); ++it)
+        mixes.insert(it.key(), QJsonObject { { "enabled", it->enabled }, { "style", it->style }, { "length", it->length } });
+    settings->setValue("mix/playlists", QString::fromUtf8(QJsonDocument(mixes).toJson(QJsonDocument::Compact)));
+    ++m_mixRevision;
+    emit mixChanged();
+}
+
+void PlayerController::setCrossfade(int seconds)
+{
+    seconds = std::clamp(seconds, 0, 12);
+    if (seconds == m_crossfade)
+        return;
+    m_crossfade = seconds;
+    saveMixSettings();
+}
+
+void PlayerController::setCrossfadeStyle(const QString &style)
+{
+    if (style == m_crossfadeStyle || !kMixStyles.contains(style))
+        return;
+    m_crossfadeStyle = style;
+    saveMixSettings();
+}
+
+void PlayerController::setSmartTransitions(bool on)
+{
+    if (on == m_smart)
+        return;
+    m_smart = on;
+    saveMixSettings();
+}
+
+QVariantMap PlayerController::mixFor(const QString &context) const
+{
+    const MixConfig c = m_mixes.value(context);
+    return { { "enabled", c.enabled }, { "style", c.style }, { "length", c.length } };
+}
+
+void PlayerController::setMix(const QString &context, bool enabled, const QString &style, int length)
+{
+    if (context.isEmpty())
+        return;
+    MixConfig c;
+    c.enabled = enabled;
+    c.style = kMixStyles.contains(style) ? style : QStringLiteral("auto");
+    c.length = std::clamp(length, 2, 16);
+    m_mixes.insert(context, c);
+    saveMixSettings();
+}
+
+PlayerController::MixConfig PlayerController::effectiveMix() const
+{
+    // Miks playlisty ma pierwszeństwo przed globalnym crossfade.
+    const auto it = m_mixes.constFind(m_context);
+    if (it != m_mixes.cend() && it->enabled)
+        return *it;
+    MixConfig global;
+    global.enabled = m_crossfade > 0;
+    global.style = m_crossfadeStyle;
+    global.length = m_crossfade;
+    return global;
+}
+
+void PlayerController::preloadNext()
+{
+    const int pos = nextQueuePos();
+    if (pos < 0)
+        return;
+    const QString id = m_queue.at(pos);
+    const int row = m_tracks->rowOf(id);
+    if (row < 0 || id == m_currentId || !canPlay(row, false))
+        return;
+
+    const int d = standby();
+    Deck &deck = m_decks[d];
+    deck.player->stop();
+    m_engine.dropDeck(d);
+    m_engine.resetLevels(d);
+    deck.trackId = id;
+    m_plannedPos = pos;
+    m_plannedId = id;
+
+    const Track &t = m_tracks->at(row);
+    if (t.source == QLatin1String("youtube")) {
+        StreamResolver *resolver = YouTubeService::instance()->resolver();
+        const QUrl url = resolver->cachedUrl(t.path);
+        if (url.isValid()) {
+            deck.resolving.clear();
+            deck.player->setSource(url);
+        } else {
+            deck.player->setSource(QUrl());
+            deck.resolving = t.path;
+            resolver->resolve(t.path);
+        }
+    } else {
+        deck.resolving.clear();
+        deck.player->setSource(QUrl::fromLocalFile(t.path));
+    }
+}
+
+void PlayerController::cancelPreload()
+{
+    Deck &deck = m_decks[standby()];
+    if (deck.trackId.isEmpty() && m_plannedPos < 0)
+        return;
+    deck.player->stop();
+    deck.player->setSource(QUrl());
+    deck.resolving.clear();
+    deck.trackId.clear();
+    m_engine.dropDeck(standby());
+    m_plannedPos = -1;
+    m_plannedId.clear();
+}
+
+bool PlayerController::standbyReady() const
+{
+    const Deck &deck = m_decks[standby()];
+    if (deck.trackId.isEmpty() || !deck.resolving.isEmpty())
+        return false;
+    const auto s = deck.player->mediaStatus();
+    return s == QMediaPlayer::LoadedMedia || s == QMediaPlayer::BufferedMedia;
+}
+
+void PlayerController::updateMix(double dt)
+{
+    if (m_engine.inTransition()) {
+        emit transitionChanged();
+        return;
+    }
+    const MixConfig mix = effectiveMix();
+    if (!mix.enabled || !playing() || m_repeat == 2 || live() || !m_decks[m_active].resolving.isEmpty())
+        return;
+    const double total = player().duration() > 0 ? player().duration() / 1000.0 : double(duration());
+    if (total <= 0)
+        return;
+    const double pos = position();
+    const double remaining = total - pos;
+    const double length = std::min<double>(mix.length, std::max(2.0, total / 3));
+
+    if (remaining <= length + 12 && m_plannedPos < 0)
+        preloadNext();
+    if (m_plannedPos < 0 || !standbyReady())
+        return;
+
+    // Inteligentne przejścia: cisza na końcu nagrania i wyciszenia zapisane w samym utworze.
+    if (m_smart && pos > 20 && remaining < 25) {
+        const double level = m_engine.shortLevelDb(m_active);
+        const double average = m_engine.averageLevelDb(m_active);
+        m_silence = level < -50 ? m_silence + dt : 0;
+        // Wyciszenie w nagraniu: dźwięk wciąż jest, ale wyraźnie cichszy niż średnia utworu (przez ≥ 1 s).
+        m_quiet = level >= -50 && level < average - 14 ? m_quiet + dt : 0;
+        if (m_silence > 0.8) {
+            // Stary utwór już milczy — następny wchodzi od razu, bez wyciszonego początku.
+            startTransition(AudioEngine::Style::Fade, 0.3, QStringLiteral("Pominięto ciszę"));
+            return;
+        }
+        if (m_quiet > 1.0 && remaining < length + 6 && remaining > 1.5) {
+            startTransition(AudioEngine::Style::Fade, std::clamp(remaining, 2.0, length),
+                            QStringLiteral("Przenikanie"));
+            return;
+        }
+    }
+    if (remaining > length)
+        return;
+
+    AudioEngine::Style style = styleFromId(mix.style);
+    QString label = mixStyleName(mix.style);
+    if (mix.style == QLatin1String("auto")) {
+        const bool energetic = m_engine.shortLevelDb(m_active) > m_engine.averageLevelDb(m_active) - 4;
+        style = energetic ? AudioEngine::Style::BassSwap : AudioEngine::Style::Fade;
+        label = energetic ? QStringLiteral("Zamiana basu") : QStringLiteral("Przenikanie");
+    }
+    startTransition(style, std::max(1.0, remaining), label);
+}
+
+void PlayerController::startTransition(AudioEngine::Style style, double seconds, const QString &label)
+{
+    const int from = m_active;
+    const int to = standby();
+    const QString id = m_plannedId;
+    const int row = m_tracks->rowOf(id);
+    if (row < 0) {
+        cancelPreload();
+        return;
+    }
+
+    m_engine.resetLevels(to);
+    m_engine.beginTransition(from, to, { style, seconds, m_smart });
+    m_decks[to].player->play();
+
+    if (!m_currentId.isEmpty()) {
+        m_history << m_currentId;
+        if (m_history.size() > 200)
+            m_history.removeFirst();
+    }
+    m_active = to;
+    m_currentId = id;
+    m_index = row;
+    m_queuePos = m_plannedPos;
+    m_plannedPos = -1;
+    m_plannedId.clear();
+    m_pendingSeek = -1;
+    m_silence = 0;
+    m_quiet = 0;
+    m_transitionLabel = label;
+
+    emitTrackChanged();
+    emit playingChanged();
+    emit bufferingChanged();
+    emit transitionChanged();
+}
+
+void PlayerController::stopTransition()
+{
+    if (m_engine.inTransition())
+        m_engine.finishTransitionNow();   // sygnał transitionFinished zatrzyma stary deck
 }
 
 // ---- widmo --------------------------------------------------------------------
@@ -547,6 +951,7 @@ void PlayerController::tick()
     if (!m_played.empty())
         m_analyzer.pushSamples(m_played.data(), m_played.size(), m_engine.sampleRate());
     Equalizer::instance()->tickMeters(dt);
+    updateMix(dt);
 
     if (active) {
         m_analyzer.compute(m_targets);
@@ -568,7 +973,7 @@ void PlayerController::tick()
     m_level = sum / 10.0;
     emit spectrumChanged();
 
-    if (!active && peak < 0.002) {
+    if (!active && peak < 0.002 && !m_engine.inTransition()) {
         std::fill(m_spectrum.begin(), m_spectrum.end(), 0.0);
         m_level = 0.0;
         emit spectrumChanged();

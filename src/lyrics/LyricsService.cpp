@@ -2,6 +2,7 @@
 
 #include "AppPaths.h"
 #include "LyricsAligner.h"
+#include "TagLibPath.h"
 #include "youtube/YouTubeService.h"
 
 #include <QCryptographicHash>
@@ -48,8 +49,8 @@ Lyrics readLocalLyrics(const QString &path)
         }
     }
 
-    const std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
-    TagLib::FileRef ref(wpath.c_str(), false);
+    const TagLibPath native(path);
+    TagLib::FileRef ref(native.get(), false);
     if (ref.isNull())
         return {};
     const TagLib::PropertyMap props = ref.properties();
@@ -66,47 +67,6 @@ Lyrics readLocalLyrics(const QString &path)
         }
     }
     return {};
-}
-
-// "Tytuł (feat. X) - Remastered 2011" -> "tytuł"
-QString coreTitle(const QString &title)
-{
-    static const QRegularExpression extras(
-        QStringLiteral("\\s*(\\(|\\[|\\s-\\s).*(feat|ft\\.|remaster|live|version|wersja|edit|mix|mono|stereo|deluxe).*$"),
-        QRegularExpression::CaseInsensitiveOption);
-    QString t = title;
-    t.remove(extras);
-    return LyricsAligner::normalize(t);
-}
-
-// Wybór wyniku wyszukiwania YouTube Music odpowiadającego lokalnemu plikowi.
-QString bestMatch(const Track &local, const QList<Track> &results)
-{
-    const QString title = coreTitle(local.title);
-    const QString artist = LyricsAligner::normalize(local.artist);
-    QString best;
-    double bestScore = 0;
-    for (const Track &r : results) {
-        const double ts = LyricsAligner::similarity(title, coreTitle(r.title));
-        if (ts < 0.6)
-            continue;
-        const QString ra = LyricsAligner::normalize(r.artist);
-        const double as = artist.isEmpty() ? 0.5
-                        : (ra.contains(artist) || artist.contains(ra)) ? 1.0
-                        : LyricsAligner::similarity(artist, ra);
-        double score = ts * 2 + as;
-        if (local.duration > 0 && r.duration > 0) {
-            const int diff = std::abs(local.duration - r.duration);
-            if (diff > 12)
-                continue;   // inna wersja (np. koncertowa) — czasy i tak by nie pasowały
-            score += 1.0 - diff / 12.0;
-        }
-        if (score > bestScore) {
-            bestScore = score;
-            best = r.path;
-        }
-    }
-    return bestScore >= 2.0 ? best : QString();
 }
 
 } // namespace
@@ -281,7 +241,8 @@ void LyricsService::fetch()
     YouTubeService::instance()->api()->search(query, [this, serial](const QList<Track> &results, const QString &error) {
         if (serial != m_serial)
             return;
-        const QString videoId = error.isEmpty() ? bestMatch(m_track, results) : QString();
+        const int match = error.isEmpty() ? YtMusicApi::bestMatch(m_track, results) : -1;
+        const QString videoId = match >= 0 ? results.at(match).path : QString();
         if (videoId.isEmpty()) {
             fetchLocal(serial, {}, error);
             return;

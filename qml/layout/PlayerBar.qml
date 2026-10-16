@@ -89,13 +89,35 @@ Item {
                 SourceBadge {
                     anchors.verticalCenter: parent.verticalCenter
                     source: Player.source
-                    visible: Player.hasTrack
+                    visible: Player.hasTrack && !Player.transitioning
                     showLabel: false
                     implicitHeight: 20
                 }
+                // W trakcie miksu: krótka informacja o przejściu
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: Player.transitioning
+                    width: mixRow.implicitWidth + 14
+                    height: 20
+                    radius: 10
+                    color: Theme.alpha(Theme.accent, 0.22)
+                    Row {
+                        id: mixRow
+                        anchors.centerIn: parent
+                        spacing: 4
+                        Icon { name: "mix"; size: 12; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: Player.transitionLabel || "Miks"
+                            color: Theme.accent
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 40
+                    width: Math.max(0, parent.width - x)
                     text: Player.artist
                     color: Theme.textDim
                     font.pixelSize: 13

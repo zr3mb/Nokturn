@@ -10,9 +10,72 @@
 #ifdef Q_OS_WIN
 #  include <windows.h>
 #  include <dpapi.h>
+#else
+#  include <QMessageAuthenticationCode>
+#  include <QProcess>
+#  include <QRandomGenerator>
 #endif
 
 namespace {
+
+#ifndef Q_OS_WIN
+// Linux/macOS: losowy klucz trzymany w systemowym magazynie haseł (Secret Service:
+// GNOME Keyring, KWallet) przez secret-tool, a plik szyfrowany strumieniem SHA-256 (tryb
+// licznikowy) z HMAC-SHA256. Bez magazynu haseł plik zostaje jawny, ale tylko z prawami 0600.
+const QByteArray kSealedMagic = "NKS1";
+const QByteArray kPlainMagic = "NKP1";
+
+QByteArray keyringKey(bool create)
+{
+    const QStringList attributes = { QStringLiteral("application"), QStringLiteral("nokturn"),
+                                     QStringLiteral("type"), QStringLiteral("youtube-cookie-key") };
+    QProcess lookup;
+    lookup.start(QStringLiteral("secret-tool"), QStringList { QStringLiteral("lookup") } + attributes);
+    if (!lookup.waitForFinished(8000))
+        return {};
+    QByteArray key = QByteArray::fromBase64(lookup.readAllStandardOutput().trimmed());
+    if (key.size() == 32)
+        return key;
+    if (!create)
+        return {};
+
+    key.resize(32);
+    QRandomGenerator::system()->generate(reinterpret_cast<quint32 *>(key.data()),
+                                         reinterpret_cast<quint32 *>(key.data() + key.size()));
+    QProcess store;
+    store.start(QStringLiteral("secret-tool"),
+                QStringList { QStringLiteral("store"), QStringLiteral("--label=Nokturn (sesja YouTube Music)") } + attributes);
+    if (!store.waitForStarted(3000))
+        return {};
+    store.write(key.toBase64());
+    store.closeWriteChannel();
+    if (!store.waitForFinished(15000) || store.exitCode() != 0)
+        return {};
+    return key;
+}
+
+QByteArray keystream(const QByteArray &key, const QByteArray &nonce, qsizetype length)
+{
+    QByteArray out;
+    out.reserve(length + 32);
+    for (quint32 counter = 0; out.size() < length; ++counter) {
+        QCryptographicHash h(QCryptographicHash::Sha256);
+        h.addData(key);
+        h.addData(nonce);
+        h.addData(QByteArrayView(reinterpret_cast<const char *>(&counter), sizeof counter));
+        out += h.result();
+    }
+    out.truncate(length);
+    return out;
+}
+
+QByteArray xorWith(QByteArray data, const QByteArray &stream)
+{
+    for (qsizetype i = 0; i < data.size(); ++i)
+        data[i] = char(data.at(i) ^ stream.at(i));
+    return data;
+}
+#endif
 
 QByteArray protect(const QByteArray &plain)
 {
@@ -25,7 +88,15 @@ QByteArray protect(const QByteArray &plain)
     LocalFree(out.pbData);
     return result;
 #else
-    return plain;
+    const QByteArray key = keyringKey(true);
+    if (key.isEmpty())
+        return kPlainMagic + plain;
+    QByteArray nonce(16, Qt::Uninitialized);
+    QRandomGenerator::system()->generate(reinterpret_cast<quint32 *>(nonce.data()),
+                                         reinterpret_cast<quint32 *>(nonce.data() + nonce.size()));
+    const QByteArray cipher = xorWith(plain, keystream(key, nonce, plain.size()));
+    const QByteArray mac = QMessageAuthenticationCode::hash(nonce + cipher, key, QCryptographicHash::Sha256);
+    return kSealedMagic + nonce + cipher + mac;
 #endif
 }
 
@@ -40,7 +111,22 @@ QByteArray unprotect(const QByteArray &data)
     LocalFree(out.pbData);
     return result;
 #else
-    return data;
+    if (data.startsWith(kPlainMagic))
+        return data.mid(kPlainMagic.size());
+    if (!data.startsWith(kSealedMagic))
+        return data;   // starszy, jawny zapis
+    if (data.size() < kSealedMagic.size() + 16 + 32)
+        return {};
+    const QByteArray key = keyringKey(false);
+    if (key.isEmpty())
+        return {};
+    const QByteArray body = data.mid(kSealedMagic.size());
+    const QByteArray nonce = body.left(16);
+    const QByteArray cipher = body.mid(16, body.size() - 16 - 32);
+    const QByteArray mac = body.right(32);
+    if (QMessageAuthenticationCode::hash(nonce + cipher, key, QCryptographicHash::Sha256) != mac)
+        return {};
+    return xorWith(cipher, keystream(key, nonce, cipher.size()));
 #endif
 }
 
@@ -165,7 +251,11 @@ bool YtCookies::save(const QString &file) const
     if (!out.open(QIODevice::WriteOnly))
         return false;
     out.write(sealed);
-    return out.commit();
+    if (!out.commit())
+        return false;
+    // To pełny dostęp do konta — tylko właściciel może czytać plik.
+    QFile::setPermissions(file, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    return true;
 }
 
 YtCookies YtCookies::load(const QString &file)

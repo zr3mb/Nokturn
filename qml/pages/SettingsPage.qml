@@ -5,7 +5,6 @@ import Nokturn
 Item {
     id: page
     property var args: ({})
-    property real crossfade: 0.33
     property int quality: 2
 
     component Heading: Text {
@@ -85,26 +84,44 @@ Item {
                 SettingRow {
                     icon: "tune"
                     title: "Płynne przejścia (crossfade)"
-                    description: "Nakładanie końca utworu na początek następnego."
+                    description: Player.crossfade > 0
+                        ? "Koniec utworu nakłada się na początek następnego. Playlisty z włączonym „Miksem” używają własnych ustawień."
+                        : "Wyłączone — utwory grają po kolei. Miks możesz też włączyć osobno dla wybranej playlisty."
                     Row {
                         spacing: 14
                         ProgressSlider {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 170
-                            value: page.crossfade
-                            labelFor: function(v) { return Math.round(v * 12) + " s" }
-                            onDragging: v => page.crossfade = v
-                            onMoved: v => page.crossfade = v
+                            value: Player.crossfade / 12
+                            labelFor: function(v) { return Math.round(v * 12) === 0 ? "wył." : Math.round(v * 12) + " s" }
+                            onMoved: v => Player.crossfade = Math.round(v * 12)
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 34
-                            text: Math.round(page.crossfade * 12) + " s"
+                            text: Player.crossfade === 0 ? "wył." : Player.crossfade + " s"
                             color: Theme.textDim
                             font.pixelSize: 13
                             font.features: { "tnum": 1 }
                         }
                     }
+                }
+                SettingRow {
+                    visible: Player.crossfade > 0
+                    icon: "sparkle"
+                    title: "Styl przejścia"
+                    description: Player.mixStyleDescription(Player.crossfadeStyle)
+                    SegmentedTabs {
+                        model: Player.mixStyles.map(s => Player.mixStyleName(s))
+                        currentIndex: Player.mixStyles.indexOf(Player.crossfadeStyle)
+                        onActivated: i => Player.crossfadeStyle = Player.mixStyles[i]
+                    }
+                }
+                SettingRow {
+                    icon: "next"
+                    title: "Inteligentne przejścia"
+                    description: "Miks zaczyna się, gdy muzyka faktycznie się kończy: pomija ciszę na końcu i na początku utworów oraz wykrywa wyciszenia zapisane w nagraniu."
+                    Toggle { checked: Player.smartTransitions; onToggled: c => Player.smartTransitions = c }
                 }
                 SettingRow {
                     icon: "volumeUp"
@@ -164,7 +181,9 @@ Item {
                     title: Lyrics.sttReady ? "Rozpoznawanie mowy jest gotowe" : "Pobierz składniki"
                     description: Lyrics.sttDownloading
                         ? "Pobieranie: " + Lyrics.sttDownloadLabel + "… " + Math.round(Lyrics.sttProgress * 100) + "%"
-                        : "Program whisper.cpp: " + (Lyrics.sttEngineReady ? "zainstalowany" : "brak (oficjalne wydanie z GitHuba)")
+                        : "Program whisper.cpp: " + (Lyrics.sttEngineReady ? "zainstalowany"
+                              : Lyrics.sttCanDownloadEngine ? "brak (oficjalne wydanie z GitHuba)"
+                              : "brak — zainstaluj pakiet whisper.cpp (polecenie whisper-cli lub whisper-cpp)")
                           + " · model " + Lyrics.sttModel + ": " + (Lyrics.sttModelReady ? "pobrany" : "brak (" + Lyrics.modelSize(Lyrics.sttModel) + ", Hugging Face)")
                           + ". Pliki są sprawdzane sumą SHA-256."
                     Row {
@@ -177,11 +196,18 @@ Item {
                             onClicked: Lyrics.cancelSttDownload()
                         }
                         PillButton {
-                            visible: !Lyrics.sttDownloading && !Lyrics.sttEngineReady
+                            visible: !Lyrics.sttDownloading && !Lyrics.sttEngineReady && Lyrics.sttCanDownloadEngine
                             kind: "primary"
                             icon: "add"
                             text: "Pobierz whisper.cpp"
                             onClicked: Lyrics.downloadSttEngine()
+                        }
+                        PillButton {
+                            visible: !Lyrics.sttDownloading && !Lyrics.sttEngineReady && !Lyrics.sttCanDownloadEngine
+                            kind: "ghost"
+                            icon: "refresh"
+                            text: "Sprawdź ponownie"
+                            onClicked: Lyrics.redetectStt()
                         }
                         PillButton {
                             visible: !Lyrics.sttDownloading && Lyrics.sttEngineReady && !Lyrics.sttModelReady
@@ -197,6 +223,44 @@ Item {
                             onClicked: Lyrics.removeSttModel(Lyrics.sttModel)
                         }
                     }
+                }
+            }
+        }
+
+        Reveal {
+            delay: 165
+            ColumnLayout {
+                width: parent.width
+                spacing: 8
+                Heading { text: "Discord" }
+                SettingRow {
+                    icon: "chat"
+                    title: "Pokazuj na Discordzie, czego słuchasz"
+                    description: "Status „Słucha” z tytułem, wykonawcą, okładką i paskiem postępu. Działa z uruchomioną aplikacją Discord na tym komputerze. Stan: " + Discord.status + "."
+                    Toggle { checked: Discord.enabled; onToggled: c => Discord.enabled = c }
+                }
+                SettingRow {
+                    visible: Discord.enabled
+                    icon: "key"
+                    title: "Identyfikator aplikacji Discord"
+                    description: Discord.builtInClientId && Discord.clientId !== ""
+                        ? "Wbudowany identyfikator Nokturna. Możesz wpisać własny, żeby zmienić nazwę wyświetlaną w statusie."
+                        : "Utwórz aplikację na discord.com/developers/applications (jej nazwa pojawi się jako „Słucha <nazwa>”), skopiuj „Application ID” i wklej go tutaj. Opcjonalnie dodaj w Rich Presence → Art Assets obrazek o nazwie „nokturn” — będzie okładką plików bez okładki w sieci."
+                    InputField {
+                        width: 230
+                        implicitHeight: 38
+                        placeholderText: "np. 1234567890123456789"
+                        text: Discord.clientId
+                        inputMethodHints: Qt.ImhDigitsOnly
+                        onEditingFinished: Discord.clientId = text
+                    }
+                }
+                SettingRow {
+                    visible: Discord.enabled
+                    icon: "pause"
+                    title: "Pokazuj także po wstrzymaniu"
+                    description: "Domyślnie status znika, gdy muzyka jest wstrzymana (jak w Spotify)."
+                    Toggle { checked: Discord.showWhenPaused; onToggled: c => Discord.showWhenPaused = c }
                 }
             }
         }

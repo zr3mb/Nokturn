@@ -26,8 +26,10 @@ Item {
     Behavior on accent { ColorAnimation { duration: 900; easing.type: Easing.InOutCubic } }
     Behavior on accent2 { ColorAnimation { duration: 900; easing.type: Easing.InOutCubic } }
 
-    readonly property string fontDisplay: "Segoe UI Variable Display"
-    readonly property string fontText: "Segoe UI Variable Text"
+    // Windows: Segoe UI Variable; Linux/macOS: czcionka systemowa (np. Cantarell, Noto Sans, Inter).
+    readonly property bool windows: Qt.platform.os === "windows"
+    readonly property string fontDisplay: windows ? "Segoe UI Variable Display" : Qt.application.font.family
+    readonly property string fontText: windows ? "Segoe UI Variable Text" : Qt.application.font.family
 
     readonly property int fast: 150
     readonly property int normal: 260
