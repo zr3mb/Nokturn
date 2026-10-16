@@ -166,6 +166,26 @@ QString BrowserLogin::findBrowser(QString *displayName)
 #endif
 }
 
+QStringList BrowserLogin::windowTitles(qint64 pid)
+{
+#ifdef Q_OS_WIN
+    return scanWindows(pid).titles;
+#else
+    Q_UNUSED(pid)
+    return {};
+#endif
+}
+
+void BrowserLogin::closeWindows(qint64 pid)
+{
+#ifdef Q_OS_WIN
+    for (HWND hwnd : scanWindows(pid).windows)
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+#else
+    Q_UNUSED(pid)
+#endif
+}
+
 QString BrowserLogin::status() const
 {
     switch (m_stage) {

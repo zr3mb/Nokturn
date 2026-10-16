@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDesktopServices>
+#include <QDir>
 #include <QFile>
 #include <QHostAddress>
 #include <QJSEngine>
@@ -20,6 +21,8 @@
 #include <QTcpSocket>
 #include <QUrl>
 
+#include <climits>
+#include <cstdlib>
 #include <utility>
 
 namespace {
@@ -30,6 +33,7 @@ const char *kScopes = "playlist-read-private playlist-read-collaborative user-li
 QString tokenFile() { return AppPaths::dataDir() + QStringLiteral("/spotify.token"); }
 QString cacheFile() { return AppPaths::dataDir() + QStringLiteral("/spotify.json"); }
 QString matchesFile() { return AppPaths::dataDir() + QStringLiteral("/spotify-matches.json"); }
+QString browserProfile() { return AppPaths::dataDir() + QStringLiteral("/browser-spotify"); }
 
 QString randomString(int length)
 {
@@ -72,6 +76,22 @@ Track makeTrack(const QString &spotifyId, const QString &title, const QString &a
     return t;
 }
 
+// Cover from the web player's image sources ({ url, width, height }) — the one closest to 300 px.
+QString webImage(const QJsonArray &sources)
+{
+    QString best;
+    int bestDiff = INT_MAX;
+    for (const QJsonValue &v : sources) {
+        const QJsonObject s = v.toObject();
+        const int width = s.value("width").toInt(300);
+        if (std::abs(width - 300) < bestDiff) {
+            bestDiff = std::abs(width - 300);
+            best = s.value("url").toString();
+        }
+    }
+    return best;
+}
+
 QJsonArray toArray(const QStringList &list)
 {
     QJsonArray arr;
@@ -111,6 +131,9 @@ SpotifyService::SpotifyService(QObject *parent)
         m_clientId = QStringLiteral(NOKTURN_SPOTIFY_CLIENT_ID);
 
     connect(&m_server, &QTcpServer::newConnection, this, &SpotifyService::onCallback);
+    connect(&m_webLogin, &SpotifyWebLogin::statusChanged, this, &SpotifyService::loggingInChanged);
+    connect(&m_webLogin, &SpotifyWebLogin::succeeded, this, &SpotifyService::onWebToken);
+    connect(&m_webLogin, &SpotifyWebLogin::failed, this, &SpotifyService::onWebFailed);
     m_matchesSave.setSingleShot(true);
     m_matchesSave.setInterval(3000);
     connect(&m_matchesSave, &QTimer::timeout, this, &SpotifyService::saveMatches);
@@ -153,7 +176,61 @@ QString SpotifyService::lastSync() const
     return m_lastSync.toString(QStringLiteral("d.MM, HH:mm"));
 }
 
-// ---- sign-in (OAuth 2.0 + PKCE) -----------------------------------------------------
+// ---- sign-in through the browser (web player token) ---------------------------------
+
+void SpotifyService::loginWithBrowser()
+{
+    if (loggingIn())
+        return;
+    m_browserLogin = true;
+    emit loggingInChanged();
+    m_webLogin.start(browserProfile());
+}
+
+void SpotifyService::onWebToken(const QString &token, const QDateTime &expiresUtc, const QJsonObject &web)
+{
+    qInfo().noquote() << "spotify: browser token received, valid until" << expiresUtc.toLocalTime().toString(Qt::ISODate)
+                      << "| queries" << web.value("queries").toObject().keys().join(QLatin1Char(' '));
+    m_accessToken = token;
+    m_accessExpires = expiresUtc.addSecs(-60);
+    m_webApi = web;
+    m_webCaptured = true;
+    if (!m_browserLogin) {   // an invisible renewal
+        saveToken();
+        deliverToken({});
+        return;
+    }
+    m_browserLogin = false;
+    m_web = true;
+    m_refreshToken.clear();
+    saveToken();
+    emit loggingInChanged();
+    emit accountChanged();
+    emit notice(tr("Signed in to Spotify"), QStringLiteral("check"));
+    refresh();
+}
+
+void SpotifyService::onWebFailed(const QString &reason)
+{
+    qWarning().noquote() << "spotify: browser token failed:" << reason;
+    if (!m_browserLogin) {
+        deliverToken(tr("Spotify session expired — sign in again (%1)").arg(reason));
+        return;
+    }
+    m_browserLogin = false;
+    emit loggingInChanged();
+    emit notice(tr("Couldn't sign in to Spotify: %1").arg(reason), QStringLiteral("close"));
+}
+
+void SpotifyService::deliverToken(const QString &error)
+{
+    m_refreshing = false;
+    const auto waiting = std::exchange(m_waitingForToken, {});
+    for (const auto &w : waiting)
+        w(error);
+}
+
+// ---- sign-in with an own Spotify app (OAuth 2.0 + PKCE) -----------------------------
 
 void SpotifyService::login()
 {
@@ -187,6 +264,8 @@ void SpotifyService::login()
 void SpotifyService::cancelLogin()
 {
     m_server.close();
+    if (m_browserLogin)
+        m_webLogin.cancel();   // -> onWebFailed
     emit loggingInChanged();
 }
 
@@ -238,6 +317,8 @@ void SpotifyService::exchangeCode(const QString &code)
             emit notice(tr("Couldn't sign in to Spotify: %1").arg(error), QStringLiteral("close"));
             return;
         }
+        m_web = false;
+        QDir(browserProfile()).removeRecursively();
         saveToken();
         emit accountChanged();
         emit notice(tr("Signed in to Spotify"), QStringLiteral("check"));
@@ -278,7 +359,12 @@ void SpotifyService::withAccessToken(std::function<void(const QString &)> next)
         next(tr("Not signed in to Spotify"));
         return;
     }
-    if (!m_accessToken.isEmpty() && QDateTime::currentDateTimeUtc() < m_accessExpires) {
+    // With the browser sign-in the captured queries matter too: if the library ones are missing,
+    // capture again (once per run — the web player may simply not use them).
+    const QJsonObject queries = m_webApi.value("queries").toObject();
+    const bool webReady = !m_web || m_webCaptured
+                       || (queries.contains("libraryV3") && queries.contains("fetchPlaylist") && queries.contains("fetchLibraryTracks"));
+    if (!m_accessToken.isEmpty() && QDateTime::currentDateTimeUtc() < m_accessExpires && webReady) {
         next({});
         return;
     }
@@ -286,23 +372,36 @@ void SpotifyService::withAccessToken(std::function<void(const QString &)> next)
     if (m_refreshing)
         return;
     m_refreshing = true;
+    if (m_web) {
+        // A new web player token from the signed-in browser profile (a few seconds, invisible).
+        if (m_webLogin.running())
+            deliverToken(tr("Spotify sign-in is in progress"));
+        else
+            m_webLogin.refresh(browserProfile());   // -> onWebToken / onWebFailed
+        return;
+    }
     QUrlQuery form;
     form.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("refresh_token"));
     form.addQueryItem(QStringLiteral("refresh_token"), m_refreshToken);
     form.addQueryItem(QStringLiteral("client_id"), m_clientId);
     tokenRequest(form, [this](bool ok, const QString &error) {
-        m_refreshing = false;
-        const QString message = ok ? QString() : tr("Spotify session expired — sign in again (%1)").arg(error);
-        const auto waiting = std::exchange(m_waitingForToken, {});
-        for (const auto &w : waiting)
-            w(message);
+        deliverToken(ok ? QString() : tr("Spotify session expired — sign in again (%1)").arg(error));
     });
 }
 
 void SpotifyService::saveToken() const
 {
-    const QByteArray json = QJsonDocument(QJsonObject {
-        { "refresh_token", m_refreshToken }, { "client_id", m_clientId } }).toJson(QJsonDocument::Compact);
+    QJsonObject token { { "mode", m_web ? "web" : "app" } };
+    if (m_web) {
+        // The web player token is short-lived; kept so a restart within the hour needs no browser.
+        token.insert("access_token", m_accessToken);
+        token.insert("expires", m_accessExpires.toString(Qt::ISODate));
+        token.insert("web", m_webApi);
+    } else {
+        token.insert("refresh_token", m_refreshToken);
+        token.insert("client_id", m_clientId);
+    }
+    const QByteArray json = QJsonDocument(token).toJson(QJsonDocument::Compact);
     QSaveFile f(tokenFile());
     if (f.open(QIODevice::WriteOnly)) {
         f.write(protectSecret(json));
@@ -319,6 +418,13 @@ void SpotifyService::loadToken()
     if (!f.open(QIODevice::ReadOnly))
         return;
     const QJsonObject json = QJsonDocument::fromJson(unprotectSecret(f.readAll())).object();
+    if (json.value("mode").toString() == QLatin1String("web")) {
+        m_web = true;
+        m_accessToken = json.value("access_token").toString();
+        m_accessExpires = QDateTime::fromString(json.value("expires").toString(), Qt::ISODate);
+        m_webApi = json.value("web").toObject();
+        return;
+    }
     m_refreshToken = json.value("refresh_token").toString();
     // The token belongs to the Spotify app it was issued for.
     const QString issuedFor = json.value("client_id").toString();
@@ -328,6 +434,12 @@ void SpotifyService::loadToken()
 
 void SpotifyService::logout()
 {
+    if (m_webLogin.running()) {
+        m_browserLogin = false;
+        m_webLogin.cancel();
+    }
+    m_web = false;
+    QDir(browserProfile()).removeRecursively();   // the session in the browser profile goes too
     m_refreshToken.clear();
     m_accessToken.clear();
     m_accountName.clear();
@@ -358,7 +470,11 @@ void SpotifyService::get(const QUrl &url, JsonCallback callback, int attempt)
         connect(reply, &QNetworkReply::finished, this, [this, reply, url, callback, attempt] {
             reply->deleteLater();
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            const QJsonObject json = QJsonDocument::fromJson(reply->readAll()).object();
+            const QByteArray body = reply->readAll();
+            const QJsonObject json = QJsonDocument::fromJson(body).object();
+            if (status != 200)
+                qWarning().noquote() << "spotify:" << status << url.path() << "retry-after" << reply->rawHeader("Retry-After")
+                                     << body.left(300).simplified();
             if (status == 401 && attempt == 0) {
                 m_accessToken.clear();   // expired early — refresh and try once more
                 get(url, callback, attempt + 1);
@@ -407,6 +523,10 @@ void SpotifyService::refresh()
     m_syncing = true;
     m_syncError.clear();
     emit syncingChanged();
+    if (m_web) {
+        syncWeb();
+        return;
+    }
     get(apiUrl(QStringLiteral("/me")), [this](const QJsonObject &me, const QString &error) {
         if (!error.isEmpty()) {
             finishSync(error);
@@ -419,6 +539,228 @@ void SpotifyService::refresh()
         }
         syncPlaylists();
     });
+}
+
+// ---- sync through the web player's own queries (browser sign-in) ---------------------
+//
+// The public Web API answers the web player's token with "rate limit exceeded", so with the browser
+// sign-in Nokturn asks the same GraphQL queries the web player asks (SpotifyWebLogin captured their
+// names, hashes and headers). Their answers are internal and may change — parsing is lenient.
+
+void SpotifyService::query(const QString &name, const QJsonObject &variables, JsonCallback callback, int attempt)
+{
+    withAccessToken([this, name, variables, callback, attempt](const QString &tokenError) {
+        if (!tokenError.isEmpty()) {
+            callback({}, tokenError);
+            return;
+        }
+        const QJsonObject captured = m_webApi.value("queries").toObject().value(name).toObject();
+        if (captured.isEmpty()) {
+            callback({}, tr("the web player didn't use the %1 query").arg(name));
+            return;
+        }
+        QJsonObject vars = captured.value("variables").toObject();
+        for (auto it = variables.begin(); it != variables.end(); ++it)
+            vars.insert(it.key(), it.value());
+        const QJsonObject body {
+            { "variables", vars }, { "operationName", name },
+            { "extensions", QJsonObject { { "persistedQuery", QJsonObject {
+                { "version", 1 }, { "sha256Hash", captured.value("hash") } } } } } };
+        QNetworkRequest request(QUrl(captured.value("url").toString()));
+        request.setRawHeader("Authorization", "Bearer " + m_accessToken.toUtf8());
+        request.setRawHeader("Content-Type", "application/json;charset=UTF-8");
+        request.setRawHeader("Accept", "application/json");
+        const QJsonObject headers = m_webApi.value("headers").toObject();
+        for (auto it = headers.begin(); it != headers.end(); ++it)
+            request.setRawHeader(it.key().toUtf8(), it.value().toString().toUtf8());
+        QNetworkReply *reply = m_net.post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+        connect(reply, &QNetworkReply::finished, this, [this, reply, name, variables, callback, attempt] {
+            reply->deleteLater();
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            const QByteArray data = reply->readAll();
+            const QJsonObject json = QJsonDocument::fromJson(data).object();
+            if (status != 200)
+                qWarning().noquote() << "spotify:" << status << name << data.left(300).simplified();
+            if ((status == 401 || status == 400) && attempt == 0) {
+                m_accessToken.clear();   // expired, or the web player changed its queries — capture anew
+                query(name, variables, callback, attempt + 1);
+                return;
+            }
+            if (status == 429 && attempt < 4) {
+                const int wait = std::clamp(reply->rawHeader("Retry-After").toInt(), 1, 30);
+                QTimer::singleShot(wait * 1000, this, [this, name, variables, callback, attempt] {
+                    query(name, variables, callback, attempt + 1);
+                });
+                return;
+            }
+            if (reply->error() != QNetworkReply::NoError) {
+                callback(json, reply->errorString());
+                return;
+            }
+            const QJsonArray errors = json.value("errors").toArray();
+            if (!json.contains("data") && !errors.isEmpty()) {
+                callback(json, errors.first().toObject().value("message").toString());
+                return;
+            }
+            callback(json.value("data").toObject(), {});
+        });
+    });
+}
+
+void SpotifyService::syncWeb()
+{
+    query(QStringLiteral("profileAttributes"), {}, [this](const QJsonObject &data, const QString &error) {
+        if (!error.isEmpty()) {
+            finishSync(error);
+            return;
+        }
+        const QJsonObject profile = data.value("me").toObject().value("profile").toObject();
+        const QString name = profile.value("name").toString(profile.value("username").toString());
+        if (!name.isEmpty() && name != m_accountName) {
+            m_accountName = name;
+            emit accountChanged();
+        }
+        syncWebLibrary(0, {});
+    });
+}
+
+void SpotifyService::syncWebLibrary(int offset, QVariantList playlists)
+{
+    const QJsonObject vars { { "offset", offset }, { "limit", 50 }, { "flatten", true }, { "expandedFolders", QJsonArray() } };
+    query(QStringLiteral("libraryV3"), vars, [this, offset, playlists](const QJsonObject &data, const QString &error) mutable {
+        if (!error.isEmpty()) {
+            finishSync(error);
+            return;
+        }
+        const QJsonObject library = data.value("me").toObject().value("libraryV3").toObject();
+        const QJsonArray items = library.value("items").toArray();
+        if (items.isEmpty() && offset == 0)
+            qWarning().noquote() << "spotify: libraryV3 without items:" << QJsonDocument(data).toJson(QJsonDocument::Compact).left(600);
+        for (const QJsonValue &v : items) {
+            const QJsonObject item = v.toObject().value("item").toObject();
+            const QJsonObject p = item.value("data").toObject();
+            const QString uri = item.value("_uri").toString(p.value("uri").toString());
+            const QString type = p.value("__typename").toString();
+            if (!uri.startsWith(QLatin1String("spotify:playlist:")) || (!type.isEmpty() && type != QLatin1String("Playlist")))
+                continue;   // albums, artists, podcasts, folders, Liked Songs (synced separately)
+            const QString id = uri.mid(17);
+            const QJsonArray images = p.value("images").toObject().value("items").toArray();
+            const QString cover = images.isEmpty() ? QString()
+                                : webImage(images.first().toObject().value("sources").toArray());
+            const QString name = p.value("name").toString();
+            playlists << QVariantMap { { "id", id }, { "name", name.isEmpty() ? tr("Untitled playlist") : name },
+                                       { "count", m_playlistTracks.value(id).size() }, { "cover", cover } };
+        }
+        const int total = library.value("totalCount").toInt();
+        if (!items.isEmpty() && offset + items.size() < total) {
+            syncWebLibrary(offset + int(items.size()), playlists);
+            return;
+        }
+        QStringList queue;
+        QSet<QString> present;
+        for (const QVariant &p : std::as_const(playlists)) {
+            queue << p.toMap().value("id").toString();
+            present.insert(queue.last());
+        }
+        for (auto it = m_playlistTracks.begin(); it != m_playlistTracks.end();)
+            it = present.contains(it.key()) ? std::next(it) : m_playlistTracks.erase(it);
+        m_playlists = playlists;
+        emit dataChanged();
+        syncWebPlaylist(queue, 0, {});
+    });
+}
+
+void SpotifyService::syncWebPlaylist(QStringList queue, int offset, QStringList ids)
+{
+    if (queue.isEmpty()) {
+        syncWebLiked(0, {});
+        return;
+    }
+    const QString id = queue.first();
+    const QJsonObject vars { { "uri", QStringLiteral("spotify:playlist:") + id }, { "offset", offset }, { "limit", 100 } };
+    query(QStringLiteral("fetchPlaylist"), vars, [this, queue, offset, ids, id](const QJsonObject &data, const QString &error) mutable {
+        const QJsonObject content = data.value("playlistV2").toObject().value("content").toObject();
+        const QJsonArray items = content.value("items").toArray();
+        if (!error.isEmpty())
+            qWarning().noquote() << "spotify: playlist" << id << error;
+        for (const QJsonValue &v : items) {
+            const QJsonObject track = v.toObject().value("itemV2").toObject().value("data").toObject();
+            const QString trackId = storeWebTrack(track, track.value("uri").toString());
+            if (!trackId.isEmpty() && !ids.contains(trackId))
+                ids << trackId;
+        }
+        const int total = content.value("totalCount").toInt();
+        if (error.isEmpty() && !items.isEmpty() && offset + items.size() < total && offset < 10000) {
+            syncWebPlaylist(queue, offset + int(items.size()), ids);
+            return;
+        }
+        if (error.isEmpty() || !m_playlistTracks.contains(id)) {
+            m_playlistTracks.insert(id, ids);
+            for (QVariant &p : m_playlists) {
+                QVariantMap map = p.toMap();
+                if (map.value("id").toString() == id) {
+                    map.insert("count", ids.size());
+                    p = map;
+                }
+            }
+            emit dataChanged();
+        }
+        queue.removeFirst();
+        syncWebPlaylist(queue, 0, {});
+    });
+}
+
+void SpotifyService::syncWebLiked(int offset, QStringList ids)
+{
+    if (!m_webApi.value("queries").toObject().contains(QStringLiteral("fetchLibraryTracks"))) {
+        qWarning() << "spotify: the web player didn't show the liked songs query";
+        finishSync({});
+        return;
+    }
+    const QJsonObject vars { { "offset", offset }, { "limit", 50 } };
+    query(QStringLiteral("fetchLibraryTracks"), vars, [this, offset, ids](const QJsonObject &data, const QString &error) mutable {
+        if (!error.isEmpty()) {
+            finishSync(error);
+            return;
+        }
+        const QJsonObject tracks = data.value("me").toObject().value("library").toObject().value("tracks").toObject();
+        const QJsonArray items = tracks.value("items").toArray();
+        if (items.isEmpty() && offset == 0)
+            qWarning().noquote() << "spotify: liked songs without items:" << QJsonDocument(data).toJson(QJsonDocument::Compact).left(600);
+        for (const QJsonValue &v : items) {
+            const QJsonObject track = v.toObject().value("track").toObject();
+            const QString trackId = storeWebTrack(track.value("data").toObject(), track.value("_uri").toString());
+            if (!trackId.isEmpty() && !ids.contains(trackId))
+                ids << trackId;
+        }
+        const int total = tracks.value("totalCount").toInt();
+        if (!items.isEmpty() && offset + items.size() < total && offset < 10000) {
+            syncWebLiked(offset + int(items.size()), ids);
+            return;
+        }
+        m_liked = ids;
+        finishSync({});
+    });
+}
+
+QString SpotifyService::storeWebTrack(const QJsonObject &data, const QString &uri)
+{
+    const QString type = data.value("__typename").toString();
+    if (!uri.startsWith(QLatin1String("spotify:track:")) || (!type.isEmpty() && type != QLatin1String("Track")))
+        return {};   // podcast episodes, local files, unavailable tracks
+    QStringList artists;
+    for (const QJsonValue &a : data.value("artists").toObject().value("items").toArray())
+        artists << a.toObject().value("profile").toObject().value("name").toString();
+    const QJsonObject album = data.value("albumOfTrack").toObject();
+    QJsonObject duration = data.value("trackDuration").toObject();
+    if (duration.isEmpty())
+        duration = data.value("duration").toObject();
+    const Track track = makeTrack(uri.mid(14), data.value("name").toString(), artists.join(QStringLiteral(", ")),
+                                  album.value("name").toString(),
+                                  int(duration.value("totalMilliseconds").toDouble() / 1000),
+                                  webImage(album.value("coverArt").toObject().value("sources").toArray()));
+    m_tracks.insert(track.id, track);
+    return track.id;
 }
 
 void SpotifyService::syncPlaylists()
@@ -537,6 +879,8 @@ void SpotifyService::finishSync(const QString &error)
     saveCache();
     emit syncingChanged();
     emit dataChanged();
+    qInfo().noquote() << "spotify: sync finished —" << (error.isEmpty() ? QStringLiteral("ok") : error)
+                      << "| liked" << m_liked.size() << "playlists" << m_playlists.size();
     if (!error.isEmpty())
         emit notice(QStringLiteral("Spotify: ") + error, QStringLiteral("close"));
 }

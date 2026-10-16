@@ -48,7 +48,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
-          modules: qtmultimedia qtwebsockets
+          modules: qtmultimedia qtwebsockets qtimageformats
           cache: true
 
       - name: TagLib ${{ env.TAGLIB_VERSION }}

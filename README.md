@@ -200,18 +200,32 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
   YouTube Music when you play it (search "artist title", then the best match by title, artist and duration) and
   played through the same yt-dlp path as YouTube tracks. Matches are cached in `spotify-matches.json`; a track
   with no match is skipped with a notice. This needs the yt-dlp engine (see above), not a YouTube account.
-- **Your own Client ID:** Spotify requires every app to be registered, and apps in development mode are limited
-  to a few users — so each user signs in with their own (free) Spotify app:
+- **Sign-in with the browser (default, a free account is enough):** *Sources → Spotify → Sign in with the
+  browser*. Like for YouTube, Nokturn opens Chrome / Edge / Brave as a separate window with its own clean profile
+  (`%APPDATA%\Nokturn\Nokturn\browser-spotify`) and no DevTools; you sign in to Spotify as usual. When the web
+  player appears, the window closes, and the same profile is started invisibly (headless, DevTools Protocol) on
+  `open.spotify.com` to pick up the access token the web player gets for itself. The public Web API rate-limits
+  that token ("API rate limit exceeded"), so the library is read with the web player's own GraphQL queries
+  (`profileAttributes`, `libraryV3`, `fetchPlaylist`, `fetchLibraryTracks` on `api-partner.spotify.com`):
+  their names, hashes and headers are taken from the web player's requests, and the ones it doesn't send while
+  we watch (liked songs come from its local cache) are looked up in its JavaScript. The token lasts about an hour
+  and is renewed the same invisible way (~15 s) when needed; it's kept encrypted in `spotify.token` until it
+  expires. *Sign out* removes it together with the browser profile. This is an unofficial way of using Spotify
+  (like the YouTube Music integration) — changes on Spotify's side can break it.
+- **Your own Spotify app (optional):** since February 2026 Spotify's developer mode needs **Premium**. With
+  Premium you can use an official app instead (*Use my own Spotify app*):
   1. Open <https://developer.spotify.com/dashboard> and create an app.
   2. Add the redirect URI `http://127.0.0.1:43117/callback` and tick **Web API**.
   3. Copy the app's **Client ID** into *Sources → Spotify* and click *Sign in to Spotify*.
 
-  A build can ship a built-in ID instead: `-DNOKTURN_SPOTIFY_CLIENT_ID=<id>` in CMake.
-- **Sign-in:** OAuth 2.0 Authorization Code with PKCE (no client secret) in your regular browser; Nokturn listens
-  on `127.0.0.1:43117` for the redirect. Read-only scopes: `playlist-read-private playlist-read-collaborative
-  user-library-read`. The refresh token is encrypted (DPAPI / Secret Service) in `spotify.token`.
-- **Sync:** a few seconds after start and with the refresh button. Playlists whose `snapshot_id` didn't change
-  aren't downloaded again; the data is cached in `spotify.json`.
+  This uses OAuth 2.0 Authorization Code with PKCE (no client secret) in your regular browser; Nokturn listens on
+  `127.0.0.1:43117` for the redirect. Read-only scopes: `playlist-read-private playlist-read-collaborative
+  user-library-read`. The refresh token is encrypted (DPAPI / Secret Service) in `spotify.token`. A build can ship
+  a built-in ID: `-DNOKTURN_SPOTIFY_CLIENT_ID=<id>` in CMake.
+- **Sync:** a few seconds after start and with the refresh button; the data is cached in `spotify.json`. With your
+  own app, playlists whose `snapshot_id` didn't change aren't downloaded again.
+- **Covers:** Spotify serves playlist covers as WebP — the build needs the Qt image formats plugins
+  (MSYS2: `mingw-w64-ucrt-x86_64-qt6-imageformats`; the Linux AppImage gets them from `qtimageformats`).
 
 ## Mixing tracks — how it works
 
@@ -296,7 +310,8 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `src/youtube/YtCookies.*` | Cookies: encryption (DPAPI / Secret Service), `SAPISIDHASH`, cookies.txt export |
 | `src/youtube/YtMusicApi.*` | InnerTube client and response parser (tracks, playlists, account) |
 | `src/youtube/StreamResolver.*` | yt-dlp: download with SHA-256 verification, stream URLs, cache |
-| `src/spotify/SpotifyService.*` | `Spotify` singleton: PKCE sign-in, playlist / liked songs sync, YouTube Music matching |
+| `src/spotify/SpotifyService.*` | `Spotify` singleton: sign-in, playlist / liked songs sync, YouTube Music matching |
+| `src/spotify/SpotifyWebLogin.*` | Spotify sign-in window + web player token through the DevTools Protocol |
 | `src/youtube/YouTubeService.*` | `YouTube` singleton for QML: account state, sync, library cache |
 | `src/audio/AudioEngine.*`, `src/audio/Equalizer.*` | Custom output path: deck mixer (transition styles), buffer + `QAudioSink`, 7-band parametric equalizer |
 | `src/lyrics/Lyrics.*` | Lyrics structure, LRC parser, cache (de)serialization |

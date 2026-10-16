@@ -61,6 +61,7 @@ qt_add_qml_module(Nokturn
         src/Updater.h           src/Updater.cpp
         src/Language.h          src/Language.cpp
         src/spotify/SpotifyService.h  src/spotify/SpotifyService.cpp
+        src/spotify/SpotifyWebLogin.h src/spotify/SpotifyWebLogin.cpp
     QML_FILES
         qml/Main.qml
         qml/Theme.qml

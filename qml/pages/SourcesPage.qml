@@ -417,8 +417,10 @@ Item {
                                   + " · " + qsTr("%n playlists", "", Spotify.playlistCount)
                                   + (Spotify.lastSync !== "" ? " · " + Spotify.lastSync : "")
 
-                        // Signed out: the Spotify app (Client ID) and sign-in
+                        // Signed out: sign-in through the browser, or an own Spotify app (Client ID)
                         ColumnLayout {
+                            id: spotifySignIn
+                            property bool ownApp: false
                             visible: !Spotify.connected && !Spotify.loggingIn
                             Layout.fillWidth: true
                             spacing: 12
@@ -427,11 +429,36 @@ Item {
                                 text: qsTr("Spotify doesn't let other apps play its music, so Nokturn syncs your playlists and liked songs and plays each track from YouTube Music.")
                             }
                             Hint {
-                                visible: !Spotify.builtInClientId
-                                text: qsTr("You need your own Spotify app (free, 2 minutes): open the Spotify dashboard, create an app with the redirect URI %1 and the Web API checked, then paste its Client ID below.").arg(Spotify.redirectUri)
+                                visible: !spotifySignIn.ownApp
+                                text: YouTube.browserName !== ""
+                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to Spotify there as usual — a free account is enough. When the web player appears, the window closes by itself and Nokturn downloads your playlists and liked songs.").arg(YouTube.browserName)
+                                      : qsTr("Signing in needs Google Chrome, Microsoft Edge or Brave.")
+                            }
+                            Flow {
+                                visible: !spotifySignIn.ownApp
+                                Layout.fillWidth: true
+                                spacing: 10
+                                PillButton {
+                                    icon: "person"
+                                    text: qsTr("Sign in with the browser")
+                                    enabled: YouTube.browserName !== ""
+                                    onClicked: Spotify.loginWithBrowser()
+                                }
+                                PillButton {
+                                    kind: "ghost"
+                                    icon: "key"
+                                    text: qsTr("Use my own Spotify app")
+                                    onClicked: spotifySignIn.ownApp = true
+                                }
+                            }
+
+                            Hint {
+                                visible: spotifySignIn.ownApp && !Spotify.builtInClientId
+                                text: qsTr("With your own Spotify app (developer mode needs Spotify Premium): open the Spotify dashboard, create an app with the redirect URI %1 and the Web API checked, then paste its Client ID below.").arg(Spotify.redirectUri)
                             }
                             InputField {
                                 id: spotifyClient
+                                visible: spotifySignIn.ownApp
                                 Layout.fillWidth: true
                                 icon: "key"
                                 placeholderText: qsTr("Spotify app Client ID")
@@ -439,6 +466,7 @@ Item {
                                 onEditingFinished: Spotify.clientId = text
                             }
                             Flow {
+                                visible: spotifySignIn.ownApp
                                 Layout.fillWidth: true
                                 spacing: 10
                                 PillButton {
@@ -456,17 +484,23 @@ Item {
                                     text: qsTr("Open the Spotify dashboard")
                                     onClicked: Qt.openUrlExternally("https://developer.spotify.com/dashboard")
                                 }
+                                PillButton {
+                                    kind: "ghost"
+                                    text: qsTr("Back")
+                                    onClicked: spotifySignIn.ownApp = false
+                                }
                             }
                         }
 
-                        // Signing in through the browser
+                        // Signing in
                         RowLayout {
                             visible: Spotify.loggingIn
                             Layout.fillWidth: true
                             spacing: 14
                             Spinner { size: 22; color: Theme.warning }
                             Hint {
-                                text: qsTr("Sign in in the browser and allow access — Nokturn continues by itself.")
+                                text: Spotify.loginStatus !== "" ? Spotify.loginStatus
+                                      : qsTr("Sign in in the browser and allow access — Nokturn continues by itself.")
                             }
                             PillButton {
                                 kind: "ghost"

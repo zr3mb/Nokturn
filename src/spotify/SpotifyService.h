@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SpotifyWebLogin.h"
 #include "TrackModel.h"
 
 #include <QDateTime>
@@ -24,10 +25,13 @@ class QQmlEngine;
 // apps play its audio, so each track is matched to YouTube Music (title, artist, duration) when it
 // plays and streamed from there; matches are remembered.
 //
-// Sign-in: OAuth 2.0 with PKCE in the browser — no client secret, the redirect lands on a tiny local
-// server at http://127.0.0.1:43117/callback. Every user can bring their own Spotify app ("Client ID")
-// so the 25-user limit of Spotify's development mode doesn't apply; a build can also ship a default
-// one (-DNOKTURN_SPOTIFY_CLIENT_ID=…). The refresh token is stored encrypted, like the YouTube cookies.
+// Sign-in, two ways:
+// - Browser (default, works without Premium): a separate browser window like for YouTube, then the
+//   web player's own access token is read from the signed-in profile (SpotifyWebLogin). It lasts
+//   about an hour and is renewed invisibly from the same profile.
+// - Own Spotify app (developer mode needs Premium): OAuth 2.0 with PKCE — no client secret, the
+//   redirect lands on a tiny local server at http://127.0.0.1:43117/callback. A build can ship
+//   a default Client ID (-DNOKTURN_SPOTIFY_CLIENT_ID=…). The refresh token is stored encrypted.
 class SpotifyService : public QObject
 {
     Q_OBJECT
@@ -37,6 +41,7 @@ class SpotifyService : public QObject
     Q_PROPERTY(bool connected READ connected NOTIFY accountChanged)
     Q_PROPERTY(QString accountName READ accountName NOTIFY accountChanged)
     Q_PROPERTY(bool loggingIn READ loggingIn NOTIFY loggingInChanged)
+    Q_PROPERTY(QString loginStatus READ loginStatus NOTIFY loggingInChanged)
     Q_PROPERTY(bool syncing READ syncing NOTIFY syncingChanged)
     Q_PROPERTY(QString clientId READ clientId WRITE setClientId NOTIFY settingsChanged)
     Q_PROPERTY(bool builtInClientId READ builtInClientId CONSTANT)
@@ -49,9 +54,10 @@ public:
     static SpotifyService *instance();
     static SpotifyService *create(QQmlEngine *, QJSEngine *);
 
-    bool connected() const { return !m_refreshToken.isEmpty(); }
+    bool connected() const { return m_web || !m_refreshToken.isEmpty(); }
     QString accountName() const { return m_accountName; }
-    bool loggingIn() const { return m_server.isListening(); }
+    bool loggingIn() const { return m_server.isListening() || m_browserLogin; }
+    QString loginStatus() const { return m_browserLogin ? m_webLogin.status() : QString(); }
     bool syncing() const { return m_syncing; }
     QString clientId() const { return m_clientId; }
     void setClientId(const QString &id);
@@ -61,7 +67,8 @@ public:
     int playlistCount() const { return int(m_playlists.size()); }
     QString lastSync() const;
 
-    Q_INVOKABLE void login();
+    Q_INVOKABLE void loginWithBrowser();
+    Q_INVOKABLE void login();   // own Spotify app (Client ID)
     Q_INVOKABLE void cancelLogin();
     Q_INVOKABLE void logout();
     Q_INVOKABLE void refresh();
@@ -95,6 +102,9 @@ private:
     void exchangeCode(const QString &code);
     void tokenRequest(const QUrlQuery &form, std::function<void(bool ok, const QString &error)> done);
     void withAccessToken(std::function<void(const QString &error)> next);
+    void onWebToken(const QString &token, const QDateTime &expiresUtc, const QJsonObject &web);
+    void onWebFailed(const QString &reason);
+    void deliverToken(const QString &error);
     void saveToken() const;
     void loadToken();
 
@@ -102,7 +112,15 @@ private:
     void get(const QUrl &url, JsonCallback callback, int attempt = 0);
     void getAll(const QUrl &first, QJsonArray collected, std::function<void(const QJsonArray &items, const QString &error)> done);
 
-    // sync
+    // sync through the web player's queries (browser sign-in)
+    void query(const QString &name, const QJsonObject &variables, JsonCallback callback, int attempt = 0);
+    void syncWeb();
+    void syncWebLibrary(int offset, QVariantList playlists);
+    void syncWebPlaylist(QStringList queue, int offset, QStringList ids);
+    void syncWebLiked(int offset, QStringList ids);
+    QString storeWebTrack(const QJsonObject &data, const QString &uri);
+
+    // sync through the Web API (own Spotify app)
     void syncPlaylists();
     void syncNextPlaylist(QStringList queue);
     void syncLiked();
@@ -115,6 +133,11 @@ private:
 
     QNetworkAccessManager m_net;
     QTcpServer m_server;
+    SpotifyWebLogin m_webLogin;
+    bool m_web = false;            // signed in through the browser (web player token)
+    bool m_browserLogin = false;   // the browser sign-in is in progress (not just a token renewal)
+    QJsonObject m_webApi;          // the web player's queries and headers (SpotifyWebLogin::succeeded)
+    bool m_webCaptured = false;    // captured during this run
     QString m_verifier;
     QString m_state;
 

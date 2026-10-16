@@ -30,6 +30,10 @@ public:
     ~BrowserLogin() override;
 
     static QString findBrowser(QString *displayName = nullptr);
+    // Titles of the visible windows of a process / closing them gently (like clicking X). Windows only —
+    // elsewhere the titles are empty and closing does nothing.
+    static QStringList windowTitles(qint64 pid);
+    static void closeWindows(qint64 pid);
 
     bool running() const { return m_stage != Stage::Idle; }
     QString status() const;
