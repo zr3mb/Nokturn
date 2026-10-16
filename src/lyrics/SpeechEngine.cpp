@@ -32,7 +32,9 @@
 
 namespace {
 
-const char *kReleaseApi = "https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest";
+// Recent releases, not just "latest": tagged versions (v1.9.x) are sometimes published without binaries,
+// which come in separate build releases (bNNNN).
+const char *kReleaseApi = "https://api.github.com/repos/ggml-org/whisper.cpp/releases?per_page=20";
 const char *kReleaseAsset = "whisper-bin-x64.zip";
 const char *kModelTreeApi = "https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/main";
 const char *kModelBase = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
@@ -317,7 +319,7 @@ void SpeechEngine::downloadEngine()
     m_downloadLabel = QStringLiteral("whisper.cpp");
     emit stateChanged();
 
-    // Description of the latest release: the package URL and its SHA-256 (the "digest" field, computed by GitHub).
+    // Recent releases: the package URL and its SHA-256 (the "digest" field, computed by GitHub).
     QNetworkRequest request(QUrl(QString::fromLatin1(kReleaseApi)));
     request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Nokturn"));
     request.setRawHeader("Accept", "application/vnd.github+json");
@@ -329,17 +331,31 @@ void SpeechEngine::downloadEngine()
             finishDownloadError(tr("Couldn't get information about whisper.cpp: %1").arg(reply->errorString()));
             return;
         }
-        const QJsonObject release = QJsonDocument::fromJson(reply->readAll()).object();
-        QString url;
-        QByteArray sha;
-        for (const QJsonValue &v : release.value("assets").toArray()) {
-            const QJsonObject a = v.toObject();
-            if (a.value("name").toString() != QLatin1String(kReleaseAsset))
+        // Releases come newest first. Take the newest stable one that has the Windows package with
+        // a checksum; if there is none, the newest pre-release with it.
+        QString url, preUrl;
+        QByteArray sha, preSha;
+        for (const QJsonValue &r : QJsonDocument::fromJson(reply->readAll()).array()) {
+            const QJsonObject release = r.toObject();
+            if (release.value("draft").toBool())
                 continue;
-            url = a.value("browser_download_url").toString();
-            const QString digest = a.value("digest").toString();
-            if (digest.startsWith(QLatin1String("sha256:")))
-                sha = digest.mid(7).toLatin1();
+            const bool pre = release.value("prerelease").toBool();
+            if (pre ? !preUrl.isEmpty() : !url.isEmpty())
+                continue;
+            for (const QJsonValue &v : release.value("assets").toArray()) {
+                const QJsonObject a = v.toObject();
+                const QString digest = a.value("digest").toString();
+                if (a.value("name").toString() != QLatin1String(kReleaseAsset) || !digest.startsWith(QLatin1String("sha256:")))
+                    continue;
+                (pre ? preUrl : url) = a.value("browser_download_url").toString();
+                (pre ? preSha : sha) = digest.mid(7).toLatin1();
+            }
+            if (!url.isEmpty())
+                break;
+        }
+        if (url.isEmpty()) {
+            url = preUrl;
+            sha = preSha;
         }
         if (url.isEmpty() || sha.size() != 64) {
             finishDownloadError(tr("The whisper.cpp release has no package with a checksum"));
