@@ -1,0 +1,139 @@
+#include "TrackModel.h"
+
+TrackModel::TrackModel(QObject *parent)
+    : QAbstractListModel(parent)
+{
+}
+
+int TrackModel::rowCount(const QModelIndex &parent) const
+{
+    return parent.isValid() ? 0 : int(m_tracks.size());
+}
+
+QVariant TrackModel::data(const QModelIndex &index, int role) const
+{
+    if (!index.isValid() || !isValidRow(index.row()))
+        return {};
+
+    const Track &t = m_tracks.at(index.row());
+    switch (role) {
+    case IdRole:           return t.id;
+    case PathRole:         return t.path;
+    case TitleRole:        return t.title;
+    case ArtistRole:       return t.artist;
+    case AlbumArtistRole:  return t.albumArtist.isEmpty() ? t.artist : t.albumArtist;
+    case AlbumRole:        return t.album;
+    case AlbumKeyRole:     return albumKey(t);
+    case GenreRole:        return t.genre;
+    case YearRole:         return t.year;
+    case TrackNoRole:      return t.trackNo;
+    case DurationRole:     return t.duration;
+    case DurationTextRole:
+        // Utwory z YouTube bez podanej długości poznają ją dopiero po załadowaniu strumienia.
+        return t.duration <= 0 && t.source != QLatin1String("radio") ? QString() : formatDuration(t.duration);
+    case SourceRole:       return t.source;
+    case QualityRole:      return t.quality;
+    case CoverRole:        return t.cover;
+    case ColorARole:       return t.colorA;
+    case ColorBRole:       return t.colorB;
+    case SeedRole:         return t.seed;
+    case LikedRole:        return t.liked;
+    case DemoRole:         return t.demo;
+    case RowRole:          return index.row();
+    default:               return {};
+    }
+}
+
+QHash<int, QByteArray> TrackModel::roleNames() const
+{
+    return {
+        { IdRole, "id" },
+        { PathRole, "path" },
+        { TitleRole, "title" },
+        { ArtistRole, "artist" },
+        { AlbumArtistRole, "albumArtist" },
+        { AlbumRole, "album" },
+        { AlbumKeyRole, "albumKey" },
+        { GenreRole, "genre" },
+        { YearRole, "year" },
+        { TrackNoRole, "trackNo" },
+        { DurationRole, "duration" },
+        { DurationTextRole, "durationText" },
+        { SourceRole, "source" },
+        { QualityRole, "quality" },
+        { CoverRole, "cover" },
+        { ColorARole, "colorA" },
+        { ColorBRole, "colorB" },
+        { SeedRole, "seed" },
+        { LikedRole, "liked" },
+        { DemoRole, "demo" },
+        { RowRole, "row" },
+    };
+}
+
+void TrackModel::setTracks(QList<Track> tracks)
+{
+    beginResetModel();
+    m_tracks = std::move(tracks);
+    m_rowById.clear();
+    m_rowById.reserve(m_tracks.size());
+    for (int i = 0; i < m_tracks.size(); ++i)
+        m_rowById.insert(m_tracks.at(i).id, i);
+    endResetModel();
+    emit countChanged();
+    ++m_revision;
+    emit revisionChanged();
+}
+
+QVariantMap TrackModel::get(int row) const
+{
+    QVariantMap map;
+    if (!isValidRow(row))
+        return map;
+
+    const QModelIndex idx = index(row);
+    const auto names = roleNames();
+    for (auto it = names.cbegin(); it != names.cend(); ++it)
+        map.insert(QString::fromUtf8(it.value()), data(idx, it.key()));
+    return map;
+}
+
+void TrackModel::toggleLiked(int row)
+{
+    if (!isValidRow(row))
+        return;
+
+    m_tracks[row].liked = !m_tracks[row].liked;
+    const QModelIndex idx = index(row);
+    emit dataChanged(idx, idx, { LikedRole });
+    ++m_revision;
+    emit revisionChanged();
+    emit likedChanged(row, m_tracks[row].liked);
+}
+
+void TrackModel::setColors(int row, const QColor &a, const QColor &b)
+{
+    if (!isValidRow(row))
+        return;
+    m_tracks[row].colorA = a;
+    m_tracks[row].colorB = b;
+    const QModelIndex idx = index(row);
+    emit dataChanged(idx, idx, { ColorARole, ColorBRole });
+}
+
+QString TrackModel::formatDuration(int seconds)
+{
+    if (seconds <= 0)
+        return QStringLiteral("NA ŻYWO");
+    if (seconds >= 3600)
+        return QStringLiteral("%1:%2:%3").arg(seconds / 3600)
+            .arg((seconds / 60) % 60, 2, 10, QLatin1Char('0'))
+            .arg(seconds % 60, 2, 10, QLatin1Char('0'));
+    return QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0'));
+}
+
+QString TrackModel::albumKey(const Track &t)
+{
+    const QString artist = t.albumArtist.isEmpty() ? t.artist : t.albumArtist;
+    return artist.toCaseFolded() + QChar(0x1f) + t.album.toCaseFolded();
+}
