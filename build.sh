@@ -69,12 +69,23 @@ if [[ $appimage == 1 ]]; then
     export QML_SOURCES_PATHS="$root/qml"
     export EXTRA_QT_MODULES="multimedia;websockets;dbus"
     # Native Wayland support when the Qt build has it (otherwise the app runs through XWayland).
+    # The platform plugin alone isn't enough: without the client buffer integration ("wayland-egl")
+    # Qt can't create an OpenGL context and the app exits — so the Wayland plugin directories go in too.
     qt_plugins="${QT_DIR:+$QT_DIR/plugins}"
+    extra_deps=()
     if [[ -n "$qt_plugins" && -e "$qt_plugins/platforms/libqwayland-egl.so" ]]; then
         export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so"
+        for dir in wayland-graphics-integration-client wayland-decoration-client wayland-shell-integration; do
+            if [[ -d "$qt_plugins/$dir" ]]; then
+                mkdir -p "$appdir/usr/plugins/$dir"
+                cp -a "$qt_plugins/$dir/." "$appdir/usr/plugins/$dir/"
+                extra_deps+=(--deploy-deps-only "$appdir/usr/plugins/$dir")
+            fi
+        done
     fi
     [[ -n "${QT_DIR:-}" ]] && export QMAKE="$QT_DIR/bin/qmake"
     (cd "$build" && "$tools/linuxdeploy-$arch.AppImage" --appdir "$appdir" --plugin qt --output appimage \
+        "${extra_deps[@]}" \
         --desktop-file "$appdir/usr/share/applications/nokturn.desktop" \
         --icon-file "$appdir/usr/share/icons/hicolor/scalable/apps/nokturn.svg")
     mv "$build"/Nokturn*.AppImage "$root/" 2>/dev/null || true

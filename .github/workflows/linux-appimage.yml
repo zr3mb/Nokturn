@@ -89,6 +89,19 @@ jobs:
           echo "file=$file" >> "$GITHUB_OUTPUT"
           ls -l "$file"
 
+      - name: Check the bundled plugins
+        run: |
+          ./${{ steps.out.outputs.file }} --appimage-extract > /dev/null
+          for f in usr/plugins/platforms/libqwayland-egl.so \
+                   usr/plugins/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so \
+                   usr/plugins/platforms/libqxcb.so \
+                   usr/plugins/multimedia/libffmpegmediaplugin.so \
+                   usr/bin/deno; do
+            test -e "squashfs-root/$f" && echo "ok  $f" || { echo "MISSING  $f"; exit 1; }
+          done
+          ls squashfs-root/usr/plugins
+          rm -rf squashfs-root
+
       - name: Smoke test (the AppImage starts)
         run: |
           export APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=offscreen NOKTURN_PROFILE=/tmp/nokturn-profile
