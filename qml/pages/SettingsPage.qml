@@ -56,6 +56,19 @@ Item {
                 Heading { text: "Wygląd" }
                 SettingRow {
                     icon: "sparkle"
+                    title: "Kreator pierwszego uruchomienia"
+                    description: "Przejdź jeszcze raz przez wybór układu, kolorów, źródeł muzyki, przejść i integracji."
+                    PillButton {
+                        kind: "secondary"
+                        icon: "refresh"
+                        text: "Uruchom kreator"
+                        fontSize: 13
+                        implicitHeight: 36
+                        onClicked: Nav.startOnboarding()
+                    }
+                }
+                SettingRow {
+                    icon: "sparkle"
                     title: "Dynamiczny kolor akcentu"
                     description: "Kolory interfejsu płynnie dopasowują się do okładki odtwarzanego utworu."
                     Toggle { checked: Theme.dynamicAccent; onToggled: c => Theme.dynamicAccent = c }

@@ -54,7 +54,15 @@ Item {
         { name: "L5-login-cancel", run: () => { YouTube.cancelLogin(); console.log("tour: koniec, loggingIn =", YouTube.loggingIn) } }
     ]
     readonly property var baseSteps: [
-        { name: "01-home",      run: () => { Player.play(); Nav.navigate("home") } },
+        { name: "00a-welcome",      run: () => Nav.startOnboarding() },
+        { name: "00b-layout",       run: () => Nav.onboardingStep = 1 },
+        { name: "00c-layout-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false } },
+        { name: "00d-colors",       run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Nav.onboardingStep = 2 } },
+        { name: "00e-music",        run: () => Nav.onboardingStep = 3 },
+        { name: "00f-playback",     run: () => { Player.crossfade = 6; Player.crossfadeStyle = "bass"; Nav.onboardingStep = 4 } },
+        { name: "00g-integrations", run: () => { Discord.enabled = true; Nav.onboardingStep = 5 } },
+        { name: "00h-done",         run: () => Nav.onboardingStep = 6 },
+        { name: "01-home",      run: () => { Discord.enabled = false; Player.crossfade = 0; Nav.finishOnboarding(); Player.play(); Nav.navigate("home") } },
         { name: "02-search",    run: () => Nav.navigate("search") },
         { name: "03-library",   run: () => Nav.navigate("library") },
         { name: "04-albums",    run: () => Nav.navigate("library", { tab: 1 }) },

@@ -16,8 +16,11 @@ Item {
     readonly property color danger: "#c98585"
     readonly property color warning: "#cdb388"
 
-    property bool dynamicAccent: true
-    property bool ambient: true
+    // Zapamiętywane między uruchomieniami (Ustawienia, kreator pierwszego uruchomienia).
+    property bool dynamicAccent: Prefs.boolValue("ui/dynamicAccent", true)
+    property bool ambient: Prefs.boolValue("ui/ambient", true)
+    onDynamicAccentChanged: Prefs.setValue("ui/dynamicAccent", dynamicAccent)
+    onAmbientChanged: Prefs.setValue("ui/ambient", ambient)
     readonly property color staticAccent: "#9fb5a8"
     readonly property color staticAccent2: "#4a5d6e"
 

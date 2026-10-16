@@ -10,11 +10,27 @@ QtObject {
     property var backStack: []
     property var forwardStack: []
 
-    property bool queueOpen: true
+    // Układ okna — zapamiętywany między uruchomieniami.
+    property bool queueOpen: Prefs.boolValue("ui/queueOpen", true)
     property string panelTab: "queue"      // panel "Teraz odtwarzane": "queue" | "lyrics"
-    property bool immersiveLyrics: true    // tekst obok okładki w trybie pełnoekranowym
+    property bool immersiveLyrics: Prefs.boolValue("ui/immersiveLyrics", true)   // tekst obok okładki w trybie pełnoekranowym
     property bool immersive: false
-    property bool sidebarCompact: false
+    property bool sidebarCompact: Prefs.boolValue("ui/sidebarCompact", false)
+    onQueueOpenChanged: Prefs.setValue("ui/queueOpen", queueOpen)
+    onImmersiveLyricsChanged: Prefs.setValue("ui/immersiveLyrics", immersiveLyrics)
+    onSidebarCompactChanged: Prefs.setValue("ui/sidebarCompact", sidebarCompact)
+
+    // Kreator pierwszego uruchomienia (wygląd, źródła muzyki, odtwarzanie, integracje).
+    property bool onboarding: !Prefs.boolValue("onboarding/done", false)
+    property int onboardingStep: 0
+    function finishOnboarding() {
+        Prefs.setValue("onboarding/done", true)
+        onboarding = false
+    }
+    function startOnboarding() {
+        onboardingStep = 0
+        onboarding = true
+    }
 
     readonly property bool canGoBack: backStack.length > 0
     readonly property bool canGoForward: forwardStack.length > 0

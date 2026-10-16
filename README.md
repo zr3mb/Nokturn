@@ -60,6 +60,24 @@ Na Linuksie:
 Narzędzie deweloperskie: `Nokturn.exe --tour <folder>` (Linux: `nokturn --tour <folder>`) przechodzi po wszystkich
 ekranach i zapisuje ich zrzuty PNG.
 
+## Pierwsze uruchomienie
+
+Przy pierwszym starcie Nokturn pokazuje kreator (można go pominąć i uruchomić ponownie w *Ustawienia → Wygląd*):
+
+1. **Powitanie.**
+2. **Układ** — panel boczny pełny / kompaktowy i panel „Teraz odtwarzane” widoczny / ukryty. Każdy wariant ma
+   animowaną miniaturę okna (przesuwające się podświetlenie, grający utwór, wizualizer), a wybór od razu zmienia
+   aplikację.
+3. **Kolory** — akcent z okładki (miniatura przechodzi przez kolejne „okładki”) albo stały; tło żywe lub spokojne.
+4. **Muzyka** — foldery z postępem skanowania, logowanie do YouTube Music (konto, liczba polubionych i playlist)
+   i pobranie silnika odtwarzania yt-dlp.
+5. **Odtwarzanie** — crossfade z podglądem nakładania się utworów, styl przejścia, inteligentne przejścia,
+   dopasowanie czasu tekstów (alpha, zależnie od sprzętu).
+6. **Integracje** — status na Discordzie (z identyfikatorem aplikacji) i sterowanie (skróty, MPRIS na Linuksie).
+7. **Podsumowanie** wyborów.
+
+Ustawienia wyglądu i układu (`[ui]` w `settings.ini`) są zapamiętywane między uruchomieniami.
+
 ## Pliki lokalne — jak to działa
 
 - **Foldery** wybiera się w *Źródła → Pliki lokalne → Dodaj folder* (albo z Biblioteki). Przy pierwszym
@@ -185,6 +203,8 @@ Dla tekstów bez znaczników czasu można włączyć w *Ustawienia → Teksty ut
 | `src/platform/Mpris.*` | MPRIS 2 na Linuksie (D-Bus): klawisze multimedialne, kontrolki w panelu systemu |
 | `src/TagLibPath.h` | Ścieżka pliku dla TagLib (wchar_t na Windows, bajty systemu plików na Linuksie) |
 | `packaging/linux/` | Plik `.desktop`, ikona SVG, metainfo (AppStream) |
+| `src/Prefs.*` | Singleton `Prefs` dla QML: typowany odczyt/zapis `settings.ini` (wygląd, kreator) |
+| `qml/onboarding/` | Kreator pierwszego uruchomienia: kroki, animowane miniatury układu (`LayoutPreview`), podgląd przejść |
 | `qml/Theme.qml` | Paleta, czcionki, czasy animacji; akcent płynnie zmienia się wraz z okładką |
 | `qml/Nav.qml` | Nawigacja (historia wstecz/dalej), stan paneli, powiadomienia |
 | `qml/Icons.qml` | Wektorowe ikony (ścieżki SVG) |

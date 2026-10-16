@@ -38,6 +38,7 @@ qt_add_qml_module(Nokturn
     SOURCES
         src/AppPaths.h
         src/TagLibPath.h
+        src/Prefs.h             src/Prefs.cpp
         src/TrackModel.h        src/TrackModel.cpp
         src/LibraryScanner.h    src/LibraryScanner.cpp
         src/SpectrumAnalyzer.h  src/SpectrumAnalyzer.cpp
@@ -112,6 +113,21 @@ qt_add_qml_module(Nokturn
         qml/pages/PlaylistPage.qml
         qml/pages/SourcesPage.qml
         qml/pages/SettingsPage.qml
+
+        qml/onboarding/Onboarding.qml
+        qml/onboarding/LayoutPreview.qml
+        qml/onboarding/CrossfadePreview.qml
+        qml/onboarding/OptionCard.qml
+        qml/onboarding/StepTitle.qml
+        qml/onboarding/GroupLabel.qml
+        qml/onboarding/StepCard.qml
+        qml/onboarding/WelcomeStep.qml
+        qml/onboarding/LayoutStep.qml
+        qml/onboarding/ColorsStep.qml
+        qml/onboarding/MusicStep.qml
+        qml/onboarding/PlaybackStep.qml
+        qml/onboarding/IntegrationsStep.qml
+        qml/onboarding/DoneStep.qml
 )
 
 set_target_properties(Nokturn PROPERTIES

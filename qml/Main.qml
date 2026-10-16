@@ -96,6 +96,11 @@ ApplicationWindow {
             anchors.fill: parent
         }
 
+        // Kreator pierwszego uruchomienia (nad wszystkim poza powiadomieniami)
+        Onboarding {
+            anchors.fill: parent
+        }
+
         Toast {
             id: toast
             bottomOffset: playerBar.height + 22
