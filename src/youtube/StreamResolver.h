@@ -43,6 +43,7 @@ private:
 
     QString toolsDir() const;
     QStringList baseArguments() const;
+    void run(const QString &videoId, bool withCookies);
     void readVersion();
     void finishDownload(const QByteArray &binary, const QByteArray &sums);
 

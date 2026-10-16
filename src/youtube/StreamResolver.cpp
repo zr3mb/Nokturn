@@ -141,13 +141,17 @@ void StreamResolver::resolve(const QString &videoId)
         emit failed(videoId, QStringLiteral("Brak silnika yt-dlp"));
         return;
     }
+    run(videoId, m_cookies.isLoggedIn());
+}
 
+void StreamResolver::run(const QString &videoId, bool withCookies)
+{
     QStringList args = baseArguments();
 
     // Ciasteczka konta (lepsza jakość dla Premium, utwory z ograniczeniem wieku).
     // Plik istnieje tylko na czas działania procesu.
     QString cookieFile;
-    if (m_cookies.isLoggedIn()) {
+    if (withCookies) {
         cookieFile = toolsDir() + QStringLiteral("/cookies-%1.txt").arg(QUuid::createUuid().toString(QUuid::Id128));
         QFile f(cookieFile);
         if (f.open(QIODevice::WriteOnly)) {
@@ -181,6 +185,13 @@ void StreamResolver::resolve(const QString &videoId)
         QStringList err = QString::fromUtf8(process->readAllStandardError()).split('\n', Qt::SkipEmptyParts);
         QString message = err.isEmpty() ? QStringLiteral("yt-dlp zakończył się błędem") : err.last().trimmed();
         message.remove(QStringLiteral("ERROR: "));
+        // Z ciasteczkami yt-dlp używa klientów webowych, które bez Deno/Node dostają
+        // tylko miniatury („Requested format is not available”). Bez konta działa klient
+        // niewymagający JavaScriptu, więc próbujemy jeszcze raz anonimowo.
+        if (!cookieFile.isEmpty() && message.contains(QLatin1String("Requested format is not available"))) {
+            run(videoId, false);
+            return;
+        }
         emit failed(videoId, message);
     });
     process->start(m_enginePath, args);
