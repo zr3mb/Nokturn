@@ -167,7 +167,9 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
   from GitHub and verifies SHA-256; on Windows the faster unpacked build `yt-dlp_win.zip`). URLs are cached until
   they expire; the next track in the queue (also with shuffle) and a track you hover over are prepared in advance.
   yt-dlp needs a JavaScript runtime — the Windows installer ships **Deno**; otherwise Nokturn uses Deno or
-  Node.js if present.
+  Node.js if present. URLs are resolved **anonymously first** (~2 s); the account cookies are only a fallback
+  (age-restricted tracks, bot checks), because with them yt-dlp needs ~5 s per track.
+  `NOKTURN_STREAM_DEBUG=1` prints how long each yt-dlp call took.
 - **Note:** this is an unofficial way of using YouTube Music and goes against YouTube's terms of service. Changes
   on YouTube's side can break it (then *Update* next to yt-dlp helps), and in the extreme case they may lead to
   account restrictions.

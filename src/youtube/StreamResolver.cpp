@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QNetworkReply>
 #include <QProcess>
@@ -161,14 +162,17 @@ void StreamResolver::resolve(const QString &videoId)
         emit failed(videoId, tr("The yt-dlp engine is missing"));
         return;
     }
-    run(videoId, m_cookies.isLoggedIn());
+    // Anonymous first: with account cookies yt-dlp switches to web clients that need the JavaScript
+    // challenge solved by Deno — ~5 s per track instead of ~2 s. Cookies are only the fallback
+    // (age-restricted tracks, "sign in to confirm" checks).
+    run(videoId, false);
 }
 
 void StreamResolver::run(const QString &videoId, bool withCookies)
 {
     QStringList args = baseArguments();
 
-    // Account cookies (better quality for Premium, age-restricted tracks).
+    // Account cookies (fallback: age-restricted tracks, bot checks).
     // The file exists only while the process runs.
     QString cookieFile;
     if (withCookies) {
@@ -185,11 +189,17 @@ void StreamResolver::run(const QString &videoId, bool withCookies)
     auto *process = new QProcess(this);
     hideConsole(process);
     m_running.insert(videoId, process);
-    connect(process, &QProcess::finished, this, [this, process, videoId, cookieFile](int code) {
+    QElapsedTimer started;
+    started.start();
+    connect(process, &QProcess::finished, this, [this, process, videoId, cookieFile, started](int code) {
         m_running.remove(videoId);
         process->deleteLater();
         if (!cookieFile.isEmpty())
             QFile::remove(cookieFile);
+        // Diagnostics: NOKTURN_STREAM_DEBUG=1 prints how long each yt-dlp call took.
+        if (qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+            qInfo("stream: %s resolved in %lld ms (%s, exit %d)", qPrintable(videoId), started.elapsed(),
+                  cookieFile.isEmpty() ? "anonymous" : "with cookies", code);
 
         const QStringList out = QString::fromUtf8(process->readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
         const QString url = out.isEmpty() ? QString() : out.first().trimmed();
@@ -205,11 +215,9 @@ void StreamResolver::run(const QString &videoId, bool withCookies)
         QStringList err = QString::fromUtf8(process->readAllStandardError()).split('\n', Qt::SkipEmptyParts);
         QString message = err.isEmpty() ? tr("yt-dlp ended with an error") : err.last().trimmed();
         message.remove(QStringLiteral("ERROR: "));
-        // With cookies yt-dlp uses web clients that, without Deno/Node, only get
-        // thumbnails ("Requested format is not available"). Without an account a client
-        // that doesn't need JavaScript works, so we try once more anonymously.
-        if (!cookieFile.isEmpty() && message.contains(QLatin1String("Requested format is not available"))) {
-            run(videoId, false);
+        // The anonymous attempt failed (age restriction, bot check…) — try once more with the account.
+        if (cookieFile.isEmpty() && m_cookies.isLoggedIn()) {
+            run(videoId, true);
             return;
         }
         emit failed(videoId, message);
