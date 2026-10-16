@@ -20,7 +20,7 @@ $current = (Select-String -Path $cmake -Pattern 'project\(Nokturn VERSION ([\d.]
 if ([version]$Version -le [version]$current) {
     Write-Error "Nowa wersja ($Version) musi być wyższa niż obecna ($current)"
 }
-if (git status --porcelain) {
+if (git status --porcelain --untracked-files=no) {
     Write-Error "Masz niezacommitowane zmiany — najpierw je zacommituj"
 }
 if ((git rev-parse --abbrev-ref HEAD) -ne 'main') {
