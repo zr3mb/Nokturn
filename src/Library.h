@@ -62,6 +62,13 @@ public:
     Q_INVOKABLE QVariantList recentlyAdded(int limit = 50) const;
     Q_INVOKABLE QVariantList playlistRows(int index);       // YouTube playlists are loaded in the background
     Q_INVOKABLE bool playlistLoading(int index) const;
+
+    // Queue contexts: "playlist:<kind>", "yt:<playlist id>", "album:<key>", "artist:<name>", "library".
+    QString playlistContext(int index) const;
+    int playlistIndex(const QString &context) const;   // -1 when the context isn't a playlist
+    QString playlistName(int index) const;
+    int playlistCount() const { return int(m_playlists.size()); }
+    QVariantList rowsForContext(const QString &context);   // current rows (YouTube playlists may still be growing)
     Q_INVOKABLE QVariantList libraryRows() const;           // local + liked on YouTube Music
     Q_INVOKABLE QVariantList onlineResults() const;         // latest YouTube Music search results
     Q_INVOKABLE int totalDuration(const QVariantList &rows) const;   // sum of durations (seconds)

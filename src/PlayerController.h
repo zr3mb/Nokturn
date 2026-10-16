@@ -66,6 +66,8 @@ class PlayerController : public QObject
     Q_PROPERTY(bool mixActive READ mixActive NOTIFY mixChanged)          // the current queue will be mixed
     Q_PROPERTY(bool transitioning READ transitioning NOTIFY transitionChanged)
     Q_PROPERTY(QString transitionLabel READ transitionLabel NOTIFY transitionChanged)
+    // When the queue ends: continue with the next playlist (or the whole library) instead of stopping.
+    Q_PROPERTY(bool autoplay READ autoplay WRITE setAutoplay NOTIFY mixChanged)
 
 public:
     explicit PlayerController(QObject *parent = nullptr);
@@ -110,6 +112,8 @@ public:
     bool mixActive() const { return effectiveMix().enabled; }
     bool transitioning() const { return m_engine.inTransition(); }
     QString transitionLabel() const { return m_transitionLabel; }
+    bool autoplay() const { return m_autoplay; }
+    void setAutoplay(bool on);
 
     void setVolume(double v);
     void setMuted(bool m);
@@ -204,6 +208,11 @@ private:
     void emitTrackChanged();
     void prefetchNext();
     void advance(bool userInitiated);
+    QStringList queueIds(const QVariantList &rows);
+    void startQueue(const QStringList &ids, int pos, const QString &context);
+    bool continueAfterQueue();
+    void skipAfterError(const QString &message);
+    void checkStall(double dt);
     void onModelReset();
     void onMediaStatus(QMediaPlayer::MediaStatus status);
     void ensureTicking();
@@ -225,6 +234,12 @@ private:
     qint64 m_pendingSeek = -1;
     bool m_autoplayAfterResolve = false;
     QString m_context;
+    bool m_autoplay = true;
+    bool m_wantPlay = false;           // the user expects music (cleared by pause) — errors then skip ahead
+    int m_failures = 0;                // failed tracks in a row — stops skipping after a few
+    QString m_skipPending;             // track id with a skip already scheduled (errors come in pairs)
+    qint64 m_lastPosMs = -1;           // stall detection: the position stopped moving while "playing"
+    double m_stall = 0;
 
     // mixing
     int m_crossfade = 0;

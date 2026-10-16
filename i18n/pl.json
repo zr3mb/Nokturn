@@ -544,5 +544,10 @@
   "On|equalizer": "Włączony",
   "Off|equalizer": "Wyłączony",
   "Queue": "Kolejka",
-  "Lyrics|panel tab": "Tekst"
+  "Lyrics|panel tab": "Tekst",
+  "Keep playing (autoplay)": "Graj dalej (autoodtwarzanie)",
+  "When a playlist ends, the music continues with the next playlist; after an album or search results — with your library.": "Gdy playlista się skończy, muzyka leci dalej z następnej playlisty, a po albumie lub wynikach wyszukiwania — z Twojej biblioteki.",
+  "Up next: %1": "Dalej: %1",
+  "Up next: your library": "Dalej: Twoja biblioteka",
+  "The stream stopped responding": "Strumień przestał odpowiadać"
 }

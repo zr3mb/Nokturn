@@ -70,6 +70,7 @@ PlayerController::PlayerController(QObject *parent)
     m_muted = settings->value("player/muted", false).toBool();
     m_shuffle = settings->value("player/shuffle", false).toBool();
     m_repeat = std::clamp(settings->value("player/repeat", 0).toInt(), 0, 2);
+    m_autoplay = settings->value("player/autoplay", true).toBool();
     applyVolume();
     loadMixSettings();
 
@@ -100,7 +101,7 @@ PlayerController::PlayerController(QObject *parent)
             return;
         m_decks[m_active].resolving.clear();
         emit bufferingChanged();
-        emit notice(tr("Couldn't play from YouTube: %1").arg(error), QStringLiteral("close"));
+        skipAfterError(tr("Couldn't play from YouTube: %1").arg(error));
     });
     connect(m_tracks, &TrackModel::likedChanged, this, [this](int row, bool) {
         if (row == m_index)
@@ -175,7 +176,7 @@ void PlayerController::setupDeck(int d)
     });
     connect(deck.player, &QMediaPlayer::errorOccurred, this, [this, d](QMediaPlayer::Error, const QString &message) {
         if (d == m_active)
-            emit notice(tr("Can't play: %1").arg(message), QStringLiteral("close"));
+            skipAfterError(tr("Can't play: %1").arg(message));
         else if (!m_engine.inTransition())
             cancelPreload();
     });
@@ -371,6 +372,9 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
     m_engine.setActiveDeck(m_active);
     m_engine.resetLevels(m_active);
     m_silence = 0;
+    m_wantPlay = autoplay;
+    m_lastPosMs = -1;
+    m_stall = 0;
 
     Deck &deck = m_decks[m_active];
     deck.trackId = id;
@@ -437,12 +441,7 @@ void PlayerController::playFrom(const QVariantList &rows, int row, const QString
         return;
 
     const QString id = m_tracks->at(row).id;
-    QStringList queue;
-    for (const QVariant &v : rows) {
-        const int r = v.toInt();
-        if (m_tracks->isValidRow(r) && !m_tracks->at(r).demo)
-            queue << m_tracks->at(r).id;
-    }
+    QStringList queue = queueIds(rows);
     if (!queue.contains(id))
         queue.prepend(id);
     m_queue = queue;
@@ -494,6 +493,7 @@ void PlayerController::play()
             emit notice(tr("Add a music folder to start listening"), QStringLiteral("folder"));
         return;
     }
+    m_wantPlay = true;
     if (!m_decks[m_active].resolving.isEmpty()) {
         m_autoplayAfterResolve = true;
         return;
@@ -505,6 +505,7 @@ void PlayerController::play()
 
 void PlayerController::pause()
 {
+    m_wantPlay = false;
     m_autoplayAfterResolve = false;
     if (m_engine.inTransition())
         m_decks[standby()].player->pause();
@@ -552,7 +553,9 @@ void PlayerController::advance(bool userInitiated)
         pos = m_queuePos + 1;
         if (pos >= m_queue.size()) {
             if (!userInitiated && m_repeat == 0) {
-                // End of the queue — stop at the start of the last track.
+                if (continueAfterQueue())
+                    return;
+                // Nothing to continue with — stop at the start of the last track.
                 player().pause();
                 player().setPosition(0);
                 emit positionChanged();
@@ -565,6 +568,153 @@ void PlayerController::advance(bool userInitiated)
     m_pendingSeek = -1;
     m_shuffleNextId.clear();
     load(m_queue.at(pos), true, userInitiated);
+}
+
+QStringList PlayerController::queueIds(const QVariantList &rows)
+{
+    QStringList ids;
+    for (const QVariant &v : rows) {
+        const int r = v.toInt();
+        if (m_tracks->isValidRow(r) && !m_tracks->at(r).demo && !ids.contains(m_tracks->at(r).id))
+            ids << m_tracks->at(r).id;
+    }
+    return ids;
+}
+
+void PlayerController::startQueue(const QStringList &ids, int pos, const QString &context)
+{
+    m_queue = ids;
+    m_queuePos = pos;
+    if (context != m_context) {
+        m_context = context;
+        emit mixChanged();
+    }
+    m_pendingSeek = -1;
+    m_shuffleNextId.clear();
+    load(m_queue.at(pos), true, false);
+}
+
+bool PlayerController::continueAfterQueue()
+{
+    Library *lib = Library::instance();
+
+    // 1. The queue is a snapshot from the moment of the click — a YouTube playlist may have loaded
+    //    more pages since then. Continue in the same playlist if it has grown.
+    if (!m_context.isEmpty()) {
+        const QStringList ids = queueIds(lib->rowsForContext(m_context));
+        const int at = int(ids.indexOf(m_currentId));
+        if (at >= 0 && at + 1 < ids.size()) {
+            startQueue(ids, at + 1, m_context);
+            return true;
+        }
+    }
+    if (!m_autoplay)
+        return false;
+
+    auto startAt = [this](const QStringList &ids) {
+        return m_shuffle ? int(QRandomGenerator::global()->bounded(int(ids.size()))) : 0;
+    };
+
+    // 2. The next non-empty playlist (in sidebar order) after the one that has just ended.
+    const int current = lib->playlistIndex(m_context);
+    if (current >= 0) {
+        for (int step = 1; step < lib->playlistCount(); ++step) {
+            const int i = (current + step) % lib->playlistCount();
+            QStringList ids = queueIds(lib->playlistRows(i));
+            ids.removeAll(m_currentId);
+            if (ids.isEmpty())
+                continue;
+            emit notice(tr("Up next: %1").arg(lib->playlistName(i)), QStringLiteral("mix"));
+            startQueue(ids, startAt(ids), lib->playlistContext(i));
+            return true;
+        }
+    }
+
+    // 3. Otherwise (album, artist, search results…) — the whole library from a random track.
+    QStringList ids = queueIds(lib->libraryRows());
+    ids.removeAll(m_currentId);
+    if (ids.isEmpty())
+        return false;
+    emit notice(tr("Up next: your library"), QStringLiteral("mix"));
+    startQueue(ids, int(QRandomGenerator::global()->bounded(int(ids.size()))), QStringLiteral("library"));
+    return true;
+}
+
+void PlayerController::skipAfterError(const QString &message)
+{
+    if (!m_currentId.isEmpty() && m_skipPending == m_currentId)
+        return;   // the same failure reported twice (errorOccurred + InvalidMedia)
+    emit notice(message, QStringLiteral("close"));
+    // Skip only when music was expected and there's somewhere to go; stop after a few failures in a row
+    // (e.g. no network) instead of cycling through the whole queue.
+    if (!m_wantPlay || m_queue.size() <= 1)
+        return;
+    if (++m_failures > 4) {
+        m_failures = 0;
+        m_wantPlay = false;
+        return;
+    }
+    m_skipPending = m_currentId;
+    QTimer::singleShot(1200, this, [this, id = m_currentId] {
+        m_skipPending.clear();
+        if (m_currentId == id && m_wantPlay)
+            advance(false);
+    });
+}
+
+void PlayerController::checkStall(double dt)
+{
+    // A network stream can get stuck (the URL expired, the connection dropped): the player still says
+    // "playing", but the position stops moving and EndOfMedia never comes — the music would just stop.
+    if (!playing() || live() || !m_decks[m_active].resolving.isEmpty() || m_engine.inTransition()) {
+        m_lastPosMs = -1;
+        m_stall = 0;
+        return;
+    }
+    const qint64 pos = player().position();
+    if (pos != m_lastPosMs) {
+        m_lastPosMs = pos;
+        m_stall = 0;
+        if (pos > 3000)
+            m_failures = 0;   // the track really plays
+        return;
+    }
+    m_stall += dt;
+    if (m_stall < 8.0)
+        return;
+    m_stall = 0;
+    m_lastPosMs = -1;
+
+    const double total = player().duration() / 1000.0;
+    if (total <= 0 || total - pos / 1000.0 < 15.0) {
+        // Stuck at the end — treat it as the end of the track.
+        if (m_repeat == 2)
+            seek(0.0);
+        else
+            advance(false);
+        return;
+    }
+    // Stuck in the middle: reload the track from the same spot (YouTube gets a fresh URL).
+    if (++m_failures > 2) {
+        skipAfterError(tr("The stream stopped responding"));
+        return;
+    }
+    const Track *t = current();
+    if (t && t->source == QLatin1String("youtube"))
+        YouTubeService::instance()->resolver()->forget(t->path);
+    const QString id = m_currentId;
+    m_currentId.clear();   // load() of the same id would otherwise be treated as "already playing"
+    load(id, true);
+    m_pendingSeek = pos;
+}
+
+void PlayerController::setAutoplay(bool on)
+{
+    if (on == m_autoplay)
+        return;
+    m_autoplay = on;
+    AppPaths::settings()->setValue("player/autoplay", on);
+    emit mixChanged();
 }
 
 void PlayerController::previous()
@@ -646,7 +796,7 @@ void PlayerController::onDeckMediaStatus(int d, QMediaPlayer::MediaStatus status
         }
         break;
     case QMediaPlayer::InvalidMedia:
-        emit notice(tr("Unsupported or damaged file"), QStringLiteral("close"));
+        skipAfterError(tr("Unsupported or damaged file"));
         break;
     default:
         break;
@@ -982,6 +1132,7 @@ void PlayerController::tick()
         m_analyzer.pushSamples(m_played.data(), m_played.size(), m_engine.sampleRate());
     Equalizer::instance()->tickMeters(dt);
     updateMix(dt);
+    checkStall(dt);
 
     if (active) {
         m_analyzer.compute(m_targets);

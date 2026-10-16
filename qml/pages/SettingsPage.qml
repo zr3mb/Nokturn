@@ -147,6 +147,12 @@ Item {
                     Toggle { checked: Player.smartTransitions; onToggled: c => Player.smartTransitions = c }
                 }
                 SettingRow {
+                    icon: "queue"
+                    title: qsTr("Keep playing (autoplay)")
+                    description: qsTr("When a playlist ends, the music continues with the next playlist; after an album or search results — with your library.")
+                    Toggle { checked: Player.autoplay; onToggled: c => Player.autoplay = c }
+                }
+                SettingRow {
                     icon: "volumeUp"
                     title: qsTr("Volume normalization")
                     description: qsTr("Evens out the loudness of tracks from different sources.")

@@ -31,6 +31,7 @@ public:
     void resolve(const QString &videoId);
     void prefetch(const QString &videoId) { if (ready() && !cachedUrl(videoId).isValid()) resolve(videoId); }
     QUrl cachedUrl(const QString &videoId) const;
+    void forget(const QString &videoId) { m_cache.remove(videoId); }   // e.g. the URL expired mid-playback
 
 signals:
     void engineChanged();

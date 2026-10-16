@@ -566,6 +566,42 @@ bool Library::playlistLoading(int index) const
            && YouTubeService::instance()->playlistLoading(p.value("ytId").toString());
 }
 
+// ---- queue contexts (the same strings PlaylistPage.qml builds) -------------------
+
+QString Library::playlistContext(int index) const
+{
+    const QVariantMap p = m_playlists.value(index).toMap();
+    if (p.isEmpty())
+        return {};
+    return p.value("kind") == QLatin1String("ytplaylist") ? QStringLiteral("yt:") + p.value("ytId").toString()
+                                                         : QStringLiteral("playlist:") + p.value("kind").toString();
+}
+
+int Library::playlistIndex(const QString &context) const
+{
+    for (int i = 0; i < m_playlists.size(); ++i)
+        if (playlistContext(i) == context)
+            return i;
+    return -1;
+}
+
+QString Library::playlistName(int index) const
+{
+    return m_playlists.value(index).toMap().value("name").toString();
+}
+
+QVariantList Library::rowsForContext(const QString &context)
+{
+    if (context == QLatin1String("library"))
+        return libraryRows();
+    if (context.startsWith(QLatin1String("album:")))
+        return tracksOfAlbum(context.mid(6));
+    if (context.startsWith(QLatin1String("artist:")))
+        return tracksOfArtist(context.mid(7));
+    const int index = playlistIndex(context);
+    return index >= 0 ? playlistRows(index) : QVariantList();
+}
+
 QVariantList Library::libraryRows() const
 {
     QVariantList out = localTracks();
