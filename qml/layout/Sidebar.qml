@@ -142,7 +142,7 @@ Panel {
                         iconSize: 18
                         showDot: false
                         visible: !root.compact
-                        onClicked: Nav.toast(qsTr("Creating playlists is coming soon"), "add")
+                        onClicked: Nav.createPlaylist([])
                     }
                 }
 

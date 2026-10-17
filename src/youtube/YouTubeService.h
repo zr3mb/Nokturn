@@ -95,6 +95,16 @@ public:
     const QStringList &likedIds() const { return m_liked; }
     QVariantList playlists() const { return m_playlists; }
     QStringList playlistTrackIds(const QString &playlistId) const { return m_playlistTracks.value(playlistId); }
+
+    // Editing the account's playlists (Playlists does the UI side). The local copy updates on success.
+    using ErrorCallback = std::function<void(const QString &error)>;
+    void createPlaylist(const QString &title, const QString &description, const QString &privacy,
+                        const QList<Track> &tracks, std::function<void(const QString &playlistId, const QString &error)> done);
+    void addToPlaylist(const QString &playlistId, const QList<Track> &tracks, ErrorCallback done);
+    void removeFromPlaylist(const QString &playlistId, const QString &videoId, ErrorCallback done);
+    void renamePlaylist(const QString &playlistId, const QString &title, ErrorCallback done);
+    void setPlaylistPrivacy(const QString &playlistId, const QString &privacy, ErrorCallback done);
+    void deletePlaylist(const QString &playlistId, ErrorCallback done);
     bool playlistLoading(const QString &playlistId) const { return m_loadingPlaylists.contains(playlistId); }
     void ensurePlaylist(const QString &playlistId);
     const QStringList &searchIds() const { return m_search; }
@@ -122,6 +132,7 @@ private:
     void syncStep(const QString &error);
     void storeTracks(const QList<Track> &tracks, bool transient);
     void publishResults(const QStringList &ids);
+    void updatePlaylistInfo(const QString &playlistId, const QVariantMap &changes);
     void setLikedList(const QStringList &ids);
     void loadCache();
     void saveCache() const;

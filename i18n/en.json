@@ -59,5 +59,9 @@
   "%n tracks in your library": [
     "%n track in your library",
     "%n tracks in your library"
+  ],
+  "With %n tracks": [
+    "With %n track",
+    "With %n tracks"
   ]
 }

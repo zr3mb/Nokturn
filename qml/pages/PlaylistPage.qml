@@ -48,10 +48,12 @@ Item {
                    : p.kind === "youtube" ? (YouTube.connected ? qsTr("Liked on your YouTube account") : qsTr("Sample tracks from YouTube Music"))
                    : p.kind === "spotifyliked" ? qsTr("Liked on your Spotify account")
                    : sp ? qsTr("Spotify — played from YouTube Music")
+                   : p.kind === "user" ? (p.description || qsTr("Your playlist on this computer"))
                    : qsTr("Your playlist")
         return { label: yt ? qsTr("PLAYLIST · YOUTUBE MUSIC") : sp ? qsTr("PLAYLIST · SPOTIFY") : qsTr("PLAYLIST"), title: p.name, meta: [meta],
                  colorA: p.colorA, colorB: p.colorB, seed: p.seed, cover: p.cover || "", icon: p.icon, round: false,
                  mosaic: p.mosaic || [], playlistIndex: index, customCover: p.customCover === true,
+                 kind: p.kind, editable: Playlists.canEdit(index),
                  rows: Library.playlistRows(index), loading: Library.playlistLoading(index) }
     }
     // Queue id for the mix settings (separate for each playlist / album / artist).
@@ -62,7 +64,28 @@ Item {
         if (a.kind === "ytcollection") return "ytc:" + a.playlistId
         const p = Library.playlists[a.index || 0]
         if (!p) return ""
-        return p.kind === "ytplaylist" ? "yt:" + p.ytId : p.kind === "spplaylist" ? "sp:" + p.spId : "playlist:" + p.kind
+        return p.kind === "ytplaylist" ? "yt:" + p.ytId : p.kind === "spplaylist" ? "sp:" + p.spId
+             : p.kind === "user" ? "user:" + p.userId : "playlist:" + p.kind
+    }
+
+    // Sort order of this list — remembered per playlist / album ("" = as the source orders it).
+    property string sortKey: Prefs.stringValue("playlist/sort/" + context, "")
+    onContextChanged: sortKey = Prefs.stringValue("playlist/sort/" + context, "")
+    function setSort(key) {
+        sortKey = key
+        Prefs.setValue("playlist/sort/" + context, key)
+    }
+    readonly property var rows: {
+        const rows = info.rows
+        if (sortKey === "")
+            return rows
+        if (sortKey === "reverse")
+            return rows.slice().reverse()
+        const field = sortKey === "duration" ? "duration" : sortKey
+        const items = rows.map(r => ({ r: r, v: Library.tracks.get(r)[field] }))
+        items.sort((a, b) => field === "duration" ? a.v - b.v
+                                                  : String(a.v).localeCompare(String(b.v), undefined, { sensitivity: "base" }))
+        return items.map(x => x.r)
     }
     readonly property var mix: { Player.mixRevision; return Player.mixFor(context) }
     readonly property int totalSeconds: Library.totalDuration(info.rows)
@@ -95,7 +118,7 @@ Item {
         flickDeceleration: 3200
         maximumFlickVelocity: 4200
         ScrollBar.vertical: ThinScrollBar {}
-        model: page.info.rows
+        model: page.rows
 
         header: Item {
             width: flick.width - page.pad * 2
@@ -217,7 +240,7 @@ Item {
                             size: 58
                             playing: page.playingHere
                             enabled: page.info.rows.length > 0
-                            onClicked: page.playingHere ? Player.toggle() : Player.playFrom(page.info.rows, page.info.rows[0], page.context)
+                            onClicked: page.playingHere ? Player.toggle() : Player.playFrom(page.rows, page.rows[0], page.context)
                         }
                         IconButton {
                             icon: "shuffle"
@@ -226,7 +249,7 @@ Item {
                             active: Player.shuffle
                             onClicked: {
                                 Player.shuffle = true
-                                const rows = page.info.rows
+                                const rows = page.rows
                                 if (rows.length) Player.playFrom(rows, rows[Math.floor(Math.random() * rows.length)], page.context)
                             }
                         }
@@ -253,11 +276,18 @@ Item {
                             onClicked: mixPopup.open()
                         }
                         IconButton {
+                            id: moreButton
                             icon: "more"
                             iconSize: 24
                             implicitWidth: 46; implicitHeight: 46
                             showDot: false
-                            onClicked: Nav.toast(qsTr("The context menu is coming soon"), "more")
+                            onClicked: {
+                                const p = moreButton.mapToItem(page, 0, moreButton.height + 4)
+                                playlistMenu.x = Math.min(p.x, page.width - playlistMenu.width - 12)
+                                playlistMenu.y = p.y
+                                playlistMenu.confirmDelete = false
+                                playlistMenu.open()
+                            }
                         }
                         Item { Layout.fillWidth: true }
                     }
@@ -292,7 +322,9 @@ Item {
                         }
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: page.info.loading ? qsTr("Fetching tracks from YouTube Music") : qsTr("Like a track with the heart and it will show up here.")
+                            text: page.info.loading ? qsTr("Fetching tracks from YouTube Music")
+                                  : page.info.editable === true ? qsTr("Add tracks with ⋯ → Add to playlist on any track.")
+                                  : qsTr("Like a track with the heart and it will show up here.")
                             color: Theme.textDim
                             font.pixelSize: 14
                         }
@@ -308,9 +340,137 @@ Item {
             trackIndex: modelData
             number: index + 1
             showAlbum: page.info.label !== "ALBUM"
-            queue: page.info.rows
+            queue: page.rows
             context: page.context
+            playlistIndex: page.info.editable === true ? page.info.playlistIndex : -1
             revealDelay: index < 16 ? 180 + index * 30 : 0
+        }
+    }
+
+    // Small pieces of the "⋯" menu
+    component MenuLabel: Text {
+        Layout.fillWidth: true
+        Layout.leftMargin: 12
+        Layout.topMargin: 8
+        Layout.bottomMargin: 2
+        color: Theme.textFaint
+        font.pixelSize: 11
+        font.weight: Font.DemiBold
+        font.letterSpacing: 1
+    }
+    component Separator: Rectangle {
+        Layout.fillWidth: true
+        Layout.topMargin: 4
+        Layout.bottomMargin: 4
+        height: 1
+        color: Qt.rgba(1, 1, 1, 0.07)
+    }
+
+    // "⋯" next to Play: sort, save as a new playlist, and for the user's own playlists editing,
+    // who can see it (YouTube Music) and deleting.
+    Popup {
+        id: playlistMenu
+        property bool confirmDelete: false
+        readonly property bool own: page.info.editable === true
+        width: 300
+        padding: 6
+        margins: 10
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            radius: 14
+            color: Theme.surfaceHi
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.07)
+        }
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140 }
+            NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 220; easing.type: Easing.OutCubic }
+        }
+        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 } }
+
+        contentItem: ColumnLayout {
+            spacing: 2
+
+            MenuEntry {
+                visible: playlistMenu.own
+                Layout.fillWidth: true
+                icon: "tune"
+                text: page.info.kind === "ytplaylist" ? qsTr("Rename") : qsTr("Edit name and description")
+                onTriggered: {
+                    playlistMenu.close()
+                    Nav.editPlaylist(page.info.playlistIndex)
+                }
+            }
+            MenuEntry {
+                Layout.fillWidth: true
+                visible: page.rows.length > 0
+                icon: "add"
+                text: qsTr("Save as a new playlist…")
+                onTriggered: {
+                    playlistMenu.close()
+                    Nav.createPlaylist(page.rows)
+                }
+            }
+
+            // Who can see it — YouTube Music playlists
+            MenuLabel {
+                visible: playlistMenu.own && page.info.kind === "ytplaylist"
+                text: qsTr("WHO CAN SEE IT")
+            }
+            Repeater {
+                model: playlistMenu.own && page.info.kind === "ytplaylist"
+                       ? [{ key: "PRIVATE", text: qsTr("Private"), icon: "person" },
+                          { key: "UNLISTED", text: qsTr("Unlisted — anyone with the link"), icon: "link" },
+                          { key: "PUBLIC", text: qsTr("Public"), icon: "sources" }] : []
+                MenuEntry {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    icon: modelData.icon
+                    text: modelData.text
+                    onTriggered: {
+                        playlistMenu.close()
+                        Playlists.setPrivacy(page.info.playlistIndex, modelData.key)
+                    }
+                }
+            }
+
+            MenuLabel { text: qsTr("SORT BY") }
+            Repeater {
+                model: [{ key: "", text: qsTr("Playlist order") }, { key: "reverse", text: qsTr("Playlist order, reversed") },
+                        { key: "title", text: qsTr("Title") }, { key: "artist", text: qsTr("Artist") },
+                        { key: "album", text: qsTr("Album") }, { key: "duration", text: qsTr("Duration") }]
+                MenuEntry {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    icon: page.sortKey === modelData.key ? "check" : ""
+                    text: modelData.text
+                    onTriggered: {
+                        playlistMenu.close()
+                        page.setSort(modelData.key)
+                    }
+                }
+            }
+
+            Separator { visible: playlistMenu.own }
+            MenuEntry {
+                visible: playlistMenu.own
+                Layout.fillWidth: true
+                icon: "close"
+                text: playlistMenu.confirmDelete
+                      ? (page.info.kind === "ytplaylist" ? qsTr("Click again — it's deleted from YouTube Music too")
+                                                         : qsTr("Click again to delete"))
+                      : qsTr("Delete playlist")
+                onTriggered: {
+                    if (!playlistMenu.confirmDelete) {
+                        playlistMenu.confirmDelete = true
+                        return
+                    }
+                    playlistMenu.close()
+                    Playlists.deletePlaylist(page.info.playlistIndex)
+                    Nav.navigate("home")
+                }
+            }
         }
     }
 

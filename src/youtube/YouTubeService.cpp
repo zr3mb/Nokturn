@@ -265,6 +265,119 @@ void YouTubeService::ensurePlaylist(const QString &playlistId)
     });
 }
 
+// ---- editing the account's playlists -----------------------------------------------
+
+void YouTubeService::createPlaylist(const QString &title, const QString &description, const QString &privacy,
+                                    const QList<Track> &tracks, std::function<void(const QString &, const QString &)> done)
+{
+    QStringList videoIds;
+    for (const Track &t : tracks)
+        videoIds << t.path;
+    m_api.createPlaylist(title, description, privacy, videoIds, [this, title, tracks, done](const QString &id, const QString &error) {
+        if (!error.isEmpty()) {
+            done({}, error);
+            return;
+        }
+        storeTracks(tracks, false);
+        QStringList ids;
+        for (const Track &t : tracks)
+            if (!ids.contains(t.id))
+                ids << t.id;
+        m_playlists.prepend(QVariantMap { { "id", id }, { "title", title }, { "count", ids.size() },
+                                          { "cover", tracks.isEmpty() ? QString() : tracks.first().cover } });
+        m_playlistTracks.insert(id, ids);
+        m_refreshedPlaylists.insert(id);
+        saveCache();
+        emit dataChanged();
+        done(id, {});
+    });
+}
+
+void YouTubeService::addToPlaylist(const QString &playlistId, const QList<Track> &tracks, ErrorCallback done)
+{
+    QJsonArray actions;
+    for (const Track &t : tracks)
+        actions.append(QJsonObject { { "action", "ACTION_ADD_VIDEO" }, { "addedVideoId", t.path },
+                                     { "dedupeOption", "DEDUPE_OPTION_SKIP" } });
+    m_api.editPlaylist(playlistId, actions, [this, playlistId, tracks, done](const QString &error) {
+        if (error.isEmpty()) {
+            storeTracks(tracks, false);
+            QStringList &ids = m_playlistTracks[playlistId];
+            for (const Track &t : tracks)
+                if (!ids.contains(t.id))
+                    ids << t.id;
+            updatePlaylistInfo(playlistId, { { "count", ids.size() } });
+        }
+        done(error);
+    });
+}
+
+void YouTubeService::removeFromPlaylist(const QString &playlistId, const QString &videoId, ErrorCallback done)
+{
+    m_api.fetchSetVideoIds(playlistId, [this, playlistId, videoId, done](const QHash<QString, QString> &setIds, const QString &error) {
+        const QString setVideoId = setIds.value(videoId);
+        if (setVideoId.isEmpty()) {
+            done(!error.isEmpty() ? error : tr("The track isn't in this playlist anymore"));
+            return;
+        }
+        const QJsonArray actions { QJsonObject { { "action", "ACTION_REMOVE_VIDEO" }, { "setVideoId", setVideoId },
+                                                 { "removedVideoId", videoId } } };
+        m_api.editPlaylist(playlistId, actions, [this, playlistId, videoId, done](const QString &error) {
+            if (error.isEmpty()) {
+                QStringList &ids = m_playlistTracks[playlistId];
+                ids.removeAll(QStringLiteral("yt:") + videoId);
+                updatePlaylistInfo(playlistId, { { "count", ids.size() } });
+            }
+            done(error);
+        });
+    });
+}
+
+void YouTubeService::renamePlaylist(const QString &playlistId, const QString &title, ErrorCallback done)
+{
+    const QJsonArray actions { QJsonObject { { "action", "ACTION_SET_PLAYLIST_NAME" }, { "playlistName", title } } };
+    m_api.editPlaylist(playlistId, actions, [this, playlistId, title, done](const QString &error) {
+        if (error.isEmpty())
+            updatePlaylistInfo(playlistId, { { "title", title } });
+        done(error);
+    });
+}
+
+void YouTubeService::setPlaylistPrivacy(const QString &playlistId, const QString &privacy, ErrorCallback done)
+{
+    const QJsonArray actions { QJsonObject { { "action", "ACTION_SET_PLAYLIST_PRIVACY" }, { "playlistPrivacy", privacy } } };
+    m_api.editPlaylist(playlistId, actions, done);
+}
+
+void YouTubeService::deletePlaylist(const QString &playlistId, ErrorCallback done)
+{
+    m_api.deletePlaylist(playlistId, [this, playlistId, done](const QString &error) {
+        if (error.isEmpty()) {
+            for (int i = 0; i < m_playlists.size(); ++i)
+                if (m_playlists.at(i).toMap().value("id").toString() == playlistId)
+                    m_playlists.removeAt(i--);
+            m_playlistTracks.remove(playlistId);
+            saveCache();
+            emit dataChanged();
+        }
+        done(error);
+    });
+}
+
+void YouTubeService::updatePlaylistInfo(const QString &playlistId, const QVariantMap &changes)
+{
+    for (QVariant &v : m_playlists) {
+        QVariantMap p = v.toMap();
+        if (p.value("id").toString() != playlistId)
+            continue;
+        for (auto it = changes.cbegin(); it != changes.cend(); ++it)
+            p.insert(it.key(), it.value());
+        v = p;
+    }
+    saveCache();
+    emit dataChanged();
+}
+
 void YouTubeService::search(const QString &query)
 {
     const QString q = query.trimmed();

@@ -19,10 +19,13 @@ Item {
         else Player.playIndex(trackIndex)
     }
 
-    // Track menu — for now the YouTube Music match of a Spotify track (it's played from there).
+    // The playlist this row is shown in (Library.playlists index) — enables "Remove from this playlist".
+    property int playlistIndex: -1
+
+    // Track menu: add to a playlist, remove from this one, the YouTube Music match of a Spotify track.
     readonly property int menuWidth: 320
     function openMenu(px, py) {
-        if (t.source !== "spotify")
+        if (t.demo)
             return false
         const menu = menuComponent.createObject(root, { x: px, y: py })
         menu.open()
@@ -205,8 +208,7 @@ Item {
                 showDot: false
                 onClicked: {
                     const p = moreButton.mapToItem(root, moreButton.width, moreButton.height)
-                    if (!root.openMenu(p.x - menuWidth, p.y + 4))
-                        Nav.toast(qsTr("The context menu is coming soon"), "more")
+                    root.openMenu(p.x - menuWidth, p.y + 4)
                 }
             }
         }
@@ -234,9 +236,68 @@ Item {
             exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 } }
             onClosed: destroy()
 
+            property bool choosingPlaylist: false
+
             contentItem: ColumnLayout {
                 spacing: 2
+
+                // ---- playlists ----
+                MenuEntry {
+                    Layout.fillWidth: true
+                    icon: "add"
+                    text: qsTr("Add to playlist")
+                    onTriggered: menu.choosingPlaylist = !menu.choosingPlaylist
+                }
+                ColumnLayout {
+                    visible: menu.choosingPlaylist
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 14
+                    spacing: 2
+                    MenuEntry {
+                        Layout.fillWidth: true
+                        icon: "add"
+                        text: qsTr("New playlist…")
+                        onTriggered: {
+                            menu.close()
+                            Nav.createPlaylist([root.trackIndex])
+                        }
+                    }
+                    Repeater {
+                        model: menu.choosingPlaylist ? Playlists.targets().filter(p => p.index !== root.playlistIndex) : []
+                        MenuEntry {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            icon: modelData.kind === "ytplaylist" ? "playCircle" : "music"
+                            text: modelData.name
+                            onTriggered: {
+                                menu.close()
+                                Playlists.addRows(modelData.index, [root.trackIndex])
+                            }
+                        }
+                    }
+                }
+                MenuEntry {
+                    visible: root.playlistIndex >= 0 && Playlists.canEdit(root.playlistIndex)
+                    Layout.fillWidth: true
+                    icon: "minus"
+                    text: qsTr("Remove from this playlist")
+                    onTriggered: {
+                        menu.close()
+                        Playlists.removeRow(root.playlistIndex, root.trackIndex)
+                    }
+                }
+
+                // ---- Spotify: the YouTube Music version it plays from ----
+                Rectangle {
+                    visible: root.t.source === "spotify"
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    Layout.bottomMargin: 2
+                    height: 1
+                    color: Qt.rgba(1, 1, 1, 0.07)
+                }
                 Text {
+                    visible: root.t.source === "spotify"
                     Layout.fillWidth: true
                     Layout.margins: 10
                     Layout.bottomMargin: 4
@@ -247,6 +308,7 @@ Item {
                     wrapMode: Text.WordWrap
                 }
                 MenuEntry {
+                    visible: root.t.source === "spotify"
                     Layout.fillWidth: true
                     icon: "search"
                     text: qsTr("Wrong match — choose another")
@@ -256,6 +318,7 @@ Item {
                     }
                 }
                 MenuEntry {
+                    visible: root.t.source === "spotify"
                     Layout.fillWidth: true
                     icon: "refresh"
                     text: qsTr("Match again")

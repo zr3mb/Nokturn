@@ -45,6 +45,7 @@ qt_add_qml_module(Nokturn
         src/LibraryScanner.h    src/LibraryScanner.cpp
         src/SpectrumAnalyzer.h  src/SpectrumAnalyzer.cpp
         src/Library.h           src/Library.cpp
+        src/Playlists.h         src/Playlists.cpp
         src/PlayerController.h  src/PlayerController.cpp
         src/audio/Equalizer.h         src/audio/Equalizer.cpp
         src/audio/AudioEngine.h       src/audio/AudioEngine.cpp
@@ -83,6 +84,7 @@ qt_add_qml_module(Nokturn
         qml/components/LyricsView.qml
         qml/components/MatchDialog.qml
         qml/components/MenuEntry.qml
+        qml/components/PlaylistDialog.qml
         qml/components/LogoMark.qml
         qml/components/PageFlick.qml
         qml/components/Panel.qml

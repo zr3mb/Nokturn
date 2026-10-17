@@ -2,6 +2,7 @@
 
 #include "AppPaths.h"
 #include "Language.h"
+#include "Playlists.h"
 #include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 
@@ -96,6 +97,11 @@ Library::Library(QObject *parent)
     connect(&m_watcher, &QFutureWatcher<Scanner::Result>::finished, this, &Library::onScanFinished);
 
     connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &Library::rebuildModel);
+    // Local playlist edits only change the playlist list — their tracks are already in the model.
+    connect(Playlists::instance(), &Playlists::changed, this, [this] {
+        rebuildPlaylists();
+        emit playlistsChanged();
+    });
     connect(YouTubeService::instance(), &YouTubeService::tracksAdded, m_tracks, &TrackModel::appendTracks);
     connect(YouTubeService::instance(), &YouTubeService::accountChanged, this, &Library::rebuildModel);
     connect(SpotifyService::instance(), &SpotifyService::dataChanged, this, &Library::rebuildModel);
@@ -329,6 +335,15 @@ void Library::rebuildModel()
     QList<Track> all = m_local;
     all << yt->tracks();
     all << SpotifyService::instance()->tracks();
+    // Tracks kept in local playlists (search results, Spotify) that no source provides anymore.
+    {
+        QSet<QString> present;
+        for (const Track &t : std::as_const(all))
+            present.insert(t.id);
+        for (const Track &t : Playlists::instance()->tracks())
+            if (!present.contains(t.id))
+                all << t;
+    }
     for (const Track &t : demoTracks()) {
         // Sample YouTube tracks disappear once the account is connected.
         if (t.source == QLatin1String("youtube") && yt->connected())
@@ -354,6 +369,13 @@ void Library::rebuildPlaylists()
                       { "kind", "youtube" }, { "icon", "playCircle" },
                       { "colorA", QColor("#d0b29a") }, { "colorB", QColor("#5c4334") }, { "seed", 3 } },
     };
+    for (const Playlists::Local &p : Playlists::instance()->local()) {
+        const auto [a, b] = Scanner::fallbackPalette(p.id);
+        m_playlists << QVariantMap {
+            { "name", p.name }, { "kind", "user" }, { "userId", p.id }, { "description", p.description },
+            { "icon", "" }, { "cover", QString() }, { "count", p.trackIds.size() },
+            { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.id) } };
+    }
     for (const QVariant &v : yt->playlists()) {
         const QVariantMap p = v.toMap();
         const auto [a, b] = Scanner::fallbackPalette(p.value("id").toString());
@@ -417,6 +439,8 @@ QString Library::coverKey(const QVariantMap &p)
         return QStringLiteral("yt:") + p.value("ytId").toString();
     if (kind == QLatin1String("spplaylist"))
         return QStringLiteral("sp:") + p.value("spId").toString();
+    if (kind == QLatin1String("user"))
+        return QStringLiteral("user:") + p.value("userId").toString();
     return kind;
 }
 
@@ -453,6 +477,8 @@ void Library::applyPlaylistCover(QVariantMap &p) const
         rows = rowsOfIds(SpotifyService::instance()->likedIds());
     else if (kind == QLatin1String("spplaylist"))
         rows = rowsOfIds(SpotifyService::instance()->playlistTrackIds(p.value("spId").toString()));
+    else if (kind == QLatin1String("user"))
+        rows = rowsOfIds(Playlists::instance()->trackIds(p.value("userId").toString()));
 
     QStringList covers;
     QSet<QString> seen;
@@ -765,6 +791,8 @@ QVariantList Library::playlistRows(int index)
         yt->ensurePlaylist(id);
         return rowsOfIds(yt->playlistTrackIds(id));
     }
+    if (kind == QLatin1String("user"))
+        return rowsOfIds(Playlists::instance()->trackIds(p.value("userId").toString()));
     if (kind == QLatin1String("spotifyliked"))
         return rowsOfIds(SpotifyService::instance()->likedIds());
     if (kind == QLatin1String("spplaylist"))
@@ -791,6 +819,8 @@ QString Library::playlistContext(int index) const
         return QStringLiteral("yt:") + p.value("ytId").toString();
     if (kind == QLatin1String("spplaylist"))
         return QStringLiteral("sp:") + p.value("spId").toString();
+    if (kind == QLatin1String("user"))
+        return QStringLiteral("user:") + p.value("userId").toString();
     return QStringLiteral("playlist:") + kind;
 }
 

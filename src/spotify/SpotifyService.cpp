@@ -1,6 +1,7 @@
 #include "SpotifyService.h"
 
 #include "AppPaths.h"
+#include "Library.h"
 #include "LibraryScanner.h"
 #include "youtube/YouTubeService.h"
 #include "youtube/YtCookies.h"
@@ -920,8 +921,18 @@ QString plainTitle(const QString &title)
 
 QString SpotifyService::matchQuery(const QString &trackId) const
 {
-    const Track t = m_tracks.value(trackId);
+    const Track t = trackFor(trackId);
     return (t.artist.section(QStringLiteral(", "), 0, 0) + QLatin1Char(' ') + t.title).trimmed();
+}
+
+Track SpotifyService::trackFor(const QString &trackId) const
+{
+    if (const auto it = m_tracks.constFind(trackId); it != m_tracks.cend())
+        return *it;
+    // Not synced (anymore) — e.g. a Spotify track kept in a local playlist: the model has its data.
+    const TrackModel *model = Library::instance()->tracks();
+    const int row = model->rowOf(trackId);
+    return row >= 0 ? model->at(row) : Track {};
 }
 
 void SpotifyService::match(const QString &trackId, std::function<void(const QString &)> callback)
@@ -940,7 +951,7 @@ void SpotifyService::match(const QString &trackId, std::function<void(const QStr
     // fits well (a missing track, only a remix or live version): videos — official clips, lyric
     // videos, uploads of versions that aren't on YouTube Music as songs — with the title stripped of
     // "Remastered"/"feat.". No songs at all (the filter stopped working?) — an unfiltered search.
-    const Track t = m_tracks.value(trackId);
+    const Track t = trackFor(trackId);
     YtMusicApi *api = YouTubeService::instance()->api();
     api->search(matchQuery(trackId), [this, api, trackId, t](const QList<Track> &songs, const QString &error) {
         const int best = YtMusicApi::bestMatch(t, songs);
@@ -993,7 +1004,7 @@ void SpotifyService::findMatches(const QString &trackId, const QString &query)
     const auto done = [this, trackId, pending] {
         if (--pending->left > 0)
             return;
-        const Track t = m_tracks.value(trackId);
+        const Track t = trackFor(trackId);
         const QString current = m_matches.value(trackId);
         QVariantList out;
         QSet<QString> seen;

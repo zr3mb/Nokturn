@@ -4,6 +4,8 @@
 #include "YtCookies.h"
 #include "lyrics/Lyrics.h"
 
+#include <QHash>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
@@ -60,6 +62,15 @@ public:
     void findArtistId(const QString &name, std::function<void(const QString &browseId, const QString &error)> callback);
     static Artist parseArtist(const QJsonObject &root);
     void setLiked(const QString &videoId, bool liked);
+
+    // The account's own playlists (needs the signed-in account). privacy: "PRIVATE" | "UNLISTED" | "PUBLIC".
+    void createPlaylist(const QString &title, const QString &description, const QString &privacy,
+                        const QStringList &videoIds, std::function<void(const QString &playlistId, const QString &error)> callback);
+    // actions: { action: "ACTION_ADD_VIDEO", addedVideoId } / ACTION_REMOVE_VIDEO / ACTION_SET_PLAYLIST_NAME …
+    void editPlaylist(const QString &playlistId, const QJsonArray &actions, std::function<void(const QString &error)> callback);
+    void deletePlaylist(const QString &playlistId, std::function<void(const QString &error)> callback);
+    // Removing needs each entry's "setVideoId": videoId -> setVideoId for the whole playlist.
+    void fetchSetVideoIds(const QString &playlistId, std::function<void(const QHash<QString, QString> &, const QString &error)> callback);
     // Lyrics: the timed version first (mobile client), then plain text.
     // An empty result without an error = YouTube Music has no lyrics for this track.
     void fetchLyrics(const QString &videoId, LyricsCallback callback);

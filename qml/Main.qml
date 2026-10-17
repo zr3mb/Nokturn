@@ -118,6 +118,11 @@ ApplicationWindow {
             id: matchDialog
         }
 
+        // New playlist / editing one
+        PlaylistDialog {
+            id: playlistDialog
+        }
+
         Toast {
             id: toast
             bottomOffset: playerBar.height + 22
@@ -175,6 +180,15 @@ ApplicationWindow {
         function onMatchPickerRequested(track) {
             matchDialog.show(track)
         }
+        function onPlaylistDialogRequested(mode, index, rows) {
+            playlistDialog.show(mode, index, rows)
+        }
+    }
+
+    Connections {
+        target: Playlists
+        function onNotice(text, icon) { toast.show(text, icon) }
+        function onCreated(kind, id) { Nav.openPlaylist(kind, id) }
     }
 
     Connections {

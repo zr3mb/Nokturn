@@ -40,6 +40,24 @@ QtObject {
     signal toastRequested(string text, string icon)
     signal addFolderRequested()
     signal matchPickerRequested(var track)
+    signal playlistDialogRequested(string mode, int index, var rows)
+
+    // New playlist (optionally with tracks — rows of Library.tracks) / editing an existing one (PlaylistDialog).
+    function createPlaylist(rows) {
+        playlistDialogRequested("create", -1, rows || [])
+    }
+    function editPlaylist(index) {
+        playlistDialogRequested("edit", index, [])
+    }
+    // The page of the playlist that Playlists has just created.
+    function openPlaylist(kind, id) {
+        const list = Library.playlists
+        for (let i = 0; i < list.length; ++i) {
+            const p = list[i]
+            if (p.kind === kind && (p.userId === id || p.ytId === id))
+                return navigate("playlist", { kind: "playlist", index: i })
+        }
+    }
 
     // A Spotify track plays from the wrong YouTube Music version — choose another (MatchDialog).
     function chooseMatch(track) {

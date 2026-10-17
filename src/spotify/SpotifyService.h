@@ -84,6 +84,7 @@ public:
     bool matchKnown(const QString &trackId) const { return m_matches.contains(trackId); }
     Q_INVOKABLE QString matchedVideoId(const QString &trackId) const { return m_matches.value(trackId); }
     void match(const QString &trackId, std::function<void(const QString &videoId)> callback);
+    Track trackFor(const QString &trackId) const;   // synced data, or the track model's (local playlists)
 
     // Correcting a wrong match: the search behind it ("artist title"), a few YouTube Music results
     // to choose from (matchesFound), the user's choice — it sticks — and matching from scratch.

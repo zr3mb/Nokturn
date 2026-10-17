@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Nokturn
 
 // Developer tool: `Nokturn.exe --tour <folder>` walks through the screens
@@ -159,7 +160,31 @@ Item {
         const r = Library.collectionRows(id)
         console.log("tour: collection", id, "rows", r.length, r.length ? Library.tracks.get(r[0]).title + " / " + Library.tracks.get(r[0]).artist + " / cover " + (Library.tracks.get(r[0]).cover !== "") : "")
     }
-    readonly property var steps: withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Local playlists: create, add, rename, remove a track, the dialogs, delete (--tour-playlists).
+    readonly property bool withPlaylists: Qt.application.arguments.indexOf("--tour-playlists") >= 0
+    function userIndex() {
+        return Library.playlists.findIndex(p => p.kind === "user")
+    }
+    function logUser(label) {
+        const i = root.userIndex()
+        const p = i >= 0 ? Library.playlists[i] : null
+        console.log("tour:", label, p ? "index " + i + " '" + p.name + "' desc '" + p.description + "' rows " + Library.playlistRows(i).length
+                                        + " page " + Nav.page + " " + JSON.stringify(Nav.args) : "no user playlist")
+    }
+    readonly property var playlistSteps: [
+        { name: "L1-search", run: () => { Nav.finishOnboarding(); YouTube.search("Daft Punk") } },
+        { name: "L2-create", run: () => { const r = Library.onlineResults(); console.log("tour: results", r.length, r.slice(0, 4).map(x => Library.tracks.get(x).title + " / " + Library.tracks.get(x).artist + " / " + Library.tracks.get(x).album).join(" | "))
+                                          Playlists.createPlaylist("Moja testowa", "", "local", "PRIVATE", r.slice(0, 3)) } },
+        { name: "L3-add", run: () => { root.logUser("created"); Playlists.addRows(root.userIndex(), Library.onlineResults().slice(2, 6)) } },
+        { name: "L4-page", run: () => root.logUser("added") },
+        { name: "L5-rename", run: () => { Playlists.edit(root.userIndex(), "Daft Punk na wieczór", "Na spokojnie"); root.logUser("renamed") } },
+        { name: "L6-remove", run: () => { const i = root.userIndex(); Playlists.removeRow(i, Library.playlistRows(i)[0]); root.logUser("removed") } },
+        { name: "L7-edit-dialog", run: () => Nav.editPlaylist(root.userIndex()) },
+        { name: "L8-create-dialog", run: () => Nav.createPlaylist(Library.onlineResults().slice(0, 2)) },
+        { name: "L8b-wait", run: () => {} },
+        { name: "L9-delete", run: () => { Playlists.deletePlaylist(root.userIndex()); root.logUser("deleted") } }
+    ]
+    readonly property var steps: withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
@@ -241,7 +266,16 @@ Item {
         onTriggered: {
             if (root.step >= 0 && root.step < root.steps.length && !root.withPerf && !root.withSeek) {   // screenshots would skew the timings
                 const name = root.steps[root.step].name
-                const ok = root.target.grabToImage(r => console.log("tour: screenshot", name, r.saveToFile(root.dir + "/" + name + ".png")))
+                // An open dialog lives in the overlay, outside the shell — its content is grabbed instead.
+                let source = root.target
+                const overlay = root.target.Overlay.overlay
+                if (overlay)
+                    for (let i = 0; i < overlay.children.length; ++i) {
+                        const popup = overlay.children[i]
+                        if (popup.visible && popup.width > 300 && popup.children.length > 0)
+                            source = Array.from(popup.children).reduce((a, b) => b.children.length > a.children.length ? b : a)
+                    }
+                const ok = source.grabToImage(r => console.log("tour: screenshot", name, r.saveToFile(root.dir + "/" + name + ".png")))
                 if (!ok) console.log("tour: screenshot rejected", name)
             }
             root.step += 1

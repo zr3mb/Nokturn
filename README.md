@@ -269,6 +269,25 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
   `nokturn` image under *Rich Presence → Art Assets* — it shows instead of the cover when there's none online.
 - Older Discord clients that don't know the newer fields (status type, buttons) get the basic version.
 
+## Playlists — how it works
+
+- **New playlist:** the **+** next to *Playlists* in the sidebar, *New playlist…* in a track's menu (⋯ or right-click),
+  or *Save as a new playlist…* in the ⋯ menu of any playlist, album or artist page (a copy with its tracks).
+  The dialog asks where to save it:
+  - **This computer** — kept in `playlists.json` in the data directory. It can hold any track: local files,
+    YouTube Music and Spotify tracks. Their data is stored with the playlist, so search results stay playable.
+  - **YouTube Music** (signed in) — created on the account (InnerTube `playlist/create`), private / unlisted /
+    public; it shows up in YouTube Music on the phone too. Spotify tracks go in as their YouTube Music match,
+    local files are skipped.
+- **Adding and removing:** *Add to playlist* in the track menu lists your own playlists (local and YouTube Music);
+  *Remove from this playlist* on the playlist's page. YouTube Music edits go through `browse/edit_playlist`
+  (removing needs each entry's `setVideoId`, read from the playlist).
+- **Playlist settings** (⋯ next to Play): rename / description, who can see it (YouTube Music), sort order
+  (playlist order, reversed, title, artist, album, duration — remembered per playlist), save as a new playlist,
+  delete (YouTube Music playlists are deleted on the account too — it asks for a second click). The cover and the
+  Mix settings work as for any playlist.
+- YouTube Music playlists you only saved (someone else's) can't be edited — YouTube Music refuses the change.
+
 ## Lyrics — how it works
 
 - **Where:** the *Lyrics* tab in the "Now playing" panel (or the button with text lines on the player bar)
@@ -318,6 +337,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `src/youtube/YtCookies.*` | Cookies: encryption (DPAPI / Secret Service), `SAPISIDHASH`, cookies.txt export |
 | `src/youtube/YtMusicApi.*` | InnerTube client and response parser (tracks, playlists, account) |
 | `src/youtube/StreamResolver.*` | yt-dlp: download with SHA-256 verification, stream URLs, cache |
+| `src/Playlists.*` | `Playlists` singleton: the user's playlists — local (`playlists.json`) or on YouTube Music |
 | `src/spotify/SpotifyService.*` | `Spotify` singleton: sign-in, playlist / liked songs sync, YouTube Music matching |
 | `src/spotify/SpotifyWebLogin.*` | Spotify sign-in window + web player token through the DevTools Protocol |
 | `src/youtube/YouTubeService.*` | `YouTube` singleton for QML: account state, sync, library cache |
