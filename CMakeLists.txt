@@ -55,6 +55,7 @@ qt_add_qml_module(Nokturn
         src/youtube/StreamResolver.h  src/youtube/StreamResolver.cpp
         src/youtube/YouTubeService.h  src/youtube/YouTubeService.cpp
         src/lyrics/Lyrics.h           src/lyrics/Lyrics.cpp
+        src/lyrics/LrcLib.h           src/lyrics/LrcLib.cpp
         src/lyrics/LyricsAligner.h    src/lyrics/LyricsAligner.cpp
         src/lyrics/SpeechEngine.h     src/lyrics/SpeechEngine.cpp
         src/lyrics/LyricsService.h    src/lyrics/LyricsService.cpp

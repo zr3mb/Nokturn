@@ -260,16 +260,7 @@ void LyricsService::fetch()
         fetchYouTube(m_track.path, serial, [this, serial](const Lyrics &l, const QString &error) {
             if (serial != m_serial)
                 return;
-            if (!l.isEmpty()) {
-                apply(l, true);
-                setState(QStringLiteral("ready"));
-                maybeAutoAlign();
-            } else if (!error.isEmpty()) {
-                setState(QStringLiteral("error"), error);
-            } else {
-                storeCached(m_track.id, {});
-                setState(QStringLiteral("missing"));
-            }
+            withLrcLib(serial, l, error);
         });
         return;
     }
@@ -320,19 +311,41 @@ void LyricsService::fetchLocal(quint64 serial, const Lyrics &fromYouTube, const 
         if (serial != m_serial)
             return;
         const Lyrics local = watcher->result();
-        const Lyrics &chosen = local.synced || fromYouTube.isEmpty() ? local : fromYouTube;
-        if (!chosen.isEmpty()) {
-            apply(chosen, true);
-            setState(QStringLiteral("ready"));
-            maybeAutoAlign();
-        } else if (!ytError.isEmpty()) {
-            setState(QStringLiteral("error"), ytError);
-        } else {
-            storeCached(m_track.id, {});
-            setState(QStringLiteral("missing"));
-        }
+        withLrcLib(serial, local.synced || fromYouTube.isEmpty() ? local : fromYouTube, ytError);
     });
     watcher->setFuture(QtConcurrent::run(readLocalLyrics, m_track.path));
+}
+
+void LyricsService::withLrcLib(quint64 serial, const Lyrics &best, const QString &error)
+{
+    // Timed lyrics are what we're after: without them (none, or plain text only) LRCLIB gets a try.
+    if (best.synced) {
+        finish(best, error);
+        return;
+    }
+    m_lrclib.fetch(m_track.artist, m_track.title, m_track.album, m_track.duration,
+                   [this, serial, best, error](const Lyrics &lrc) {
+        if (serial != m_serial)
+            return;
+        if (lrc.synced || best.isEmpty())
+            finish(lrc, lrc.isEmpty() ? error : QString());
+        else
+            finish(best, error);
+    });
+}
+
+void LyricsService::finish(const Lyrics &lyrics, const QString &error)
+{
+    if (!lyrics.isEmpty()) {
+        apply(lyrics, true);
+        setState(QStringLiteral("ready"));
+        maybeAutoAlign();
+    } else if (!error.isEmpty()) {
+        setState(QStringLiteral("error"), error);
+    } else {
+        storeCached(m_track.id, {});
+        setState(QStringLiteral("missing"));
+    }
 }
 
 void LyricsService::apply(const Lyrics &lyrics, bool store)
@@ -474,6 +487,13 @@ bool LyricsService::loadCached(const QString &trackId, Lyrics &out) const
     if (o.value("id").toString() != trackId)
         return false;
     out = Lyrics::fromJson(o);
+    // Before cache version 2, signed-in users got YouTube lyrics without timing (the Android request carried
+    // the website's cookies) — those are fetched again once.
+    if (o.value("v").toInt() < 2 && !out.synced && out.origin == QLatin1String("youtube"))
+        return false;
+    // Version 3 added LRCLIB: "missing" from before is checked again.
+    if (o.value("v").toInt() < 3 && out.isEmpty())
+        return false;
     if (out.isEmpty()) {
         // Remembered missing lyrics — we check again after a few days.
         const qint64 at = qint64(o.value("fetched").toDouble());
@@ -486,6 +506,7 @@ void LyricsService::storeCached(const QString &trackId, const Lyrics &lyrics) co
 {
     QJsonObject o = lyrics.toJson();
     o.insert("id", trackId);
+    o.insert("v", 3);
     o.insert("fetched", double(QDateTime::currentMSecsSinceEpoch()));
     QSaveFile f(cachePath(trackId));
     if (f.open(QIODevice::WriteOnly)) {

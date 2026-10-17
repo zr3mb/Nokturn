@@ -177,14 +177,31 @@ Item {
                                           Playlists.createPlaylist("Moja testowa", "", "local", "PRIVATE", r.slice(0, 3)) } },
         { name: "L3-add", run: () => { root.logUser("created"); Playlists.addRows(root.userIndex(), Library.onlineResults().slice(2, 6)) } },
         { name: "L4-page", run: () => root.logUser("added") },
-        { name: "L5-rename", run: () => { Playlists.edit(root.userIndex(), "Daft Punk na wieczór", "Na spokojnie"); root.logUser("renamed") } },
+        { name: "L5-rename", run: () => { Playlists.edit(root.userIndex(), "Daft Punk na wieczór", "Na spokojnie"); root.logUser("renamed") } },   // i18n-ignore
         { name: "L6-remove", run: () => { const i = root.userIndex(); Playlists.removeRow(i, Library.playlistRows(i)[0]); root.logUser("removed") } },
         { name: "L7-edit-dialog", run: () => Nav.editPlaylist(root.userIndex()) },
         { name: "L8-create-dialog", run: () => Nav.createPlaylist(Library.onlineResults().slice(0, 2)) },
         { name: "L8b-wait", run: () => {} },
         { name: "L9-delete", run: () => { Playlists.deletePlaylist(root.userIndex()); root.logUser("deleted") } }
     ]
-    readonly property var steps: withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Where the lyrics of a few popular tracks come from (--tour-lyrics).
+    readonly property bool withLyrics: Qt.application.arguments.indexOf("--tour-lyrics") >= 0
+    readonly property var lyricQueries: ["Dua Lipa Levitating", "Ed Sheeran Shape of You", "Dawid Podsiadło Małomiasteczkowy", "Daft Punk Get Lucky"]   // i18n-ignore
+    function lyricsLog(q) {
+        console.log("tour: lyrics", q, "|", Player.title, "-", Player.artist, "| state", Lyrics.state, "synced", Lyrics.synced,
+                    "source", Lyrics.source, "origin", Lyrics.origin, "lines", Lyrics.lines.length)
+    }
+    readonly property var lyricSteps: {
+        const s = [{ name: "Y0", run: () => Nav.finishOnboarding() }]
+        lyricQueries.forEach((q, i) => {
+            s.push({ name: "Y" + i + "a", run: () => YouTube.search(q) })
+            s.push({ name: "Y" + i + "b", run: () => { const r = Library.onlineResults(); if (r.length) Player.playFrom(r, r[0]) } })
+            s.push({ name: "Y" + i + "c", run: () => {} })
+            s.push({ name: "Y" + i + "d", run: () => root.lyricsLog(q) })
+        })
+        return s
+    }
+    readonly property var steps: withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

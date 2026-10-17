@@ -1,5 +1,6 @@
 #pragma once
 
+#include "LrcLib.h"
 #include "Lyrics.h"
 #include "SpeechEngine.h"
 #include "TrackModel.h"
@@ -120,6 +121,8 @@ private:
     void fetch();
     void fetchYouTube(const QString &videoId, quint64 serial, std::function<void(const Lyrics &, const QString &)> done);
     void fetchLocal(quint64 serial, const Lyrics &fromYouTube, const QString &ytError);
+    void withLrcLib(quint64 serial, const Lyrics &best, const QString &error);   // LRCLIB when no timing yet
+    void finish(const Lyrics &lyrics, const QString &error);
     void apply(const Lyrics &lyrics, bool store);
     void setState(const QString &state, const QString &error = {});
     void maybeAutoAlign();
@@ -131,6 +134,7 @@ private:
     bool loadCached(const QString &trackId, Lyrics &out) const;
     void storeCached(const QString &trackId, const Lyrics &lyrics) const;
 
+    LrcLib m_lrclib;
     SpeechEngine m_speech;
     SpeechEngine::Hardware m_hardware;
 

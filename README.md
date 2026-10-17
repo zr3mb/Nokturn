@@ -297,11 +297,17 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
   remembered per track.
 - **Where from (in order):**
   1. **YouTube Music** — first the timed version (requested as the `ANDROID_MUSIC` mobile client, because the
-     website doesn't provide it), then plain text from the *Lyrics* tab. For local files the track is first
+     website doesn't provide it — without the account's website cookies, with them it gets no timing), then plain
+     text from the *Lyrics* tab. `NOKTURN_LYRICS_DEBUG=1` prints what the timed request returned. For local files the track is first
      looked up by artist and title (with a ±12 s duration check, so a live version isn't picked).
   2. **Local file** — an `.lrc` next to the track (timed) or the `LYRICS` / `UNSYNCEDLYRICS` tag.
      A local timed `.lrc` wins over plain text from YouTube.
-- **Cache:** `lyrics\<sha1>.json` in the data directory. Missing lyrics are remembered for 3 days.
+  3. **[LRCLIB](https://lrclib.net)** — when there's still no timing (no lyrics, or plain text only): an exact
+     lookup by artist, cleaned title, album and duration (±2 s), then a search where timed lyrics and the closest
+     duration (±12 s) win. Its timed lyrics replace plain text; its plain text is used only when nothing else was
+     found. Works for YouTube, Spotify and local tracks.
+- **Cache:** `lyrics\<sha1>.json` in the data directory. Missing lyrics are remembered for 3 days. Cache version 3:
+  older "missing" entries and untimed YouTube lyrics are fetched again once.
 
 ### Automatic timing (alpha)
 
@@ -343,6 +349,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `src/youtube/YouTubeService.*` | `YouTube` singleton for QML: account state, sync, library cache |
 | `src/audio/AudioEngine.*`, `src/audio/Equalizer.*` | Custom output path: deck mixer (transition styles), buffer + `QAudioSink`, 7-band parametric equalizer |
 | `src/lyrics/Lyrics.*` | Lyrics structure, LRC parser, cache (de)serialization |
+| `src/lyrics/LrcLib.*` | LRCLIB client: exact lookup, then a search by duration |
 | `src/lyrics/LyricsAligner.*` | Aligning lyrics with the transcription (line times) |
 | `src/lyrics/SpeechEngine.*` | whisper.cpp: download with SHA-256 verification, decoding to 16 kHz, transcription, hardware detection |
 | `src/lyrics/LyricsService.*` | `Lyrics` singleton for QML: lyric sources, cache, current line, alignment (alpha) |

@@ -37,7 +37,9 @@ public:
 
     // The client we send the request as (the website by default; the mobile app
     // gets timed lyrics that the web version doesn't provide).
-    struct Client { QString name; QString version; QByteArray id; QByteArray userAgent; };
+    // signedIn: whether the account's browser cookies go along — they belong to the website; the Android
+    // client with them gets no timed lyrics at all.
+    struct Client { QString name; QString version; QByteArray id; QByteArray userAgent; bool signedIn = true; };
     static Client webClient();
     static Client androidClient();
 

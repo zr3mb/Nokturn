@@ -215,7 +215,7 @@ YtMusicApi::Client YtMusicApi::androidClient()
 {
     const QString version = QStringLiteral("7.21.50");
     return { QStringLiteral("ANDROID_MUSIC"), version, "21",
-             "com.google.android.apps.youtube.music/" + version.toLatin1() + " (Linux; U; Android 14) gzip" };
+             "com.google.android.apps.youtube.music/" + version.toLatin1() + " (Linux; U; Android 14) gzip", false };
 }
 
 YtMusicApi::YtMusicApi(QObject *parent)
@@ -253,7 +253,7 @@ void YtMusicApi::callAs(const Client &client, const QString &endpoint, QJsonObje
     request.setRawHeader("Accept-Language", (hl() + QStringLiteral(";q=0.9")).toLatin1());
     request.setRawHeader("X-Youtube-Client-Name", client.id);
     request.setRawHeader("X-Youtube-Client-Version", client.version.toLatin1());
-    if (m_cookies.isLoggedIn()) {
+    if (client.signedIn && m_cookies.isLoggedIn()) {
         request.setRawHeader("Cookie", m_cookies.headerFor(url));
         request.setRawHeader("Authorization", m_cookies.authorization(kOrigin));
         request.setRawHeader("X-Goog-AuthUser", "0");
@@ -727,6 +727,19 @@ void YtMusicApi::fetchLyrics(const QString &videoId, LyricsCallback callback)
         callAs(androidClient(), QStringLiteral("browse"), browse,
                [this, browse, callback](const QJsonObject &timedJson, const QString &) {
             const Lyrics timed = parseTimedLyrics(timedJson);
+            static const bool debug = qEnvironmentVariableIsSet("NOKTURN_LYRICS_DEBUG");
+            if (debug)
+            {
+                QList<QJsonObject> messages;
+                collect(timedJson, QStringLiteral("musicMessageModel"), messages);
+                QString message;
+                for (QJsonObject m : std::as_const(messages)) {
+                    m.remove(QStringLiteral("context"));
+                    m.remove(QStringLiteral("backgroundImageData"));
+                    message += QString::fromUtf8(QJsonDocument(m).toJson(QJsonDocument::Compact));
+                }
+                qInfo().noquote() << "lyrics: timed" << (timed.isEmpty() ? "none" : "found") << "| message" << message.left(600);
+            }
             if (!timed.isEmpty()) {
                 callback(timed, QString());
                 return;
