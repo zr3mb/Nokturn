@@ -13,6 +13,8 @@
 #include <QSet>
 #include <QLocale>
 
+#include <memory>
+
 namespace {
 
 const QString kOrigin = QStringLiteral("https://music.youtube.com");
@@ -157,6 +159,29 @@ std::optional<Track> parseItem(const QJsonObject &r)
             t.duration = d;
     }
 
+    if (artists.isEmpty() && fallbackArtists.isEmpty()) {
+        // The compact layout (e.g. anonymous search: "Song • 4:40" + play count) has no artist runs. The play
+        // button's label still says "Play: <title> - <artist>", and the menu links to the artist's page.
+        QString label = dig(r, "overlay.musicItemThumbnailOverlayRenderer.content.musicPlayButtonRenderer"
+                               ".accessibilityPlayData.accessibilityData.label").toString();
+        label = label.mid(label.indexOf(QLatin1String(": ")) + 2);
+        const QString prefix = t.title + QLatin1String(" - ");
+        const QString artist = label.startsWith(prefix) ? label.mid(prefix.size())
+                             : label.contains(QLatin1String(" - ")) ? label.section(QLatin1String(" - "), -1)
+                             : QString();
+        if (!artist.trimmed().isEmpty())
+            artists << artist.trimmed();
+        if (t.artistId.isEmpty()) {
+            QList<QJsonObject> links;
+            collect(r.value("menu"), QStringLiteral("browseEndpoint"), links);
+            for (const QJsonObject &link : std::as_const(links))
+                if (dig(link, "browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType").toString()
+                    == QLatin1String("MUSIC_PAGE_TYPE_ARTIST")) {
+                    t.artistId = link.value("browseId").toString();
+                    break;
+                }
+        }
+    }
     t.artist = !artists.isEmpty() ? artists.join(QStringLiteral(", "))
              : !fallbackArtists.isEmpty() ? fallbackArtists.first()
              : QStringLiteral("YouTube Music");
@@ -548,6 +573,79 @@ void YtMusicApi::setLiked(const QString &videoId, bool liked)
     call(liked ? QStringLiteral("like/like") : QStringLiteral("like/removelike"),
          { { "target", QJsonObject { { "videoId", videoId } } } },
          [](const QJsonObject &, const QString &) {});
+}
+
+// ---- the account's playlists ------------------------------------------------------
+
+void YtMusicApi::createPlaylist(const QString &title, const QString &description, const QString &privacy,
+                                const QStringList &videoIds, std::function<void(const QString &, const QString &)> callback)
+{
+    if (!authenticated()) {
+        callback({}, tr("Sign in to YouTube Music first"));
+        return;
+    }
+    QJsonObject body { { "title", title }, { "description", description }, { "privacyStatus", privacy } };
+    if (!videoIds.isEmpty())
+        body.insert("videoIds", QJsonArray::fromStringList(videoIds));
+    call(QStringLiteral("playlist/create"), body, [callback](const QJsonObject &json, const QString &error) {
+        const QString id = json.value("playlistId").toString();
+        callback(id, !error.isEmpty() ? error : id.isEmpty() ? tr("YouTube Music didn't create the playlist") : QString());
+    });
+}
+
+void YtMusicApi::editPlaylist(const QString &playlistId, const QJsonArray &actions, std::function<void(const QString &)> callback)
+{
+    if (!authenticated()) {
+        callback(tr("Sign in to YouTube Music first"));
+        return;
+    }
+    const QJsonObject body { { "playlistId", playlistId }, { "actions", actions } };
+    call(QStringLiteral("browse/edit_playlist"), body, [callback](const QJsonObject &json, const QString &error) {
+        // Success: "STATUS_SUCCEEDED"; someone else's playlist answers with an error or another status.
+        const QString status = json.value("status").toString();
+        callback(!error.isEmpty() ? error
+                 : status.isEmpty() || status == QLatin1String("STATUS_SUCCEEDED") ? QString()
+                 : tr("YouTube Music refused the change (%1)").arg(status));
+    });
+}
+
+void YtMusicApi::deletePlaylist(const QString &playlistId, std::function<void(const QString &)> callback)
+{
+    if (!authenticated()) {
+        callback(tr("Sign in to YouTube Music first"));
+        return;
+    }
+    call(QStringLiteral("playlist/delete"), { { "playlistId", playlistId } },
+         [callback](const QJsonObject &, const QString &error) { callback(error); });
+}
+
+void YtMusicApi::fetchSetVideoIds(const QString &playlistId,
+                                  std::function<void(const QHash<QString, QString> &, const QString &)> callback)
+{
+    // Pages of the playlist: every entry carries playlistItemData { videoId, playlistSetVideoId }.
+    auto ids = std::make_shared<QHash<QString, QString>>();
+    auto page = std::make_shared<std::function<void(const QString &, int)>>();
+    *page = [this, playlistId, ids, page, callback](const QString &continuation, int left) {
+        const QJsonObject body = continuation.isEmpty() ? QJsonObject { { "browseId", QStringLiteral("VL") + playlistId } }
+                                                        : QJsonObject { { "continuation", continuation } };
+        call(QStringLiteral("browse"), body, [ids, page, callback, left](const QJsonObject &json, const QString &error) {
+            if (!error.isEmpty()) {
+                callback(*ids, error);
+                return;
+            }
+            QList<QJsonObject> items;
+            collect(json, QStringLiteral("playlistItemData"), items);
+            for (const QJsonObject &d : std::as_const(items))
+                ids->insert(d.value("videoId").toString(), d.value("playlistSetVideoId").toString());
+            QList<QJsonObject> next;
+            collect(json, QStringLiteral("continuationCommand"), next);
+            if (next.isEmpty() || left <= 1)
+                callback(*ids, {});
+            else
+                (*page)(next.first().value("token").toString(), left - 1);
+        });
+    };
+    (*page)({}, 30);
 }
 
 // ---- lyrics -------------------------------------------------------------------

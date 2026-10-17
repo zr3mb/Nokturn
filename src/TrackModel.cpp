@@ -94,9 +94,33 @@ void TrackModel::appendTracks(const QList<Track> &tracks)
     // Rows are only added at the end: existing row numbers stay valid, so the revision (which makes
     // every list re-read its rows) doesn't change.
     QList<Track> fresh;
-    for (const Track &t : tracks)
-        if (!m_rowById.contains(t.id) && std::none_of(fresh.cbegin(), fresh.cend(), [&](const Track &f) { return f.id == t.id; }))
+    bool updated = false;
+    for (const Track &t : tracks) {
+        if (const auto it = m_rowById.constFind(t.id); it != m_rowById.cend()) {
+            // Already here (e.g. from the cache) — newer details from the source replace stale ones.
+            Track &old = m_tracks[*it];
+            if (old.title != t.title || old.artist != t.artist || old.artistId != t.artistId || old.album != t.album
+                || (old.cover != t.cover && !t.cover.isEmpty()) || (old.duration != t.duration && t.duration > 0)) {
+                old.title = t.title;
+                old.artist = t.artist;
+                old.artistId = t.artistId;
+                old.album = t.album;
+                if (!t.cover.isEmpty())
+                    old.cover = t.cover;
+                if (t.duration > 0)
+                    old.duration = t.duration;
+                emit dataChanged(index(*it), index(*it));
+                updated = true;
+            }
+            continue;
+        }
+        if (std::none_of(fresh.cbegin(), fresh.cend(), [&](const Track &f) { return f.id == t.id; }))
             fresh << t;
+    }
+    if (updated) {
+        ++m_revision;   // rows read their data through the revision
+        emit revisionChanged();
+    }
     if (fresh.isEmpty())
         return;
     const int first = int(m_tracks.size());
