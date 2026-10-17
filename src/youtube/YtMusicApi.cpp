@@ -422,6 +422,22 @@ QVariantMap parseCard(const QJsonObject &r)
                                 ".playNavigationEndpoint.watchPlaylistEndpoint.playlistId").toString();
     if (playlistId.isEmpty() && kind == QLatin1String("playlist") && browseId.startsWith(QLatin1String("VL")))
         playlistId = browseId.mid(2);
+    if (playlistId.isEmpty() && kind == QLatin1String("album")) {
+        // Not every card has the play button — the album's playlist is also in its menu (shuffle, queue).
+        QList<QJsonObject> endpoints;
+        collect(r, QStringLiteral("watchPlaylistEndpoint"), endpoints);
+        collect(r, QStringLiteral("queueAddEndpoint"), endpoints);
+        for (const QJsonObject &e : std::as_const(endpoints)) {
+            const QString id = e.value("playlistId").toString(dig(e, "queueTarget.playlistId").toString());
+            if (id.startsWith(QLatin1String("OLAK5uy_"))) {
+                playlistId = id;
+                break;
+            }
+        }
+    }
+    // Without a playlist the album page itself ("MPREb_…") is opened — YouTubeService::ensureCollection.
+    if (playlistId.isEmpty() && kind == QLatin1String("album"))
+        playlistId = browseId;
     return {
         { "kind", kind }, { "browseId", browseId }, { "playlistId", playlistId },
         { "title", runsText(r.value("title")) }, { "subtitle", runsText(r.value("subtitle")) },

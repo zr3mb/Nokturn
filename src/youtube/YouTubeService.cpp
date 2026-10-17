@@ -376,7 +376,9 @@ void YouTubeService::ensureCollection(const QString &playlistId)
         return;
     m_loadingCollections.insert(playlistId);
     QTimer::singleShot(0, this, [this] { ++m_resultsRevision; emit resultsChanged(); });   // "loading" (called from a binding)
-    m_api.browseTracks(QStringLiteral("VL") + playlistId, [this, playlistId](const QList<Track> &tracks, const QString &error) {
+    // A playlist ("VL<id>"), or an album page ("MPREb_…") when its card had no playlist.
+    const QString browseId = playlistId.startsWith(QLatin1String("MPRE")) ? playlistId : QStringLiteral("VL") + playlistId;
+    m_api.browseTracks(browseId, [this, playlistId](const QList<Track> &tracks, const QString &error) {
         m_loadingCollections.remove(playlistId);
         if (!error.isEmpty() && tracks.isEmpty())
             emit notice(tr("Couldn't load the playlist: %1").arg(error), QStringLiteral("close"));

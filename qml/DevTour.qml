@@ -135,7 +135,31 @@ Item {
         { name: "K8-back2", run: () => { Player.seek(2); root.seekLog("seek 2") } },
         { name: "K9-wait", run: () => root.seekLog("after 2") }
     ]
-    readonly property var steps: withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Albums and singles on an artist profile open (--tour-albums).
+    readonly property bool withAlbums: Qt.application.arguments.indexOf("--tour-albums") >= 0
+    readonly property var albumSteps: [
+        { name: "A1-artist", run: () => { Nav.finishOnboarding(); Nav.openArtist("Faydee", "") } },
+        { name: "A2-wait", run: () => {} },
+        { name: "A2b-wait", run: () => {} },
+        { name: "A2c-wait", run: () => {} },
+        { name: "A3-cards", run: () => {
+            const secs = YouTube.artist("UC0ITc55ErLkHnGp26P-wmRA").sections || []
+            secs.forEach(s => console.log("tour: section", s.title, s.kind, s.items.length, "first:", s.items.length ? s.items[0].kind + " " + s.items[0].title + " pl=" + s.items[0].playlistId + " id=" + s.items[0].browseId : ""))
+            root.album = secs.length && secs[0].items.length ? secs[0].items[0] : null
+            if (root.album) Nav.navigate("playlist", { kind: "ytcollection", playlistId: root.album.playlistId, title: root.album.title, cover: root.album.cover, label: "ALBUM" })
+        } },
+        { name: "A4-wait", run: () => {} },
+        { name: "A5-rows", run: () => root.logCollection(root.album ? root.album.playlistId : "") },
+        { name: "A6-page", run: () => { if (root.album) Nav.navigate("playlist", { kind: "ytcollection", playlistId: root.album.browseId, title: root.album.title, cover: root.album.cover, label: "ALBUM" }) } },
+        { name: "A7-wait", run: () => {} },
+        { name: "A8-rows", run: () => root.logCollection(root.album ? root.album.browseId : "") }
+    ]
+    property var album: null
+    function logCollection(id) {
+        const r = Library.collectionRows(id)
+        console.log("tour: collection", id, "rows", r.length, r.length ? Library.tracks.get(r[0]).title + " / " + Library.tracks.get(r[0]).artist + " / cover " + (Library.tracks.get(r[0]).cover !== "") : "")
+    }
+    readonly property var steps: withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
