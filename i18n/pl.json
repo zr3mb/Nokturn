@@ -625,5 +625,10 @@
   "The default cover is back": "Przywrócono domyślną okładkę",
   "Choose a picture for the playlist": "Wybierz obrazek dla playlisty",
   "Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)": "Obrazy (*.jpg *.jpeg *.png *.webp *.bmp *.gif)",
-  "New playlist cover": "Nowa okładka playlisty"
+  "New playlist cover": "Nowa okładka playlisty",
+  "Lyrics out of sync?": "Tekst nie pasuje do muzyki?",
+  "Lyrics %1 s later": "Tekst %1 s później",
+  "Lyrics %1 s earlier": "Tekst %1 s wcześniej",
+  "Earlier": "Wcześniej",
+  "Show all (%1)": "Pokaż wszystkie (%1)"
 }

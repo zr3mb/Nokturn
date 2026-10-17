@@ -247,7 +247,13 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
   are summed by `AudioEngine` — before the equalizer, so the equalizer, limiter and visualizer work on what you
   hear. The envelope starts only when the first samples of the new track arrive, so a delayed start leaves no gap.
   Seeking, "next" or pause during a transition are handled (the transition ends at once).
-- Diagnostics: `NOKTURN_AUDIO_DEBUG=1` prints the sample rate and the number of buffer underruns every 3 s.
+- Samples pass through the GUI thread on their way to the ring buffer (~200 ms cushion), so the UI must not
+  block for longer: search results, artist songs and opened collections are appended to the track model instead
+  of rebuilding it, and lists create their rows' hover-only controls and cover motifs on demand. The playback
+  position (lyrics, progress bar) is corrected by what still waits in the buffers.
+- Diagnostics: `NOKTURN_AUDIO_DEBUG=1` prints the sample rate and the number of buffer underruns every 3 s;
+  `NOKTURN_PERF_DEBUG=1` reports every GUI thread stall over 60 ms and how long model rebuilds take
+  (`Nokturn.exe --tour <dir> --tour-perf` plays a track while searching and opening artists).
 
 ## Discord status
 
@@ -267,7 +273,9 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
 
 - **Where:** the *Lyrics* tab in the "Now playing" panel (or the button with text lines on the player bar)
   and a column next to the cover in full-screen mode. With timed lyrics the current line is highlighted
-  and scrolled to the center, and clicking a line seeks the track.
+  and scrolled to the center, and clicking a line seeks the track. When the timed lyrics belong to a different
+  version (e.g. a music video with an intro), *Earlier* / *Later* under them shift the timing by 0.5 s —
+  remembered per track.
 - **Where from (in order):**
   1. **YouTube Music** — first the timed version (requested as the `ANDROID_MUSIC` mobile client, because the
      website doesn't provide it), then plain text from the *Lyrics* tab. For local files the track is first

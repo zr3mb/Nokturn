@@ -48,6 +48,7 @@ public:
     int activeDeck() const { return m_active; }
     void setPaused(bool paused);
     void setVolume(float linear);
+    double latency() const;              // seconds between a decoded sample and hearing it
 
     // Transition from `from` to `to`. The envelope starts when the first samples of the new track
     // arrive (until then the old one plays normally), so a delayed start leaves no gap.

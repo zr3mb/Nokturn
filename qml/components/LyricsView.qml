@@ -13,10 +13,12 @@ Item {
     property bool large: false
     property int align: Text.AlignLeft
 
-    readonly property int current: Lyrics.synced ? Lyrics.lineAt(Player.position + 0.15) : -1
+    // Position in the lyrics' own timeline (the manual correction shifts it).
+    readonly property real lyricsTime: Player.position - Lyrics.offset
+    readonly property int current: Lyrics.synced ? Lyrics.lineAt(lyricsTime + 0.15) : -1
     readonly property var currentLine: current >= 0 && current < Lyrics.lines.length ? Lyrics.lines[current] : null
     // After the last word of a line (e.g. in an instrumental break) the highlight fades out.
-    readonly property bool currentActive: currentLine !== null && (currentLine.end < 0 || Player.position < currentLine.end)
+    readonly property bool currentActive: currentLine !== null && (currentLine.end < 0 || lyricsTime < currentLine.end)
 
     // Manual scrolling pauses following for a few seconds.
     property bool follow: true
@@ -159,7 +161,7 @@ Item {
             TapHandler {
                 enabled: Lyrics.synced && !line.blank && line.modelData.start >= 0
                 onTapped: {
-                    Player.seek(line.modelData.start)
+                    Player.seek(line.modelData.start + Lyrics.offset)
                     root.follow = true
                 }
             }
@@ -210,6 +212,45 @@ Item {
                     color: Theme.accent
                     Behavior on width { NumberAnimation { duration: 300 } }
                 }
+            }
+        }
+
+        // Manual timing correction: the lyrics are early / late against this version of the track.
+        RowLayout {
+            visible: Lyrics.synced
+            Layout.fillWidth: true
+            spacing: 4
+            Text {
+                Layout.fillWidth: true
+                text: Lyrics.offset === 0 ? qsTr("Lyrics out of sync?")
+                      : (Lyrics.offset > 0 ? qsTr("Lyrics %1 s later") : qsTr("Lyrics %1 s earlier"))
+                            .arg(Math.abs(Lyrics.offset).toLocaleString(Qt.locale(), "f", 1))
+                color: Lyrics.offset === 0 ? Theme.textFaint : Theme.textDim
+                font.pixelSize: 11
+                elide: Text.ElideRight
+                horizontalAlignment: root.align
+            }
+            PillButton {
+                kind: "ghost"
+                text: qsTr("Earlier")
+                fontSize: 11
+                implicitHeight: 26
+                onClicked: Lyrics.nudge(-0.5)
+            }
+            PillButton {
+                kind: "ghost"
+                text: qsTr("Later")
+                fontSize: 11
+                implicitHeight: 26
+                onClicked: Lyrics.nudge(0.5)
+            }
+            IconButton {
+                visible: Lyrics.offset !== 0
+                icon: "refresh"
+                iconSize: 13
+                implicitWidth: 26; implicitHeight: 26
+                showDot: false
+                onClicked: Lyrics.resetOffset()
             }
         }
 

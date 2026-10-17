@@ -40,6 +40,9 @@ class YouTubeService : public QObject
     Q_PROPERTY(bool engineDownloading READ engineDownloading NOTIFY engineChanged)
     Q_PROPERTY(qreal engineProgress READ engineProgress NOTIFY engineChanged)
     Q_PROPERTY(int artistsRevision READ artistsRevision NOTIFY artistsChanged)   // bumps when an artist page loads
+    // Bumps when search results / an artist's songs / an opened collection arrive. Those tracks are only
+    // appended to the track model (no full rebuild), so lists of them depend on this instead of the model.
+    Q_PROPERTY(int resultsRevision READ resultsRevision NOTIFY resultsChanged)
 
 public:
     static YouTubeService *instance();
@@ -75,6 +78,7 @@ public:
     Q_INVOKABLE void loadArtist(const QString &browseId);
     Q_INVOKABLE QVariantMap artist(const QString &browseId) const;
     int artistsRevision() const { return m_artistsRevision; }
+    int resultsRevision() const { return m_resultsRevision; }
     // Finds the channel of an artist known only by name (local files); the result comes as artistFound().
     Q_INVOKABLE void findArtist(const QString &name);
     Q_INVOKABLE QString knownArtistId(const QString &name) const { return m_artistIdByName.value(name.toLower()); }
@@ -108,6 +112,8 @@ signals:
     void notice(const QString &text, const QString &icon);
     void artistsChanged();
     void artistFound(const QString &name, const QString &browseId);
+    void tracksAdded(const QList<Track> &tracks);   // new transient tracks for the end of the model
+    void resultsChanged();
 
 private:
     explicit YouTubeService(QObject *parent = nullptr);
@@ -115,6 +121,7 @@ private:
     void useCookies(const YtCookies &cookies, bool fresh);
     void syncStep(const QString &error);
     void storeTracks(const QList<Track> &tracks, bool transient);
+    void publishResults(const QStringList &ids);
     void setLikedList(const QStringList &ids);
     void loadCache();
     void saveCache() const;
@@ -138,6 +145,7 @@ private:
     QHash<QString, QStringList> m_artistSongs;    // browseId -> top song ids
     QSet<QString> m_loadingArtists;
     int m_artistsRevision = 0;
+    int m_resultsRevision = 0;
     QHash<QString, QString> m_artistIdByName;     // lower-case name -> browseId ("" = not on YouTube Music)
     QHash<QString, QStringList> m_collections;    // playlistId -> track ids (albums, "all songs")
     QSet<QString> m_loadingCollections;

@@ -17,7 +17,11 @@ Item {
     readonly property var yt: { YouTube.artistsRevision; return browseId !== "" ? YouTube.artist(browseId) : ({}) }
     readonly property string displayName: yt.name || name
     readonly property bool loading: yt.loading === true || (browseId === "" && !searched && name !== "")
-    readonly property var topRows: { Library.tracks.revision; return browseId !== "" ? Library.artistSongRows(browseId) : [] }
+    readonly property var topRows: {
+        Library.tracks.revision
+        YouTube.resultsRevision
+        return browseId !== "" ? Library.artistSongRows(browseId) : []
+    }
     // Library tracks by this artist (local files and liked songs — not search results).
     readonly property var libraryRows: {
         Library.tracks.revision

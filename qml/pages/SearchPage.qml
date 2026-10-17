@@ -17,11 +17,18 @@ Item {
     readonly property bool onlineEnabled: query.trim().length > 1 && (filter === 0 || filter === 2)
     readonly property var online: {
         Library.tracks.revision
+        YouTube.resultsRevision
         return onlineEnabled ? Library.onlineResults() : []
     }
 
-    onQueryChanged: onlineTimer.restart()
-    onFilterChanged: onlineTimer.restart()
+    // Rows are built at once (Repeater), so long result lists show in parts.
+    property int shown: 40
+    onQueryChanged: { shown = 40; onlineTimer.restart(); rememberState() }
+    onFilterChanged: { shown = 40; onlineTimer.restart(); rememberState() }
+    function rememberState() {
+        if (Nav.page === "search")
+            Nav.remember({ query: query, filter: filter })
+    }
 
     Timer {
         id: onlineTimer
@@ -158,7 +165,7 @@ Item {
             TrackListHeader { visible: page.results.length > 0 }
 
             Repeater {
-                model: page.results
+                model: page.results.slice(0, page.shown)
                 TrackRow {
                     required property var modelData
                     required property int index
@@ -168,6 +175,15 @@ Item {
                     queue: page.results
                     revealDelay: Math.min(index, 12) * 32
                 }
+            }
+
+            PillButton {
+                visible: page.results.length > page.shown
+                Layout.topMargin: 6
+                kind: "ghost"
+                icon: "expandMore"
+                text: qsTr("Show all (%1)").arg(page.results.length)
+                onClicked: page.shown = page.results.length
             }
 
             RowLayout {

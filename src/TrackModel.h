@@ -77,6 +77,7 @@ public:
     int revision() const { return m_revision; }
 
     void setTracks(QList<Track> tracks);
+    void appendTracks(const QList<Track> &tracks);   // only tracks the model doesn't have yet
     const QList<Track> &tracks() const { return m_tracks; }
     const Track &at(int row) const { return m_tracks.at(row); }
     bool isValidRow(int row) const { return row >= 0 && row < m_tracks.size(); }

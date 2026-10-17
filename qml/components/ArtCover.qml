@@ -81,66 +81,78 @@ Item {
         }
     }
 
-    // Motif 0 — concentric circles
-    Shape {
+    // The motif is only built when it shows (no picture) — covers appear in long lists, and four
+    // curve-rendered shapes per cover add up.
+    Loader {
         anchors.fill: parent
-        visible: root.decorated && !root.hasPicture && root.variant === 0
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-            strokeColor: root.ink; strokeWidth: root.line; fillColor: "transparent"
-            PathAngleArc { centerX: root.w * 0.64; centerY: root.h * 0.6; radiusX: root.w * 0.08; radiusY: root.w * 0.08; startAngle: 0; sweepAngle: 360 }
-            PathAngleArc { centerX: root.w * 0.64; centerY: root.h * 0.6; radiusX: root.w * 0.17; radiusY: root.w * 0.17; startAngle: 0; sweepAngle: 360 }
-            PathAngleArc { centerX: root.w * 0.64; centerY: root.h * 0.6; radiusX: root.w * 0.26; radiusY: root.w * 0.26; startAngle: 0; sweepAngle: 360 }
+        active: root.decorated && !root.hasPicture
+        sourceComponent: [motif0, motif1, motif2, motif3][root.variant]
+    }
+
+    // Motif 0 — concentric circles
+    Component {
+        id: motif0
+        Shape {
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeColor: root.ink; strokeWidth: root.line; fillColor: "transparent"
+                PathAngleArc { centerX: root.w * 0.64; centerY: root.h * 0.6; radiusX: root.w * 0.08; radiusY: root.w * 0.08; startAngle: 0; sweepAngle: 360 }
+                PathAngleArc { centerX: root.w * 0.64; centerY: root.h * 0.6; radiusX: root.w * 0.17; radiusY: root.w * 0.17; startAngle: 0; sweepAngle: 360 }
+                PathAngleArc { centerX: root.w * 0.64; centerY: root.h * 0.6; radiusX: root.w * 0.26; radiusY: root.w * 0.26; startAngle: 0; sweepAngle: 360 }
+            }
         }
     }
 
     // Motif 1 — sun over the horizon
-    Shape {
-        anchors.fill: parent
-        visible: root.decorated && !root.hasPicture && root.variant === 1
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-            strokeColor: "transparent"; fillColor: Qt.rgba(1, 1, 1, 0.17)
-            PathAngleArc { centerX: root.w * 0.36; centerY: root.h * 0.4; radiusX: root.w * 0.17; radiusY: root.w * 0.17; startAngle: 0; sweepAngle: 360 }
-        }
-        ShapePath {
-            strokeColor: root.ink; strokeWidth: root.line; fillColor: "transparent"; capStyle: ShapePath.RoundCap
-            startX: root.w * 0.14; startY: root.h * 0.7
-            PathLine { x: root.w * 0.86; y: root.h * 0.7 }
-            PathMove { x: root.w * 0.24; y: root.h * 0.78 }
-            PathLine { x: root.w * 0.76; y: root.h * 0.78 }
-            PathMove { x: root.w * 0.34; y: root.h * 0.86 }
-            PathLine { x: root.w * 0.66; y: root.h * 0.86 }
+    Component {
+        id: motif1
+        Shape {
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeColor: "transparent"; fillColor: Qt.rgba(1, 1, 1, 0.17)
+                PathAngleArc { centerX: root.w * 0.36; centerY: root.h * 0.4; radiusX: root.w * 0.17; radiusY: root.w * 0.17; startAngle: 0; sweepAngle: 360 }
+            }
+            ShapePath {
+                strokeColor: root.ink; strokeWidth: root.line; fillColor: "transparent"; capStyle: ShapePath.RoundCap
+                startX: root.w * 0.14; startY: root.h * 0.7
+                PathLine { x: root.w * 0.86; y: root.h * 0.7 }
+                PathMove { x: root.w * 0.24; y: root.h * 0.78 }
+                PathLine { x: root.w * 0.76; y: root.h * 0.78 }
+                PathMove { x: root.w * 0.34; y: root.h * 0.86 }
+                PathLine { x: root.w * 0.66; y: root.h * 0.86 }
+            }
         }
     }
 
     // Motif 2 — waves
-    Shape {
-        anchors.fill: parent
-        visible: root.decorated && !root.hasPicture && root.variant === 2
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-            strokeColor: root.ink; strokeWidth: root.line * 1.2; fillColor: "transparent"; capStyle: ShapePath.RoundCap
-            PathSvg { path: root.w > 0 ? root.waves() : "" }
+    Component {
+        id: motif2
+        Shape {
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeColor: root.ink; strokeWidth: root.line * 1.2; fillColor: "transparent"; capStyle: ShapePath.RoundCap
+                PathSvg { path: root.w > 0 ? root.waves() : "" }
+            }
         }
     }
 
     // Motif 3 — overlapping circles
-    Shape {
-        anchors.fill: parent
-        visible: root.decorated && !root.hasPicture && root.variant === 3
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-            strokeColor: "transparent"; fillColor: Qt.rgba(1, 1, 1, 0.12)
-            PathAngleArc { centerX: root.w * 0.6; centerY: root.h * 0.56; radiusX: root.w * 0.28; radiusY: root.w * 0.28; startAngle: 0; sweepAngle: 360 }
-        }
-        ShapePath {
-            strokeColor: "transparent"; fillColor: Qt.rgba(0, 0, 0, 0.14)
-            PathAngleArc { centerX: root.w * 0.4; centerY: root.h * 0.44; radiusX: root.w * 0.22; radiusY: root.w * 0.22; startAngle: 0; sweepAngle: 360 }
-        }
-        ShapePath {
-            strokeColor: root.ink; strokeWidth: root.line; fillColor: "transparent"
-            PathAngleArc { centerX: root.w * 0.4; centerY: root.h * 0.44; radiusX: root.w * 0.22; radiusY: root.w * 0.22; startAngle: 0; sweepAngle: 360 }
+    Component {
+        id: motif3
+        Shape {
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeColor: "transparent"; fillColor: Qt.rgba(1, 1, 1, 0.12)
+                PathAngleArc { centerX: root.w * 0.6; centerY: root.h * 0.56; radiusX: root.w * 0.28; radiusY: root.w * 0.28; startAngle: 0; sweepAngle: 360 }
+            }
+            ShapePath {
+                strokeColor: "transparent"; fillColor: Qt.rgba(0, 0, 0, 0.14)
+                PathAngleArc { centerX: root.w * 0.4; centerY: root.h * 0.44; radiusX: root.w * 0.22; radiusY: root.w * 0.22; startAngle: 0; sweepAngle: 360 }
+            }
+            ShapePath {
+                strokeColor: root.ink; strokeWidth: root.line; fillColor: "transparent"
+                PathAngleArc { centerX: root.w * 0.4; centerY: root.h * 0.44; radiusX: root.w * 0.22; radiusY: root.w * 0.22; startAngle: 0; sweepAngle: 360 }
+            }
         }
     }
 
@@ -158,80 +170,87 @@ Item {
         mipmap: true
     }
 
-    // The collage: four tiles, cut to the same rounded shape by a mask.
-    Item {
-        id: collage
-        width: root.w
-        height: root.h
-        visible: false
-        layer.enabled: root.useMosaic
+    // The collage (playlists): four tiles, cut to the same rounded shape by a mask. Built only when used.
+    onMosaicChanged: mosaicReady = 0
+    Loader {
+        anchors.fill: parent
+        active: root.useMosaic
+        sourceComponent: Item {
+            Item {
+                id: collage
+                width: root.w
+                height: root.h
+                visible: false
+                layer.enabled: true
 
-        Rectangle {
-            anchors.fill: parent
-            color: root.colorB
-        }
-        Grid {
-            columns: 2
-            Repeater {
-                model: root.useMosaic ? root.mosaic.slice(0, 4) : []
-                Image {
-                    required property string modelData
-                    width: root.w / 2
-                    height: root.h / 2
-                    source: modelData
-                    fillMode: Image.PreserveAspectCrop
-                    sourceSize.width: root.w > 160 ? 256 : 96
-                    sourceSize.height: root.w > 160 ? 256 : 96
-                    asynchronous: true
-                    smooth: true
-                    mipmap: true
-                    onStatusChanged: if (status === Image.Ready) root.mosaicReady += 1
+                Rectangle {
+                    anchors.fill: parent
+                    color: root.colorB
                 }
+                Grid {
+                    columns: 2
+                    Repeater {
+                        model: root.mosaic.slice(0, 4)
+                        Image {
+                            required property string modelData
+                            width: root.w / 2
+                            height: root.h / 2
+                            source: modelData
+                            fillMode: Image.PreserveAspectCrop
+                            sourceSize.width: root.w > 160 ? 256 : 96
+                            sourceSize.height: root.w > 160 ? 256 : 96
+                            asynchronous: true
+                            smooth: true
+                            mipmap: true
+                            onStatusChanged: if (status === Image.Ready) root.mosaicReady += 1
+                        }
+                    }
+                }
+            }
+            Shape {
+                id: collageMask
+                width: root.w
+                height: root.h
+                visible: false
+                layer.enabled: true
+                preferredRendererType: Shape.CurveRenderer
+                ShapePath {
+                    strokeColor: "transparent"
+                    fillColor: "white"
+                    PathSvg { path: root.frame }
+                }
+            }
+
+            MultiEffect {
+                anchors.fill: parent
+                opacity: root.mosaicReady > 0 ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 350 } }
+                source: collage
+                maskEnabled: true
+                maskSource: collageMask
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1.0
             }
         }
     }
-    onMosaicChanged: mosaicReady = 0
 
-    Shape {
-        id: collageMask
-        width: root.w
-        height: root.h
-        visible: false
-        layer.enabled: root.useMosaic
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-            strokeColor: "transparent"
-            fillColor: "white"
-            PathSvg { path: root.frame }
-        }
-    }
-
-    MultiEffect {
+    Loader {
         anchors.fill: parent
-        visible: root.useMosaic
-        opacity: root.useMosaic && root.mosaicReady > 0 ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 350 } }
-        source: collage
-        maskEnabled: true
-        maskSource: collageMask
-        maskThresholdMin: 0.5
-        maskSpreadAtMin: 1.0
-    }
+        active: root.source !== ""
+        sourceComponent: Shape {
+            visible: picture.status === Image.Ready
+            opacity: picture.status === Image.Ready ? 1 : 0
+            preferredRendererType: Shape.CurveRenderer
+            Behavior on opacity { NumberAnimation { duration: 350 } }
 
-    Shape {
-        anchors.fill: parent
-        visible: picture.status === Image.Ready
-        opacity: picture.status === Image.Ready ? 1 : 0
-        preferredRendererType: Shape.CurveRenderer
-        Behavior on opacity { NumberAnimation { duration: 350 } }
-
-        ShapePath {
-            strokeColor: "transparent"
-            fillItem: picture
-            fillTransform: PlanarTransform.fromAffineMatrix(root.fillScale, 0, 0, root.fillScale,
-                                                            (root.w - root.texW * root.fillScale) / 2,
-                                                            (root.h - root.texH * root.fillScale) / 2)
-            PathSvg { path: root.frame }
+            ShapePath {
+                strokeColor: "transparent"
+                fillItem: picture
+                fillTransform: PlanarTransform.fromAffineMatrix(root.fillScale, 0, 0, root.fillScale,
+                                                                (root.w - root.texW * root.fillScale) / 2,
+                                                                (root.h - root.texH * root.fillScale) / 2)
+                PathSvg { path: root.frame }
+            }
         }
     }
 }

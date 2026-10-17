@@ -26,6 +26,13 @@ ApplicationWindow {
             color: Theme.bg
         }
 
+        // The mouse's side buttons go back / forward like in a browser.
+        TapHandler {
+            acceptedButtons: Qt.BackButton | Qt.ForwardButton
+            gesturePolicy: TapHandler.WithinBounds
+            onTapped: (eventPoint, button) => button === Qt.BackButton ? Nav.back() : Nav.forward()
+        }
+
         AmbientBackground {
             anchors.fill: parent
             visible: Theme.ambient

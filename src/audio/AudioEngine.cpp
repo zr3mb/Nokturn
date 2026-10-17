@@ -68,6 +68,12 @@ public:
         return std::exchange(m_underruns, 0);
     }
 
+    size_t buffered()
+    {
+        QMutexLocker lock(&m_mutex);
+        return m_count;
+    }
+
 protected:
     qint64 writeData(const char *, qint64) override { return -1; }
 
@@ -520,6 +526,18 @@ void AudioEngine::setPaused(bool paused)
 void AudioEngine::setVolume(float linear)
 {
     m_sink->setVolume(linear);
+}
+
+double AudioEngine::latency() const
+{
+    // What is decoded but not heard yet: the ring buffer plus the audio device's own buffer.
+    const double rate = m_format.sampleRate();
+    double seconds = rate > 0 ? double(m_ring->buffered()) / rate : 0.0;
+    if (m_sink) {
+        const qint64 queued = std::max<qint64>(0, m_sink->bufferSize() - m_sink->bytesFree());
+        seconds += m_format.durationForBytes(qint32(queued)) / 1e6;
+    }
+    return seconds;
 }
 
 void AudioEngine::takePlayed(std::vector<float> &mono)

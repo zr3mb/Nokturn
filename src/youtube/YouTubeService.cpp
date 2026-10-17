@@ -273,7 +273,7 @@ void YouTubeService::search(const QString &query)
         m_search.clear();
         m_searching = false;
         emit searchingChanged();
-        emit dataChanged();
+        publishResults({});
         return;
     }
     m_searching = true;
@@ -291,8 +291,27 @@ void YouTubeService::search(const QString &query)
         m_search.clear();
         for (const Track &t : tracks)
             m_search << t.id;
-        emit dataChanged();
+        publishResults(m_search);
     });
+}
+
+void YouTubeService::publishResults(const QStringList &ids)
+{
+    // Only the tracks the model doesn't have yet are appended (Library::appendTracks) — a full model
+    // rebuild re-creates every list in the UI, which stalls it (and the audio that passes through it).
+    QList<Track> added;
+    for (const QString &id : ids) {
+        const auto it = m_tracks.constFind(id);
+        if (it == m_tracks.cend())
+            continue;
+        Track t = *it;
+        t.liked = m_likedSet.contains(id);
+        added << t;
+    }
+    if (!added.isEmpty())
+        emit tracksAdded(added);
+    ++m_resultsRevision;
+    emit resultsChanged();
 }
 
 // ---- artists and collections ------------------------------------------------------
@@ -321,7 +340,7 @@ void YouTubeService::loadArtist(const QString &browseId)
             { "browseId", browseId }, { "name", a.name }, { "description", a.description },
             { "subscribers", a.subscribers }, { "photo", a.photo }, { "songsPlaylistId", a.songsPlaylistId },
             { "sections", a.sections } });
-        emit dataChanged();   // the top songs join the track model, so they can be played
+        publishResults(ids);   // the top songs join the track model, so they can be played
         ++m_artistsRevision;
         emit artistsChanged();
     });
@@ -356,7 +375,7 @@ void YouTubeService::ensureCollection(const QString &playlistId)
     if (playlistId.isEmpty() || m_collections.contains(playlistId) || m_loadingCollections.contains(playlistId))
         return;
     m_loadingCollections.insert(playlistId);
-    QTimer::singleShot(0, this, &YouTubeService::dataChanged);
+    QTimer::singleShot(0, this, [this] { ++m_resultsRevision; emit resultsChanged(); });   // "loading" (called from a binding)
     m_api.browseTracks(QStringLiteral("VL") + playlistId, [this, playlistId](const QList<Track> &tracks, const QString &error) {
         m_loadingCollections.remove(playlistId);
         if (!error.isEmpty() && tracks.isEmpty())
@@ -366,7 +385,7 @@ void YouTubeService::ensureCollection(const QString &playlistId)
         for (const Track &t : tracks)
             ids << t.id;
         m_collections.insert(playlistId, ids);
-        emit dataChanged();
+        publishResults(ids);
     }, 10);
 }
 

@@ -8,6 +8,7 @@
 #include <QCollator>
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
@@ -18,6 +19,7 @@
 #include <QPainter>
 #include <QRandomGenerator>
 #include <QSaveFile>
+#include <QScopeGuard>
 #include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -94,6 +96,7 @@ Library::Library(QObject *parent)
     connect(&m_watcher, &QFutureWatcher<Scanner::Result>::finished, this, &Library::onScanFinished);
 
     connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &Library::rebuildModel);
+    connect(YouTubeService::instance(), &YouTubeService::tracksAdded, m_tracks, &TrackModel::appendTracks);
     connect(YouTubeService::instance(), &YouTubeService::accountChanged, this, &Library::rebuildModel);
     connect(SpotifyService::instance(), &SpotifyService::dataChanged, this, &Library::rebuildModel);
     connect(SpotifyService::instance(), &SpotifyService::accountChanged, this, &Library::rebuildModel);
@@ -315,6 +318,13 @@ void Library::applyLocalTracks(QList<Track> local)
 
 void Library::rebuildModel()
 {
+    static const bool perf = qEnvironmentVariableIsSet("NOKTURN_PERF_DEBUG");
+    QElapsedTimer clock;
+    clock.start();
+    const auto log = qScopeGuard([&] {
+        if (perf)
+            qInfo("perf: Library::rebuildModel %lld ms (%d tracks)", clock.elapsed(), m_tracks->count());
+    });
     YouTubeService *yt = YouTubeService::instance();
     QList<Track> all = m_local;
     all << yt->tracks();

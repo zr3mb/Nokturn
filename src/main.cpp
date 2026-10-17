@@ -1,9 +1,11 @@
 #include "Language.h"
 
+#include <QElapsedTimer>
 #include <QFont>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
+#include <QTimer>
 
 int main(int argc, char *argv[])
 {
@@ -32,5 +34,21 @@ int main(int argc, char *argv[])
         [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
     engine.loadFromModule("Nokturn", "Main");
+
+    // Diagnostics (NOKTURN_PERF_DEBUG=1): reports when the GUI thread was blocked — audio samples go
+    // through it, so a stall over ~200 ms is heard as a gap.
+    QTimer stallProbe;
+    QElapsedTimer stallClock;
+    if (qEnvironmentVariableIsSet("NOKTURN_PERF_DEBUG")) {
+        stallProbe.setInterval(10);
+        stallProbe.setTimerType(Qt::PreciseTimer);
+        QObject::connect(&stallProbe, &QTimer::timeout, [&stallClock] {
+            const qint64 gap = stallClock.restart();
+            if (gap > 60)
+                qInfo("perf: GUI thread blocked for %lld ms", gap);
+        });
+        stallClock.start();
+        stallProbe.start();
+    }
     return app.exec();
 }

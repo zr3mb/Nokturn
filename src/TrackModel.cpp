@@ -1,5 +1,7 @@
 #include "TrackModel.h"
 
+#include <algorithm>
+
 TrackModel::TrackModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -85,6 +87,26 @@ void TrackModel::setTracks(QList<Track> tracks)
     emit countChanged();
     ++m_revision;
     emit revisionChanged();
+}
+
+void TrackModel::appendTracks(const QList<Track> &tracks)
+{
+    // Rows are only added at the end: existing row numbers stay valid, so the revision (which makes
+    // every list re-read its rows) doesn't change.
+    QList<Track> fresh;
+    for (const Track &t : tracks)
+        if (!m_rowById.contains(t.id) && std::none_of(fresh.cbegin(), fresh.cend(), [&](const Track &f) { return f.id == t.id; }))
+            fresh << t;
+    if (fresh.isEmpty())
+        return;
+    const int first = int(m_tracks.size());
+    beginInsertRows({}, first, first + int(fresh.size()) - 1);
+    for (const Track &t : std::as_const(fresh)) {
+        m_rowById.insert(t.id, int(m_tracks.size()));
+        m_tracks << t;
+    }
+    endInsertRows();
+    emit countChanged();
 }
 
 QVariantMap TrackModel::get(int row) const

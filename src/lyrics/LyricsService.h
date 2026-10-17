@@ -33,6 +33,9 @@ class LyricsService : public QObject
     Q_PROPERTY(bool synced READ synced NOTIFY lyricsChanged)
     Q_PROPERTY(QString source READ source NOTIFY lyricsChanged)
     Q_PROPERTY(QString origin READ origin NOTIFY lyricsChanged)
+    // Manual timing correction for this track (s, + = the lyrics come later) — the synced lyrics may
+    // belong to a different version (e.g. a music video with an intro). Remembered per track.
+    Q_PROPERTY(double offset READ offset NOTIFY offsetChanged)
 
     Q_PROPERTY(bool aligning READ aligning NOTIFY alignChanged)
     Q_PROPERTY(qreal alignProgress READ alignProgress NOTIFY alignChanged)
@@ -63,6 +66,7 @@ public:
     bool synced() const { return m_lyrics.synced; }
     QString source() const { return m_lyrics.source; }
     QString origin() const { return m_lyrics.origin; }
+    double offset() const { return m_offset; }
 
     bool aligning() const { return m_speech.busy() || !m_waitingStream.isEmpty(); }
     qreal alignProgress() const { return m_alignProgress; }
@@ -89,6 +93,8 @@ public:
     Q_INVOKABLE int lineAt(double seconds) const;
     Q_INVOKABLE QString modelSize(const QString &model) const { return SpeechEngine::modelSize(model); }
     Q_INVOKABLE void retry();
+    Q_INVOKABLE void nudge(double seconds);   // shifts the timing of this track's lyrics
+    Q_INVOKABLE void resetOffset();
     Q_INVOKABLE void alignNow();
     Q_INVOKABLE void cancelAlign();
     Q_INVOKABLE void downloadSttEngine() { m_speech.downloadEngine(); }
@@ -102,6 +108,7 @@ public:
 
 signals:
     void lyricsChanged();
+    void offsetChanged();
     void alignChanged();
     void settingsChanged();
     void sttChanged();
@@ -119,6 +126,8 @@ private:
     void startAlign(const QUrl &audio);
 
     QString cachePath(const QString &trackId) const;
+    QString offsetKey() const;
+    void loadOffset();
     bool loadCached(const QString &trackId, Lyrics &out) const;
     void storeCached(const QString &trackId, const Lyrics &lyrics) const;
 
@@ -131,6 +140,7 @@ private:
     Lyrics m_lyrics;
     QVariantList m_lines;
     std::vector<std::pair<qint64, int>> m_starts;   // (start ms, line index) — for binary search
+    double m_offset = 0;
     QString m_state = QStringLiteral("none");
     QString m_error;
 

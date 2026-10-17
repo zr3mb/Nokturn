@@ -24,6 +24,7 @@
 #include <taglib/tpropertymap.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -173,6 +174,7 @@ void LyricsService::setTrack(const Track *track)
         ++m_serial;
         cancelAlign();
         m_track = {};
+        loadOffset();
         apply({}, false);
         setState(QStringLiteral("none"));
         return;
@@ -184,7 +186,41 @@ void LyricsService::setTrack(const Track *track)
     cancelAlign();
     m_hasTrack = true;
     m_track = *track;
+    loadOffset();
     fetch();
+}
+
+QString LyricsService::offsetKey() const
+{
+    // Track ids can be file paths — hashed into a plain settings key.
+    return QStringLiteral("lyrics/offset/")
+         + QString::fromLatin1(QCryptographicHash::hash(m_track.id.toUtf8(), QCryptographicHash::Md5).toHex());
+}
+
+void LyricsService::loadOffset()
+{
+    const double offset = m_hasTrack ? AppPaths::settings()->value(offsetKey(), 0.0).toDouble() : 0.0;
+    if (offset != m_offset) {
+        m_offset = offset;
+        emit offsetChanged();
+    }
+}
+
+void LyricsService::nudge(double seconds)
+{
+    if (!m_hasTrack)
+        return;
+    m_offset = std::clamp(std::round((m_offset + seconds) * 10.0) / 10.0, -30.0, 30.0);
+    if (m_offset == 0.0)
+        AppPaths::settings()->remove(offsetKey());
+    else
+        AppPaths::settings()->setValue(offsetKey(), m_offset);
+    emit offsetChanged();
+}
+
+void LyricsService::resetOffset()
+{
+    nudge(-m_offset);
 }
 
 void LyricsService::retry()

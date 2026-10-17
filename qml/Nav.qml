@@ -75,6 +75,12 @@ QtObject {
         _show(e.page, e.args)
     }
 
+    // A page records its state (e.g. the search query) in the current history entry, so going back
+    // to it restores it.
+    function remember(a) {
+        args = a
+    }
+
     function openSearch() {
         navigate("search")
         searchFocusRequested()

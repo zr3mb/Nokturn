@@ -248,6 +248,7 @@ private:
     QString m_skipPending;             // track id with a skip already scheduled (errors come in pairs)
     qint64 m_lastPosMs = -1;           // stall detection: the position stopped moving while "playing"
     double m_stall = 0;
+    double m_heardLag = 0;             // seconds decoded but not heard yet (AudioEngine::latency, smoothed)
 
     // mixing
     int m_crossfade = 0;

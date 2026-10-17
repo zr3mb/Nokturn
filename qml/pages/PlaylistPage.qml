@@ -14,6 +14,8 @@ Item {
     readonly property var info: {
         Library.tracks.revision
         const a = args || {}
+        if (a.kind === "ytcollection")
+            YouTube.resultsRevision   // its tracks are appended to the model, not rebuilt into it
         if (a.kind === "album") {
             const al = Library.albums.find(x => x.key === a.key) || { title: "", artist: "", year: 0 }
             return { label: qsTr("ALBUM"), title: al.title, meta: [al.artist].concat(al.year > 0 ? [String(al.year)] : []),

@@ -80,7 +80,62 @@ Item {
         { name: "Q5-nolimit", run: () => { Equalizer.limiter = false; Equalizer.preamp = 12 } },
         { name: "Q6-clip", run: () => { console.log("tour: no limiter peak", Equalizer.peak.toFixed(1), "dB, clipping", Equalizer.clipping); Equalizer.limiter = true; Equalizer.preamp = 0 } }
     ]
-    readonly property var steps: withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Performance (--tour-perf, with NOKTURN_PERF_DEBUG=1): playback while searching and opening artists.
+    readonly property bool withPerf: Qt.application.arguments.indexOf("--tour-perf") >= 0
+    function findSearchPage(item) {
+        if (item.onlineEnabled !== undefined && item.query !== undefined)
+            return item
+        for (let i = 0; i < item.children.length; ++i) {
+            const found = findSearchPage(item.children[i])
+            if (found)
+                return found
+        }
+        return null
+    }
+    function typeQuery(text) {
+        const page = findSearchPage(root.target)
+        console.log("tour: step query", JSON.stringify(text), page ? "" : "(no search page)")
+        if (page)
+            page.query = text
+    }
+    readonly property var perfSteps: [
+        { name: "P0-find", run: () => { Nav.finishOnboarding(); YouTube.search("Daft Punk Around the World") } },
+        { name: "P1-play", run: () => { const r = Library.onlineResults(); console.log("tour: step play, tracks", Library.tracks.count, "results", r.length); if (r.length) Player.playFrom(r, r[0]); Nav.navigate("home") } },
+        { name: "P2-wait", run: () => console.log("tour: step playing", Player.playing, Player.title) },
+        { name: "P3-search", run: () => { console.log("tour: step open search"); Nav.navigate("search") } },
+        { name: "P4-q1", run: () => root.typeQuery("d") },
+        { name: "P5-q2", run: () => root.typeQuery("da") },
+        { name: "P6-q3", run: () => root.typeQuery("daft") },
+        { name: "P7-q4", run: () => root.typeQuery("daft punk") },
+        { name: "P8-wait", run: () => console.log("tour: step wait") },
+        { name: "P9-q5", run: () => root.typeQuery("dawid podsiadlo") },
+        { name: "P10-wait", run: () => console.log("tour: step wait") },
+        { name: "P11-artist", run: () => { console.log("tour: step artist Daft Punk"); Nav.openArtist("Daft Punk", "") } },
+        { name: "P12-wait", run: () => console.log("tour: step wait") },
+        { name: "P13-wait", run: () => console.log("tour: step wait") },
+        { name: "P14-artist", run: () => { console.log("tour: step artist Taco Hemingway"); Nav.openArtist("Taco Hemingway", "") } },
+        { name: "P15-wait", run: () => console.log("tour: step wait") },
+        { name: "P16-wait", run: () => console.log("tour: step end, playing", Player.playing) }
+    ]
+    // Seeking back and forth in a YouTube stream, with lyrics (--tour-seek).
+    readonly property bool withSeek: Qt.application.arguments.indexOf("--tour-seek") >= 0
+    function seekLog(label) {
+        console.log("tour:", label, "playing", Player.playing, "pos", Player.position.toFixed(2), "/", Player.duration,
+                    "| lyrics", Lyrics.state, "synced", Lyrics.synced, "line", Lyrics.synced ? Lyrics.lineAt(Player.position) : -1)
+    }
+    readonly property var seekSteps: [
+        { name: "K0-search", run: () => { Nav.finishOnboarding(); YouTube.search("Daft Punk Get Lucky") } },
+        { name: "K1-play", run: () => { const r = Library.onlineResults(); console.log("tour: results", r.length); if (r.length) Player.playFrom(r, r[0]); Nav.queueOpen = true } },
+        { name: "K2-wait", run: () => root.seekLog("start") },
+        { name: "K3-wait", run: () => root.seekLog("playing") },
+        { name: "K4-fwd", run: () => { Player.seek(60); root.seekLog("seek 60") } },
+        { name: "K5-wait", run: () => root.seekLog("after 60") },
+        { name: "K6-back", run: () => { Player.seek(10); root.seekLog("seek 10") } },
+        { name: "K7-wait", run: () => root.seekLog("after 10") },
+        { name: "K8-back2", run: () => { Player.seek(2); root.seekLog("seek 2") } },
+        { name: "K9-wait", run: () => root.seekLog("after 2") }
+    ]
+    readonly property var steps: withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
@@ -160,7 +215,7 @@ Item {
         running: root.dir !== ""
         repeat: true
         onTriggered: {
-            if (root.step >= 0 && root.step < root.steps.length) {
+            if (root.step >= 0 && root.step < root.steps.length && !root.withPerf && !root.withSeek) {   // screenshots would skew the timings
                 const name = root.steps[root.step].name
                 const ok = root.target.grabToImage(r => console.log("tour: screenshot", name, r.saveToFile(root.dir + "/" + name + ".png")))
                 if (!ok) console.log("tour: screenshot rejected", name)

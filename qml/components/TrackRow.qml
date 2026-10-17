@@ -96,20 +96,24 @@ Item {
                 opacity: root.hovered || root.current ? 0 : 1
                 Behavior on opacity { NumberAnimation { duration: Theme.fast } }
             }
-            EqualizerIcon {
+            // Controls that only show for the playing / hovered row are created on demand — lists
+            // build many rows at once, and every item counts.
+            Loader {
                 anchors.centerIn: parent
-                visible: root.current && !root.hovered
-                running: root.current && Player.playing
+                active: root.current && !root.hovered
+                sourceComponent: EqualizerIcon { running: Player.playing }
             }
-            IconButton {
+            Loader {
                 anchors.centerIn: parent
-                width: 34; height: 34
-                visible: root.hovered
-                icon: root.current && Player.playing ? "pause" : "play"
-                iconSize: 18
-                color: Theme.text
-                showDot: false
-                onClicked: root.play()
+                active: root.hovered
+                sourceComponent: IconButton {
+                    width: 34; height: 34
+                    icon: root.current && Player.playing ? "pause" : "play"
+                    iconSize: 18
+                    color: Theme.text
+                    showDot: false
+                    onClicked: root.play()
+                }
             }
         }
 
@@ -164,16 +168,19 @@ Item {
             }
         }
 
-        IconButton {
-            icon: root.t.liked ? "heart" : "heartOutline"
-            iconSize: 18
-            active: root.t.liked
-            showDot: false
-            opacity: root.t.liked || root.hovered ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Theme.fast } }
-            onClicked: {
-                Library.tracks.toggleLiked(root.trackIndex)
-                Nav.toast(root.t.liked ? qsTr("Added to Liked") : qsTr("Removed from Liked"), "heart")
+        Loader {
+            Layout.preferredWidth: 38
+            Layout.preferredHeight: 38
+            active: root.t.liked || root.hovered
+            sourceComponent: IconButton {
+                icon: root.t.liked ? "heart" : "heartOutline"
+                iconSize: 18
+                active: root.t.liked
+                showDot: false
+                onClicked: {
+                    Library.tracks.toggleLiked(root.trackIndex)
+                    Nav.toast(root.t.liked ? qsTr("Added to Liked") : qsTr("Removed from Liked"), "heart")
+                }
             }
         }
 
@@ -187,17 +194,20 @@ Item {
             font.features: { "tnum": 1 }
         }
 
-        IconButton {
+        Loader {
             id: moreButton
-            icon: "more"
-            iconSize: 18
-            showDot: false
-            opacity: root.hovered ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Theme.fast } }
-            onClicked: {
-                const p = moreButton.mapToItem(root, moreButton.width, moreButton.height)
-                if (!root.openMenu(p.x - menuWidth, p.y + 4))
-                    Nav.toast(qsTr("The context menu is coming soon"), "more")
+            Layout.preferredWidth: 38
+            Layout.preferredHeight: 38
+            active: root.hovered
+            sourceComponent: IconButton {
+                icon: "more"
+                iconSize: 18
+                showDot: false
+                onClicked: {
+                    const p = moreButton.mapToItem(root, moreButton.width, moreButton.height)
+                    if (!root.openMenu(p.x - menuWidth, p.y + 4))
+                        Nav.toast(qsTr("The context menu is coming soon"), "more")
+                }
             }
         }
     }

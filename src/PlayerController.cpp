@@ -251,7 +251,9 @@ double PlayerController::position() const
 {
     if (m_pendingSeek >= 0)
         return m_pendingSeek / 1000.0;
-    return player().position() / 1000.0;
+    // The decoder is ahead of the speakers by what waits in the buffers (~0.3 s) — lyrics and the
+    // progress bar follow what is heard.
+    return std::max(0.0, player().position() / 1000.0 - m_heardLag);
 }
 
 bool PlayerController::buffering() const
@@ -1120,7 +1122,7 @@ void PlayerController::updateMix(double dt)
     const double total = player().duration() > 0 ? player().duration() / 1000.0 : double(duration());
     if (total <= 0)
         return;
-    const double pos = position();
+    const double pos = player().position() / 1000.0;   // the decoder's position — mixing happens there
     const double remaining = total - pos;
     const double length = std::min<double>(mix.length, std::max(2.0, total / 3));
 
@@ -1223,6 +1225,7 @@ void PlayerController::tick()
     if (!m_played.empty())
         m_analyzer.pushSamples(m_played.data(), m_played.size(), m_engine.sampleRate());
     Equalizer::instance()->tickMeters(dt);
+    m_heardLag += (m_engine.latency() - m_heardLag) * std::min(1.0, dt * 8.0);   // smoothed — the buffers refill in chunks
     updateMix(dt);
     checkStall(dt);
 
