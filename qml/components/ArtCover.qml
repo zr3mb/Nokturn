@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Shapes
 import Nokturn
 
@@ -16,7 +15,12 @@ Item {
     property var mosaic: []   // four cover URLs — a 2×2 collage when there's no source (playlists)
     readonly property bool useMosaic: source === "" && mosaic && mosaic.length >= 4
     property int mosaicReady: 0
-    readonly property bool hasPicture: picture.status === Image.Ready || (useMosaic && mosaicReady > 0)
+    // A new size of the same cover loads behind the one on screen (retainWhileLoading); a different
+    // cover fades in once it's ready.
+    property string shownSource: ""
+    readonly property bool pictureShown: picture.status === Image.Ready
+                                         || (picture.status === Image.Loading && source !== "" && shownSource === source)
+    readonly property bool hasPicture: pictureShown || (useMosaic && mosaicReady > 0)
     // fillItem draws the texture at its natural size — we scale it to cover the shape
     // (like PreserveAspectCrop) and center it. Also applies to 16:9 music-video thumbnails.
     readonly property real texW: Math.max(1, picture.implicitWidth)
@@ -32,6 +36,21 @@ Item {
 
     implicitWidth: 120
     implicitHeight: 120
+
+    // Pictures are decoded at the size they're drawn at (device pixels, rounded up to a step), never
+    // above the fixed sizes used before — a 42 px row cover doesn't keep a 192 px image in memory.
+    function decodeSize(size, limit) {
+        const px = Math.ceil(size * Screen.devicePixelRatio)
+        for (const step of [48, 64, 96, 128, 192, 256, 384, 512])
+            if (step >= px)
+                return Math.min(step, limit)
+        return limit
+    }
+    // Images give up their memory copy once they're on the GPU (main.cpp); after a GPU reset they're
+    // loaded again under a new address.
+    function imageUrl(url) {
+        return url !== "" && Theme.imageEpoch > 0 ? url + "#" + Theme.imageEpoch : url
+    }
 
     function waves() {
         let s = ""
@@ -156,21 +175,31 @@ Item {
         }
     }
 
-    // The real cover fills the same rounded shape
+    // The real cover fills the same rounded shape. Cropping makes the decoded short side match the
+    // cover, so 16:9 thumbnails stay sharp at the smaller size.
     Image {
         id: picture
+        readonly property int decodeSize: root.decodeSize(Math.max(root.w, root.h), root.w > 160 ? 512 : 192)
         width: root.w
         height: root.h
         visible: false
-        source: root.source
-        sourceSize.width: root.w > 160 ? 512 : 192
-        sourceSize.height: root.w > 160 ? 512 : 192
+        source: root.imageUrl(root.source)
+        sourceSize.width: decodeSize
+        sourceSize.height: decodeSize
+        fillMode: Image.PreserveAspectCrop
+        retainWhileLoading: true
         asynchronous: true
         smooth: true
         mipmap: true
+        onStatusChanged: {
+            if (status === Image.Ready)
+                root.shownSource = root.source
+            else if (status !== Image.Loading)
+                root.shownSource = ""
+        }
     }
 
-    // The collage (playlists): four tiles, cut to the same rounded shape by a mask. Built only when used.
+    // The collage (playlists): four tiles in the same rounded shape. Built only when used.
     onMosaicChanged: mosaicReady = 0
     Loader {
         anchors.fill: parent
@@ -193,12 +222,14 @@ Item {
                         model: root.mosaic.slice(0, 4)
                         Image {
                             required property string modelData
+                            readonly property int decodeSize: root.decodeSize(Math.max(root.w, root.h) / 2, root.w > 160 ? 256 : 96)
                             width: root.w / 2
                             height: root.h / 2
-                            source: modelData
+                            source: root.imageUrl(modelData)
                             fillMode: Image.PreserveAspectCrop
-                            sourceSize.width: root.w > 160 ? 256 : 96
-                            sourceSize.height: root.w > 160 ? 256 : 96
+                            sourceSize.width: decodeSize
+                            sourceSize.height: decodeSize
+                            retainWhileLoading: true
                             asynchronous: true
                             smooth: true
                             mipmap: true
@@ -207,29 +238,17 @@ Item {
                     }
                 }
             }
+            // Drawn through the cover's rounded shape (antialiased edges) — no mask texture.
             Shape {
-                id: collageMask
-                width: root.w
-                height: root.h
-                visible: false
-                layer.enabled: true
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    strokeColor: "transparent"
-                    fillColor: "white"
-                    PathSvg { path: root.frame }
-                }
-            }
-
-            MultiEffect {
                 anchors.fill: parent
                 opacity: root.mosaicReady > 0 ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 350 } }
-                source: collage
-                maskEnabled: true
-                maskSource: collageMask
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 1.0
+                preferredRendererType: Shape.CurveRenderer
+                ShapePath {
+                    strokeColor: "transparent"
+                    fillItem: collage
+                    PathSvg { path: root.frame }
+                }
             }
         }
     }
@@ -238,8 +257,8 @@ Item {
         anchors.fill: parent
         active: root.source !== ""
         sourceComponent: Shape {
-            visible: picture.status === Image.Ready
-            opacity: picture.status === Image.Ready ? 1 : 0
+            visible: root.pictureShown
+            opacity: root.pictureShown ? 1 : 0
             preferredRendererType: Shape.CurveRenderer
             Behavior on opacity { NumberAnimation { duration: 350 } }
 

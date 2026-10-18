@@ -15,6 +15,7 @@ ApplicationWindow {
     flags: Qt.Window | Qt.FramelessWindowHint
 
     readonly property bool maximized: visibility === Window.Maximized || visibility === Window.FullScreen
+    onVisibilityChanged: visibility => { if (visibility === Window.Minimized) Memory.trimSoon(500) }
 
     // The whole window content in one item (also enables screenshots in --tour mode)
     Item {
@@ -113,14 +114,26 @@ ApplicationWindow {
             anchors.fill: parent
         }
 
-        // Correcting a Spotify track's YouTube Music match
-        MatchDialog {
+        // Correcting a Spotify track's YouTube Music match. The dialogs are built when they open.
+        Loader {
             id: matchDialog
+            active: false
+            sourceComponent: MatchDialog { onClosed: matchDialog.active = false }
+            function show(track) {
+                active = true
+                item.show(track)
+            }
         }
 
         // New playlist / editing one
-        PlaylistDialog {
+        Loader {
             id: playlistDialog
+            active: false
+            sourceComponent: PlaylistDialog { onClosed: playlistDialog.active = false }
+            function show(mode, index, rows) {
+                active = true
+                item.show(mode, index, rows)
+            }
         }
 
         Toast {
@@ -170,6 +183,15 @@ ApplicationWindow {
         target: Nav
         function onPageRequested(page, args) {
             stack.replace(null, win.pageComponent(page), { args: args })
+            Memory.trimSoon()   // the previous page is gone once the transition ends
+        }
+        function onImmersiveChanged() {
+            if (!Nav.immersive)
+                Memory.trimSoon()
+        }
+        function onOnboardingChanged() {
+            if (!Nav.onboarding)
+                Memory.trimSoon()
         }
         function onToastRequested(text, icon) {
             toast.show(text, icon)
@@ -194,6 +216,7 @@ ApplicationWindow {
     Connections {
         target: Library
         function onNotice(text, icon) { toast.show(text, icon) }
+        function onLibraryChanged() { Memory.trimSoon(3000) }
     }
 
     Connections {

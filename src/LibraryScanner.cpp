@@ -85,22 +85,26 @@ QImage squareCrop(const QImage &img, int size)
     return side > size ? cropped.scaled(size, size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation) : cropped;
 }
 
-QImage folderImage(const QString &dirPath, QHash<QString, QImage> &byDir)
+// Only the file is remembered per folder ("" = none): keeping every folder's decoded picture until the
+// scan ends would hold hundreds of megabytes on a first scan of a big library.
+QImage folderImage(const QString &dirPath, QHash<QString, QString> &fileByDir)
 {
-    auto it = byDir.constFind(dirPath);
-    if (it != byDir.cend())
-        return *it;
+    if (const auto it = fileByDir.constFind(dirPath); it != fileByDir.cend())
+        return it->isEmpty() ? QImage() : QImage(*it);
 
     QImage found;
+    QString file;
     const QFileInfoList entries = QDir(dirPath).entryInfoList({ "*.jpg", "*.jpeg", "*.png" }, QDir::Files);
     for (const QFileInfo &fi : entries) {
         if (kCoverNames.contains(fi.completeBaseName().toLower())) {
             found.load(fi.absoluteFilePath());
-            if (!found.isNull())
+            if (!found.isNull()) {
+                file = fi.absoluteFilePath();
                 break;
+            }
         }
     }
-    byDir.insert(dirPath, found);
+    fileByDir.insert(dirPath, file);
     return found;
 }
 
@@ -115,7 +119,7 @@ QString formatQuality(const QString &suffix, int sampleRate, int bitrate)
 }
 
 Track readFile(const QString &path, const QFileInfo &fi, const QString &coverDir,
-               QHash<QString, CoverInfo> &coverByAlbum, QHash<QString, QImage> &imageByDir)
+               QHash<QString, CoverInfo> &coverByAlbum, QHash<QString, QString> &coverFileByDir)
 {
     Track t;
     t.id = path;
@@ -125,7 +129,6 @@ Track readFile(const QString &path, const QFileInfo &fi, const QString &coverDir
     t.mtime = fi.lastModified().toMSecsSinceEpoch();
     t.added = (fi.birthTime().isValid() ? fi.birthTime() : fi.lastModified()).toMSecsSinceEpoch();
 
-    QByteArray picture;
     int sampleRate = 0, bitrate = 0;
 
     const TagLibPath native(path);
@@ -149,12 +152,6 @@ Track readFile(const QString &path, const QFileInfo &fi, const QString &coverDir
             sampleRate = ap->sampleRate();
             bitrate = ap->bitrate();
         }
-
-        const auto pictures = ref.complexProperties("PICTURE");
-        if (!pictures.isEmpty()) {
-            const TagLib::ByteVector data = pictures.front().value("data").toByteVector();
-            picture = QByteArray(data.data(), int(data.size()));
-        }
     }
 
     if (t.title.isEmpty())
@@ -170,11 +167,17 @@ Track readFile(const QString &path, const QFileInfo &fi, const QString &coverDir
     t.seed = stableSeed(key);
     CoverInfo cover = coverByAlbum.value(key);
     if (cover.url.isEmpty()) {
+        // The embedded picture is only read while the album has no cover yet.
         QImage img;
-        if (!picture.isEmpty())
-            img.loadFromData(picture);
+        if (!ref.isNull()) {
+            const auto pictures = ref.complexProperties("PICTURE");
+            if (!pictures.isEmpty()) {
+                const TagLib::ByteVector data = pictures.front().value("data").toByteVector();
+                img.loadFromData(reinterpret_cast<const uchar *>(data.data()), int(data.size()));
+            }
+        }
         if (img.isNull())
-            img = folderImage(fi.absolutePath(), imageByDir);
+            img = folderImage(fi.absolutePath(), coverFileByDir);
 
         if (!img.isNull()) {
             const QString file = coverDir + '/' + QString::fromLatin1(md5(key)) + ".jpg";
@@ -243,7 +246,7 @@ void scan(QPromise<Result> &promise, const Input &input)
     // 2. Read tags (or take them from the cache if the file hasn't changed)
     QDir().mkpath(input.coverDir);
     QHash<QString, CoverInfo> coverByAlbum;
-    QHash<QString, QImage> imageByDir;
+    QHash<QString, QString> coverFileByDir;
     Result result;
     result.tracks.reserve(files.size());
 
@@ -262,7 +265,7 @@ void scan(QPromise<Result> &promise, const Input &input)
             if (!cached->cover.isEmpty())
                 coverByAlbum.insert(TrackModel::albumKey(*cached), { cached->cover, cached->colorA, cached->colorB });
         } else {
-            Track t = readFile(path, fi, input.coverDir, coverByAlbum, imageByDir);
+            Track t = readFile(path, fi, input.coverDir, coverByAlbum, coverFileByDir);
             if (cached != input.cache.cend())
                 t.added = cached->added;   // changed file — keep the date it was added
             result.tracks << t;

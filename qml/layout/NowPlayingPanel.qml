@@ -168,7 +168,7 @@ Panel {
                         seed: Player.seed
                         source: Player.cover
                         scale: 1 + Player.level * 0.018
-                        layer.enabled: true
+                        layer.enabled: inner.opacity > 0   // the shadow's textures are released while the panel is closed
                         layer.effect: MultiEffect {
                             shadowEnabled: true
                             shadowBlur: 1.0

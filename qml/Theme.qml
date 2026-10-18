@@ -38,6 +38,9 @@ Item {
     readonly property int normal: 260
     readonly property int slow: 520
 
+    // Bumped by main.cpp after a GPU reset: images then load again (they keep no memory copy).
+    property int imageEpoch: 0
+
     function alpha(c, a) {
         const col = Qt.lighter(c, 1.0)
         return Qt.rgba(col.r, col.g, col.b, a)

@@ -138,7 +138,8 @@ Item {
                         Image {
                             id: avatar
                             anchors.fill: parent
-                            source: YouTube.accountPhoto
+                            source: YouTube.accountPhoto !== "" && Theme.imageEpoch > 0
+                                    ? YouTube.accountPhoto + "#" + Theme.imageEpoch : YouTube.accountPhoto
                             fillMode: Image.PreserveAspectCrop
                             visible: false
                         }

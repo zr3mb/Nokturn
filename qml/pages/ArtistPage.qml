@@ -88,6 +88,10 @@ Item {
         }
     }
 
+    // Shadows shared by the album / single / playlist cards and the related artists' round cards
+    CardShadow { id: squareShadow; size: 168 }
+    CardShadow { id: roundShadow; size: 168; radius: 84 }
+
     PageFlick {
         id: flick
         anchors.fill: parent
@@ -315,6 +319,7 @@ Item {
                                 required property var modelData
                                 required property int index
                                 width: 168
+                                shadow: modelData.kind === "artist" ? roundShadow : squareShadow
                                 title: modelData.title
                                 subtitle: modelData.subtitle
                                 cover: modelData.cover

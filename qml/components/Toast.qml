@@ -42,7 +42,7 @@ Item {
         color: Theme.surfaceHi
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.08)
-        layer.enabled: true
+        layer.enabled: root.visible   // the shadow's textures are released between notifications
         layer.effect: MultiEffect {
             shadowEnabled: true
             shadowBlur: 1.0

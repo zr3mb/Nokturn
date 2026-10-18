@@ -41,6 +41,7 @@ qt_add_qml_module(Nokturn
         src/AppPaths.h
         src/TagLibPath.h
         src/Prefs.h             src/Prefs.cpp
+        src/MemoryTrim.h        src/MemoryTrim.cpp
         src/TrackModel.h        src/TrackModel.cpp
         src/LibraryScanner.h    src/LibraryScanner.cpp
         src/SpectrumAnalyzer.h  src/SpectrumAnalyzer.cpp
@@ -75,6 +76,7 @@ qt_add_qml_module(Nokturn
         qml/components/ArtistLink.qml
         qml/components/AlbumCard.qml
         qml/components/ArtCover.qml
+        qml/components/CardShadow.qml
         qml/components/EqGraph.qml
         qml/components/EqualizerIcon.qml
         qml/components/Fader.qml

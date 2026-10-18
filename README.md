@@ -358,6 +358,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings â
 | `src/platform/Mpris.*` | MPRIS 2 on Linux (D-Bus): media keys, system panel controls |
 | `src/TagLibPath.h` | File path for TagLib (wchar_t on Windows, file system bytes on Linux) |
 | `src/Prefs.*` | `Prefs` singleton for QML: typed reading/writing of `settings.ini` (appearance, wizard) |
+| `src/MemoryTrim.*` | `Memory` singleton: gives freed memory back to the system after a page closes, the library is rebuilt or the window is minimized |
 | `i18n/` | Translations: `pl.json` (Polish), `en.json` (English plural forms) |
 | `scripts/check_translations.py` | Translation completeness check |
 | `packaging/linux/` | `.desktop` file, SVG icon, metainfo (AppStream) |

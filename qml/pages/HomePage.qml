@@ -115,6 +115,12 @@ Item {
         }
     }
 
+    // The shadow shared by the album cards
+    CardShadow {
+        id: albumShadow
+        size: albumGrid.cellW
+    }
+
     PageFlick {
         anchors.fill: parent
 
@@ -221,6 +227,7 @@ Item {
                             required property var modelData
                             required property int index
                             width: albumGrid.cellW
+                            shadow: albumShadow
                             title: modelData.title
                             subtitle: modelData.artist + (modelData.year > 0 ? " · " + modelData.year : "")
                             colorA: modelData.colorA
