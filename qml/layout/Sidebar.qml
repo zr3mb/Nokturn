@@ -8,6 +8,7 @@ Panel {
     readonly property bool compact: Nav.sidebarCompact
     property Item selectedItem: null
     tint: Theme.alpha(Theme.surface, 0.55)
+    roundedClip: false   // the logo, the list and the footer all stay clear of the corners
 
     function isPlaylist(i) {
         return Nav.page === "playlist" && Nav.args && Nav.args.kind === "playlist" && Nav.args.index === i

@@ -14,15 +14,23 @@ Item {
     property bool round: false
     property bool playing: false
     property int revealDelay: 0
+    property bool animateIn: true   // false: shown at once (e.g. in a list built after its page appeared)
+    // A CardShadow of the same size shared by the whole list; without it the card runs its own effect.
+    property CardShadow shadow: null
     signal clicked
     signal playClicked
 
     readonly property bool hovered: hover.hovered
+    property real shadowOpacity: hovered ? 0.6 : 0.38
+    property real shadowOffset: hovered ? 16 : 8
+    readonly property real shadowPadding: shadow ? shadow.padding : 0
+    Behavior on shadowOpacity { NumberAnimation { duration: 400 } }
+    Behavior on shadowOffset { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
     implicitWidth: 180
     implicitHeight: width + 62
-    opacity: 0
-    transform: Translate { id: shift; y: 22 }
+    opacity: animateIn ? 0 : 1
+    transform: Translate { id: shift; y: root.animateIn ? 22 : 0 }
 
     SequentialAnimation {
         id: reveal
@@ -32,7 +40,7 @@ Item {
             NumberAnimation { target: shift; property: "y"; to: 0; duration: 760; easing.type: Easing.OutQuint }
         }
     }
-    Component.onCompleted: reveal.start()
+    Component.onCompleted: if (animateIn) reveal.start()
 
     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
     TapHandler { onTapped: root.clicked() }
@@ -53,6 +61,21 @@ Item {
         y: root.hovered ? -5 : 0
         Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutCubic } }
 
+        // The list's shared shadow, cut to the area the card's own effect covers.
+        Loader {
+            active: root.shadow !== null
+            x: -root.shadowPadding
+            y: -root.shadowPadding
+            width: coverBox.width + root.shadowPadding * 2
+            height: coverBox.height + root.shadowPadding * 2
+            clip: true
+            sourceComponent: ShaderEffect {
+                property var source: root.shadow
+                y: root.shadowOffset
+                opacity: root.shadowOpacity
+            }
+        }
+
         ArtCover {
             id: coverArt
             anchors.fill: parent
@@ -61,15 +84,13 @@ Item {
             colorB: root.colorB
             seed: root.seed
             source: root.cover
-            layer.enabled: true
+            layer.enabled: root.shadow === null
             layer.effect: MultiEffect {
                 shadowEnabled: true
                 shadowBlur: 1.0
                 shadowColor: "#000000"
-                shadowOpacity: root.hovered ? 0.6 : 0.38
-                shadowVerticalOffset: root.hovered ? 16 : 8
-                Behavior on shadowOpacity { NumberAnimation { duration: 400 } }
-                Behavior on shadowVerticalOffset { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+                shadowOpacity: root.shadowOpacity
+                shadowVerticalOffset: root.shadowOffset
             }
         }
 

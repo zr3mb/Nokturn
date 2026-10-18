@@ -5,10 +5,19 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
+#include <QQuickWindow>
 #include <QTimer>
 
 int main(int argc, char *argv[])
 {
+    // Images (covers) give up their memory copy once they're uploaded to the GPU, and skip the shared
+    // texture atlas — covers are drawn from a mipmapped copy of their own, so the atlas only kept a
+    // second one. Variables set by the user win.
+    if (!qEnvironmentVariableIsSet("QSG_TRANSIENT_IMAGES"))
+        qputenv("QSG_TRANSIENT_IMAGES", "1");
+    if (!qEnvironmentVariableIsSet("QSG_ATLAS_SIZE_LIMIT"))
+        qputenv("QSG_ATLAS_SIZE_LIMIT", "1");
+
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("Nokturn"));
     QGuiApplication::setApplicationDisplayName(QStringLiteral("Nokturn"));
@@ -34,6 +43,15 @@ int main(int argc, char *argv[])
         [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
     engine.loadFromModule("Nokturn", "Main");
+
+    // After a GPU reset the scene graph rebuilds its textures from the images' memory copies, which
+    // QSG_TRANSIENT_IMAGES dropped — so the images are loaded again (Theme.imageEpoch changes their URLs).
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
+    if (QObject *theme = engine.singletonInstance<QObject *>("Nokturn", "Theme"); window && theme) {
+        QObject::connect(window, &QQuickWindow::sceneGraphInvalidated, theme, [theme] {
+            theme->setProperty("imageEpoch", theme->property("imageEpoch").toInt() + 1);
+        }, Qt::QueuedConnection);
+    }
 
     // Diagnostics (NOKTURN_PERF_DEBUG=1): reports when the GUI thread was blocked — audio samples go
     // through it, so a stall over ~200 ms is heard as a gap.

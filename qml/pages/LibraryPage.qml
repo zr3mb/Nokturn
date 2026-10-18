@@ -9,6 +9,9 @@ Item {
     id: page
     property var args: ({})
     property int tab: args && args.tab !== undefined ? args.tab : 0
+    // The tab the page opened on: its rows animate in. Each tab is built the first time it's shown (they
+    // hold many covers); one opened later shows its rows at once, as if it had been there all along.
+    readonly property int startTab: args && args.tab !== undefined ? args.tab : 0
     readonly property real pad: 34
     // Local files + liked on YouTube Music
     readonly property var libraryRows: {
@@ -105,44 +108,48 @@ Item {
     }
 
     // ---- Tracks ----------------------------------------------------------------
-    ListView {
-        id: tracksView
+    Loader {
         anchors.fill: parent
         visible: page.tab === 0
-        clip: true
-        leftMargin: page.pad
-        rightMargin: page.pad
-        bottomMargin: page.pad
-        cacheBuffer: 800
-        boundsBehavior: Flickable.StopAtBounds
-        flickDeceleration: 3200
-        maximumFlickVelocity: 4200
-        ScrollBar.vertical: ThinScrollBar {}
-        model: page.libraryRows
+        active: page.tab === 0 || item !== null
+        sourceComponent: ListView {
+            id: tracksView
+            clip: true
+            leftMargin: page.pad
+            rightMargin: page.pad
+            bottomMargin: page.pad
+            cacheBuffer: 800
+            boundsBehavior: Flickable.StopAtBounds
+            flickDeceleration: 3200
+            maximumFlickVelocity: 4200
+            ScrollBar.vertical: ThinScrollBar {}
+            model: page.libraryRows
 
-        header: Item {
-            width: tracksView.width - page.pad * 2
-            height: page.pad + hdr.implicitHeight + 12 + listHead.implicitHeight
-            LibraryHeader {
-                id: hdr
-                y: page.pad
-                width: parent.width
+            header: Item {
+                width: tracksView.width - page.pad * 2
+                height: page.pad + hdr.implicitHeight + 12 + listHead.implicitHeight
+                LibraryHeader {
+                    id: hdr
+                    y: page.pad
+                    width: parent.width
+                }
+                TrackListHeader {
+                    id: listHead
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                }
             }
-            TrackListHeader {
-                id: listHead
-                anchors.bottom: parent.bottom
-                width: parent.width
-            }
-        }
 
-        delegate: TrackRow {
-            required property var modelData
-            required property int index
-            width: tracksView.width - page.pad * 2
-            trackIndex: modelData
-            number: index + 1
-            queue: page.libraryRows
-            revealDelay: index < 16 ? index * 28 : 0
+            delegate: TrackRow {
+                required property var modelData
+                required property int index
+                width: tracksView.width - page.pad * 2
+                trackIndex: modelData
+                number: index + 1
+                queue: page.libraryRows
+                revealDelay: index < 16 ? index * 28 : 0
+                animateIn: page.startTab === 0
+            }
         }
     }
 
@@ -150,8 +157,10 @@ Item {
     component CardGrid: GridView {
         id: grid
         property real minCell: 200
+        property bool roundCards: false
         readonly property real inner: width - page.pad * 2
         readonly property int columns: Math.max(3, Math.floor(inner / minCell))
+        readonly property alias cardShadow: cardShadow
 
         anchors.fill: parent
         clip: true
@@ -175,69 +184,88 @@ Item {
                 width: parent.width
             }
         }
+
+        CardShadow {
+            id: cardShadow
+            size: grid.cellWidth - 22
+            radius: grid.roundCards ? size / 2 : 14
+        }
     }
 
-    CardGrid {
-        id: albumsView
+    Loader {
+        anchors.fill: parent
         visible: page.tab === 1
-        model: Library.albums
+        active: page.tab === 1 || item !== null
+        sourceComponent: CardGrid {
+            id: albumsView
+            model: Library.albums
 
-        delegate: Item {
-            id: albumCell
-            required property var modelData
-            required property int index
-            width: albumsView.cellWidth
-            height: albumsView.cellHeight
+            delegate: Item {
+                id: albumCell
+                required property var modelData
+                required property int index
+                width: albumsView.cellWidth
+                height: albumsView.cellHeight
 
-            AlbumCard {
-                width: albumsView.cellWidth - 22
-                title: albumCell.modelData.title
-                subtitle: albumCell.modelData.artist + (albumCell.modelData.year > 0 ? " · " + albumCell.modelData.year : "")
-                colorA: albumCell.modelData.colorA
-                colorB: albumCell.modelData.colorB
-                seed: albumCell.modelData.seed
-                cover: albumCell.modelData.cover
-                playing: Player.playing && Player.albumKey === albumCell.modelData.key
-                revealDelay: albumCell.index < 12 ? albumCell.index * 45 : 0
-                onClicked: Nav.navigate("playlist", { kind: "album", key: albumCell.modelData.key })
-                onPlayClicked: {
-                    if (playing) { Player.toggle(); return }
-                    const rows = Library.tracksOfAlbum(albumCell.modelData.key)
-                    Player.playFrom(rows, rows[0])
+                AlbumCard {
+                    width: albumsView.cellWidth - 22
+                    shadow: albumsView.cardShadow
+                    title: albumCell.modelData.title
+                    subtitle: albumCell.modelData.artist + (albumCell.modelData.year > 0 ? " · " + albumCell.modelData.year : "")
+                    colorA: albumCell.modelData.colorA
+                    colorB: albumCell.modelData.colorB
+                    seed: albumCell.modelData.seed
+                    cover: albumCell.modelData.cover
+                    playing: Player.playing && Player.albumKey === albumCell.modelData.key
+                    revealDelay: albumCell.index < 12 ? albumCell.index * 45 : 0
+                    animateIn: page.startTab === 1
+                    onClicked: Nav.navigate("playlist", { kind: "album", key: albumCell.modelData.key })
+                    onPlayClicked: {
+                        if (playing) { Player.toggle(); return }
+                        const rows = Library.tracksOfAlbum(albumCell.modelData.key)
+                        Player.playFrom(rows, rows[0])
+                    }
                 }
             }
         }
     }
 
-    CardGrid {
-        id: artistsView
+    Loader {
+        anchors.fill: parent
         visible: page.tab === 2
-        minCell: 190
-        model: Library.artists
+        active: page.tab === 2 || item !== null
+        sourceComponent: CardGrid {
+            id: artistsView
+            minCell: 190
+            roundCards: true
+            model: Library.artists
 
-        delegate: Item {
-            id: artistCell
-            required property var modelData
-            required property int index
-            width: artistsView.cellWidth
-            height: artistsView.cellHeight
+            delegate: Item {
+                id: artistCell
+                required property var modelData
+                required property int index
+                width: artistsView.cellWidth
+                height: artistsView.cellHeight
 
-            AlbumCard {
-                width: artistsView.cellWidth - 22
-                round: true
-                title: artistCell.modelData.name
-                subtitle: qsTr("Artist · %n tracks", "", artistCell.modelData.count)
-                colorA: artistCell.modelData.colorA
-                colorB: artistCell.modelData.colorB
-                seed: artistCell.modelData.seed
-                cover: artistCell.modelData.cover
-                playing: Player.playing && Player.artist === artistCell.modelData.name
-                revealDelay: artistCell.index < 12 ? artistCell.index * 45 : 0
-                onClicked: Nav.openArtist(artistCell.modelData.name, "")
-                onPlayClicked: {
-                    if (playing) { Player.toggle(); return }
-                    const rows = Library.tracksOfArtist(artistCell.modelData.name)
-                    Player.playFrom(rows, rows[0])
+                AlbumCard {
+                    width: artistsView.cellWidth - 22
+                    round: true
+                    shadow: artistsView.cardShadow
+                    title: artistCell.modelData.name
+                    subtitle: qsTr("Artist · %n tracks", "", artistCell.modelData.count)
+                    colorA: artistCell.modelData.colorA
+                    colorB: artistCell.modelData.colorB
+                    seed: artistCell.modelData.seed
+                    cover: artistCell.modelData.cover
+                    playing: Player.playing && Player.artist === artistCell.modelData.name
+                    revealDelay: artistCell.index < 12 ? artistCell.index * 45 : 0
+                    animateIn: page.startTab === 2
+                    onClicked: Nav.openArtist(artistCell.modelData.name, "")
+                    onPlayClicked: {
+                        if (playing) { Player.toggle(); return }
+                        const rows = Library.tracksOfArtist(artistCell.modelData.name)
+                        Player.playFrom(rows, rows[0])
+                    }
                 }
             }
         }

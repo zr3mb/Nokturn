@@ -21,7 +21,7 @@ Item {
         Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
         Behavior on color { ColorAnimation { duration: Theme.fast } }
 
-        layer.enabled: true
+        layer.enabled: root.opacity > 0   // cards show the button on hover: no shadow textures while hidden
         layer.effect: MultiEffect {
             shadowEnabled: true
             shadowBlur: 0.6

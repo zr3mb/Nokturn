@@ -9,6 +9,7 @@ Item {
     property int trackIndex: 0
     property int number: trackIndex + 1
     property int revealDelay: 0
+    property bool animateIn: true   // false: shown at once (e.g. in a list built after its page appeared)
     property bool showAlbum: true
     property var queue: null   // rows that become the queue on click (null = the whole library)
     property string context: "" // queue origin ("playlist:…", "album:…") — the mix depends on it
@@ -41,8 +42,8 @@ Item {
 
     width: parent ? parent.width : 600
     implicitHeight: 60
-    opacity: 0
-    transform: Translate { id: shift; y: 16 }
+    opacity: animateIn ? 0 : 1
+    transform: Translate { id: shift; y: root.animateIn ? 16 : 0 }
 
     SequentialAnimation {
         id: reveal
@@ -52,7 +53,7 @@ Item {
             NumberAnimation { target: shift; property: "y"; to: 0; duration: 620; easing.type: Easing.OutQuint }
         }
     }
-    Component.onCompleted: reveal.start()
+    Component.onCompleted: if (animateIn) reveal.start()
 
     HoverHandler { id: hover }
 

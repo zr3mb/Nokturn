@@ -317,6 +317,26 @@ void Library::applyLocalTracks(QList<Track> local)
         if (Scanner::isUnknownArtist(t.artist))
             t.artist = Scanner::unknownArtist();
 
+    // The tracks of an album repeat its artist, album, genre, format and cover — they share one copy of
+    // each text instead of keeping their own (thousands of tracks add up).
+    QSet<QString> texts;
+    const auto share = [&texts](QString &s) {
+        if (s.isEmpty())
+            return;
+        if (const auto it = texts.constFind(s); it != texts.cend())
+            s = *it;
+        else
+            texts.insert(s);
+    };
+    for (Track &t : local) {
+        share(t.artist);
+        share(t.albumArtist);
+        share(t.album);
+        share(t.genre);
+        share(t.quality);
+        share(t.cover);
+    }
+
     m_local = local;
     m_localCount = int(local.size());
     rebuildModel();
