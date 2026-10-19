@@ -5,10 +5,10 @@ import Nokturn
 // The in-game overlay (GameOverlay): an XMB-style menu over the dimmed game. Categories run across,
 // the chosen one's items run down from under it — the items before the selected one move above the
 // row, as on the PS3. Arrows, mouse (click, wheel, drag sideways) or the pad; Esc / B goes back, the
-// hotkey closes. The window exists only while the menu is open (Main.qml's loader).
+// hotkey closes. Made on the first open (Main.qml's loader) and then only hidden: a new window would
+// get a new GPU context, and the covers cached for the old one crash Qt's renderer.
 Window {
     id: win
-    signal closed()
 
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.NoDropShadowWindowHint
     transientParent: null      // its own window: not hidden with a minimized main window
@@ -18,34 +18,31 @@ Window {
     y: GameOverlay.area.y
     width: Math.max(640, GameOverlay.area.width)
     height: Math.max(480, GameOverlay.area.height)
-    visible: true
-
-    // Fades in when it opens and out when GameOverlay closes; then the loader drops the window.
+    // Fades in when it opens and out when GameOverlay closes, then hides.
     property bool shown: false
     property bool appeared: false
     property real fade: shown ? 1 : 0
     Behavior on fade { NumberAnimation { duration: win.shown ? 260 : 180; easing.type: Easing.OutCubic } }
-    onFadeChanged: {
-        if (fade >= 1)
-            appeared = true
-        else if (fade <= 0 && appeared && !shown)
-            closed()
-    }
+    onFadeChanged: if (fade >= 1) appeared = true
+    visible: shown || fade > 0
+    onVisibleChanged: GameOverlay.view = visible ? menu : null
 
-    Component.onCompleted: {
-        GameOverlay.activate(win)
+    function open() {
+        menu.adjusting = false
         shown = true
+        GameOverlay.activate(win)
         menu.forceActiveFocus()
-        GameOverlay.view = menu
     }
+    Component.onCompleted: open()
     onActiveChanged: if (active) menu.forceActiveFocus()
 
     Connections {
         target: GameOverlay
         function onOpenChanged() {
-            win.shown = GameOverlay.open   // opened again while it was fading out
             if (GameOverlay.open)
-                GameOverlay.activate(win)
+                win.open()   // also when it was still fading out
+            else
+                win.shown = false
         }
         function onPadInput(action) { if (win.shown) menu.act(action) }
     }

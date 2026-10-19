@@ -361,7 +361,21 @@ Item {
         { name: "K7-wait", run: () => root.hotkeyLog() },
         { name: "K8-wait", run: () => root.hotkeyLog() }
     ]
-    readonly property var steps: withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Open, browse, close — several times, with the menu fully gone in between and not (--tour-overlay-cycle).
+    readonly property bool withOverlayCycle: Qt.application.arguments.indexOf("--tour-overlay-cycle") >= 0
+    readonly property var overlayCycleSteps: {
+        const s = [{ name: "C0-start", run: () => { Nav.finishOnboarding(); const r = Library.libraryRows(); Player.playFrom(r, r[3], "library") } }]
+        for (let i = 1; i <= 4; ++i) {
+            s.push({ name: "C" + i + "a-open", run: () => { GameOverlay.toggle(); root.overlayLog("cycle " + i + " open") } })
+            s.push({ name: "C" + i + "b-browse", run: () => { root.pad(["right", "down", "down", "right", "down", "accept", "down"]); root.overlayLog("cycle " + i + " browse") } })
+            s.push({ name: "C" + i + "c-close", run: () => { GameOverlay.toggle(); root.overlayLog("cycle " + i + " close") } })
+            if (i % 2 === 0)
+                s.push({ name: "C" + i + "d-gone", run: () => root.overlayLog("cycle " + i + " gone") })
+        }
+        s.push({ name: "C9-end", run: () => root.overlayLog("end") })
+        return s
+    }
+    readonly property var steps: withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

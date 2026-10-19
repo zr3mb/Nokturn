@@ -7,6 +7,7 @@
 #include <QJSEngine>
 #include <QKeySequence>
 #include <QQuickItem>
+#include <QQuickWindow>
 #include <QScreen>
 #include <QWindow>
 
@@ -313,6 +314,11 @@ void GameOverlay::activate(QWindow *window)
 {
     if (!window)
         return;
+    // Hidden between uses, it keeps its GPU context and scene: the covers it cached belong to them.
+    if (auto *quick = qobject_cast<QQuickWindow *>(window)) {
+        quick->setPersistentGraphics(true);
+        quick->setPersistentSceneGraph(true);
+    }
 #ifdef Q_OS_WIN
     // Windows lets only the app in front take the focus. The hotkey counts as our input, the pad
     // doesn't — joining the front window's input queue for a moment makes the switch allowed.

@@ -244,11 +244,11 @@ ApplicationWindow {
         function onNotice(text, icon) { toast.show(text, icon) }
     }
 
-    // The in-game overlay (GameOverlay): its window exists only while the menu is open.
+    // The in-game overlay (GameOverlay): its window is made when the menu first opens.
     Loader {
         id: gameOverlay
         active: false
-        sourceComponent: OverlayWindow { onClosed: gameOverlay.active = false }
+        sourceComponent: OverlayWindow {}
     }
     Connections {
         target: GameOverlay
