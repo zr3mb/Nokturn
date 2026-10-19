@@ -75,7 +75,7 @@ jobs:
           git clone --depth 1 --branch "$LAYERSHELLQT_VERSION" https://invent.kde.org/plasma/layer-shell-qt.git /tmp/lsq
           cmake -S /tmp/lsq -B /tmp/lsq/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
             -DCMAKE_CXX_COMPILER=g++-12 -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DCMAKE_INSTALL_PREFIX="$QT_ROOT_DIR" \
-            -DKDE_INSTALL_USE_QT_SYS_PATHS=ON
+            -DKDE_INSTALL_USE_QT_SYS_PATHS=ON -DKDE_INSTALL_LIBDIR=lib   # next to Qt's own libraries, where linuxdeploy looks
           cmake --build /tmp/lsq/build
           cmake --install /tmp/lsq/build
           find "$QT_ROOT_DIR" -iname "*layer*shell*" | grep -v "/include/" | head
