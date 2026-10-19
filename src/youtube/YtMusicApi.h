@@ -58,6 +58,8 @@ public:
     void fetchLibraryPlaylists(std::function<void(const QVariantList &, const QString &error)> callback);
     // filter: "" (everything), "songs" (official audio tracks only) or "videos".
     void search(const QString &query, TracksCallback callback, const QString &filter = {});
+    // The track's radio — similar tracks, the way "Start radio" in YouTube Music picks them.
+    void radio(const QString &videoId, TracksCallback callback);
     void fetchArtist(const QString &browseId, std::function<void(const Artist &, const QString &error)> callback);
     // Finds the artist's channel by name (exact, case-insensitive match in the search results);
     // an empty id without an error = not found.
@@ -79,6 +81,7 @@ public:
 
     static QList<Track> parseTracks(const QJsonValue &root);
     static QVariantList parsePlaylists(const QJsonValue &root);
+    static QList<Track> parseQueue(const QJsonValue &root);   // the player's queue ("next")
     // How well a search result fits a local file (title, artist, duration ±12 s): up to 4, below
     // kMatchThreshold = a different track. Covers, live, remixes, sped up / slowed versions lose
     // unless the local title is one too.

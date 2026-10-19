@@ -201,7 +201,64 @@ Item {
         })
         return s
     }
-    readonly property var steps: withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Recommendations on the home page, genres on the search page (--tour-home).
+    readonly property bool withHome: Qt.application.arguments.indexOf("--tour-home") >= 0
+    function recLog(label) {
+        const r = Library.recommendedRows()
+        console.log("tour:", label, "| loading", Recommendations.loading, "| based on", JSON.stringify(Recommendations.basedOn),
+                    "| picks", r.length, "|", r.slice(0, 10).map(x => Library.tracks.get(x).artist + " - " + Library.tracks.get(x).title).join(" | "))
+    }
+    // The scrolled content of the current page (PageFlick)
+    function findFlick(item) {
+        if (item.visible && item.contentY !== undefined && item.contentHeight > item.height + 10 && item.width > 500)
+            return item
+        for (let i = 0; i < item.children.length; ++i) {
+            const found = root.findFlick(item.children[i])
+            if (found)
+                return found
+        }
+        return null
+    }
+    function scrollPage(y) {
+        const f = root.findFlick(root.target)
+        console.log("tour: scroll", f ? "to " + y + " of " + Math.round(f.contentHeight) : "— nothing to scroll")
+        if (f)
+            f.contentY = y
+    }
+    readonly property var homeSteps: [
+        { name: "H1-home", run: () => { Nav.finishOnboarding(); Nav.navigate("home"); root.recLog("start") } },
+        { name: "H2-wait", run: () => { root.recLog("wait"); root.scrollPage(440) } },
+        { name: "H3-wait", run: () => root.recLog("wait") },
+        { name: "H4-refresh", run: () => { root.recLog("before refresh"); Recommendations.refresh() } },
+        { name: "H5-wait", run: () => root.recLog("refreshing") },
+        { name: "H6-refreshed", run: () => { root.recLog("refreshed"); root.scrollPage(440) } },
+        { name: "H7-play", run: () => { const r = Library.recommendedRows(); if (r.length) Player.playFrom(r, r[1], "recs")
+                                        console.log("tour: all tracks", Library.localTracks().length, "recently added", Library.recentlyAdded(50).length) } },
+        { name: "H7b-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist) },
+        { name: "H8-search", run: () => { const g = Library.genres()
+                                          console.log("tour: genres", g.length, g.slice(0, 14).map(x => x.name + " (" + x.count + ")").join(", "))
+                                          Nav.navigate("search") } },
+        { name: "H8b-wait", run: () => console.log("tour: genres", Library.genres().length) },
+        { name: "H8c-wait", run: () => console.log("tour: genres", Library.genres().length) },
+        { name: "H8d-search", run: () => { const g = Library.genres()
+                                           console.log("tour: genres", g.length, g.slice(0, 14).map(x => x.name + " (" + x.count + ")").join(", ")) } },
+        { name: "H9-genre", run: () => { const g = Library.genres()
+                                         if (g.length) {
+                                             Nav.navigate("playlist", { kind: "genre", key: g[0].key, name: g[0].name })
+                                             console.log("tour: genre", g[0].name, "rows", Library.tracksOfGenre(g[0].key).length, "mosaic", g[0].mosaic.length)
+                                         } } },
+        { name: "H9b-genre-loaded", run: () => {} },
+        { name: "H10-home", run: () => { console.log("tour: playing", Player.title, "-", Player.artist); Nav.navigate("home") } },
+        // Over 30 s of playback by now — the track counts as listened to (recommendations.json, "plays").
+        { name: "H11-wait", run: () => {} },
+        { name: "H12-wait", run: () => {} },
+        { name: "H13-wait", run: () => {} },
+        { name: "H13b-wait", run: () => {} },
+        { name: "H13c-wait", run: () => {} },
+        { name: "H13d-wait", run: () => {} },
+        { name: "H14-wait", run: () => console.log("tour: position", Math.round(Player.position), "s of", Player.title) }
+    ]
+    readonly property var steps: withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

@@ -216,6 +216,7 @@ private:
     bool continueAfterQueue();
     void skipAfterError(const QString &message);
     void checkStall(double dt);
+    void countListening(double dt);
     void startStream(int deck, const Track &t);
     QString streamIdOf(const Track &t) const;
     bool retryStream(int deck);
@@ -249,6 +250,9 @@ private:
     qint64 m_lastPosMs = -1;           // stall detection: the position stopped moving while "playing"
     double m_stall = 0;
     double m_heardLag = 0;             // seconds decoded but not heard yet (AudioEngine::latency, smoothed)
+    QString m_listenedId;              // the track whose listening time is being counted (recommendations)
+    double m_listened = 0;
+    bool m_listenCounted = false;
 
     // mixing
     int m_crossfade = 0;

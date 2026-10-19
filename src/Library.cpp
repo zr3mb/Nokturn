@@ -1,12 +1,14 @@
 #include "Library.h"
 
 #include "AppPaths.h"
+#include "ArtistGenres.h"
 #include "Language.h"
 #include "Playlists.h"
 #include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 
 #include <QCollator>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
@@ -19,6 +21,7 @@
 #include <QNetworkReply>
 #include <QPainter>
 #include <QRandomGenerator>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QScopeGuard>
 #include <QTimer>
@@ -37,6 +40,57 @@ QVariantList rowsWhere(const TrackModel *model, auto &&predicate)
         if (predicate(model->at(i)))
             out << i;
     return out;
+}
+
+// "Pop; Rock", "Hip-Hop/Rap" -> one genre each
+QStringList splitGenres(const QString &tag)
+{
+    static const QRegularExpression separators(QStringLiteral("\\s*[;/,|\\\\]\\s*"));
+    QStringList out;
+    for (const QString &g : tag.split(separators, Qt::SkipEmptyParts))
+        if (const QString name = g.trimmed(); !name.isEmpty())
+            out << name;
+    return out;
+}
+
+// "Hip Hop", "hip-hop", "HipHop" -> "hiphop"; empty for tags that say nothing about the music.
+QString genreKey(const QString &genre)
+{
+    QString key = genre.toLower();
+    static const QRegularExpression other(QStringLiteral("[^\\p{L}\\p{N}&]+"));
+    key.remove(other);
+    static const QSet<QString> junk = { "other", "others", "unknown", "genre", "none", "misc", "various",
+                                        "inne", "nieznany", "brak" };   // i18n-ignore
+    static const QRegularExpression number(QStringLiteral("^\\d+$"));   // an unresolved ID3v1 code like "(17)"
+    if (junk.contains(key) || number.match(key).hasMatch())
+        return {};
+    return key;
+}
+
+// The genre names the iTunes catalog gives artists (ArtistGenres): "Hip-Hop/Rap" is one genre.
+QString artistGenreName(const QString &name)
+{
+    if (name.compare(QLatin1String("Singer/Songwriter"), Qt::CaseInsensitive) == 0)
+        return name;
+    return name.section(QLatin1Char('/'), 0, 0).trimmed();
+}
+
+// Common genre names in the interface language (both tags and the iTunes catalog use English ones).
+QString genreDisplayName(const QString &name)
+{
+    static const QHash<QString, const char *> names = {
+        { "alternative", QT_TR_NOOP("Alternative") }, { "electronic", QT_TR_NOOP("Electronic") },
+        { "classical", QT_TR_NOOP("Classical") }, { "soundtrack", QT_TR_NOOP("Soundtrack") },
+        { "singersongwriter", QT_TR_NOOP("Singer/Songwriter") }, { "childrensmusic", QT_TR_NOOP("Children's Music") },
+        { "christian", QT_TR_NOOP("Christian") }, { "world", QT_TR_NOOP("World") },
+        { "instrumental", QT_TR_NOOP("Instrumental") }, { "holiday", QT_TR_NOOP("Holiday") },
+        { "vocal", QT_TR_NOOP("Vocal") }, { "comedy", QT_TR_NOOP("Comedy") },
+    };
+    QString key = name.toLower();
+    static const QRegularExpression other(QStringLiteral("[^\\p{L}\\p{N}]+"));
+    key.remove(other);
+    const auto it = names.constFind(key);
+    return it != names.cend() ? QCoreApplication::translate("Library", it.value()) : name;
 }
 
 } // namespace
@@ -97,6 +151,12 @@ Library::Library(QObject *parent)
     connect(&m_watcher, &QFutureWatcher<Scanner::Result>::finished, this, &Library::onScanFinished);
 
     connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &Library::rebuildModel);
+    connect(ArtistGenres::instance(), &ArtistGenres::changed, this, [this] {
+        ++m_genresChanges;
+        emit genresChanged();
+    });
+    // The artists' genres are looked up early, so the search page has them by the time it's opened.
+    QTimer::singleShot(20'000, this, [this] { genres(); });
     // Local playlist edits only change the playlist list — their tracks are already in the model.
     connect(Playlists::instance(), &Playlists::changed, this, [this] {
         rebuildPlaylists();
@@ -765,14 +825,15 @@ QVariantList Library::likedTracks() const
 
 QVariantList Library::localTracks() const
 {
-    return rowsWhere(m_tracks, [](const Track &t) { return !t.demo; });
+    // Search results and recommendations aren't part of the library.
+    return rowsWhere(m_tracks, [](const Track &t) { return !t.demo && !t.transient; });
 }
 
 QVariantList Library::recentlyAdded(int limit) const
 {
     QList<int> rows;
     for (int i = 0; i < m_tracks->count(); ++i)
-        if (!m_tracks->at(i).demo)
+        if (!m_tracks->at(i).demo && !m_tracks->at(i).transient)
             rows << i;
     std::stable_sort(rows.begin(), rows.end(), [this](int a, int b) {
         return m_tracks->at(a).added > m_tracks->at(b).added;
@@ -881,6 +942,10 @@ QVariantList Library::rowsForContext(const QString &context)
         return tracksOfAlbum(context.mid(6));
     if (context.startsWith(QLatin1String("artist:")))
         return tracksOfArtist(context.mid(7));
+    if (context.startsWith(QLatin1String("genre:")))
+        return tracksOfGenre(context.mid(6));
+    if (context == QLatin1String("recs"))
+        return recommendedRows();
     const int index = playlistIndex(context);
     return index >= 0 ? playlistRows(index) : QVariantList();
 }
@@ -905,4 +970,127 @@ int Library::totalDuration(const QVariantList &rows) const
 QVariantList Library::onlineResults() const
 {
     return rowsOfIds(YouTubeService::instance()->searchIds());
+}
+
+QVariantList Library::recommendedRows() const
+{
+    return rowsOfIds(YouTubeService::instance()->recommendedIds());
+}
+
+// ---- genres ----------------------------------------------------------------------
+
+QStringList Library::genresOf(const Track &t) const
+{
+    // The file's own tag; for tracks without one (streaming) the genre of the artist.
+    QStringList names;
+    if (!t.genre.isEmpty()) {
+        for (const QString &name : splitGenres(t.genre))
+            names << genreDisplayName(name);
+    } else if (const QString g = ArtistGenres::instance()->genreOf(TrackModel::primaryArtist(t.artist)); !g.isEmpty()) {
+        names << genreDisplayName(artistGenreName(g));
+    }
+    return names;
+}
+
+QVariantList Library::genres() const
+{
+    // Built when asked (the search page), not on every model rebuild.
+    ArtistGenres *artistGenres = ArtistGenres::instance();
+    if (m_genresRevision == m_tracks->revision() && m_genresArtistRevision == artistGenres->revision())
+        return m_genres;
+    struct Genre { QHash<QString, int> spellings; QHash<QString, int> albums; int count = 0; };
+    QHash<QString, Genre> found;
+    QHash<QString, int> untagged;   // artist -> tracks without a genre tag
+    for (const Track &t : m_tracks->tracks()) {
+        if (t.transient || t.demo || t.source == QLatin1String("radio"))
+            continue;
+        if (t.genre.isEmpty() && !Scanner::isUnknownArtist(t.artist))
+            ++untagged[TrackModel::primaryArtist(t.artist)];
+        QSet<QString> seen;   // "Rock; rock"
+        for (const QString &name : genresOf(t)) {
+            const QString key = genreKey(name);
+            if (key.isEmpty() || seen.contains(key))
+                continue;
+            seen.insert(key);
+            Genre &g = found[key];
+            ++g.spellings[name];
+            ++g.count;
+            if (!t.album.isEmpty())
+                ++g.albums[TrackModel::albumKey(t)];
+        }
+    }
+    QHash<QString, QVariantMap> albums;
+    for (const QVariant &v : m_albums) {
+        const QVariantMap a = v.toMap();
+        albums.insert(a.value("key").toString(), a);
+    }
+    const auto most = [](const QHash<QString, int> &counts) {
+        QString best;
+        int n = 0;
+        for (auto it = counts.cbegin(); it != counts.cend(); ++it)
+            if (it.value() > n || (it.value() == n && it.key() < best)) {
+                n = it.value();
+                best = it.key();
+            }
+        return best;
+    };
+
+    QStringList keys = found.keys();
+    std::sort(keys.begin(), keys.end(), [&](const QString &a, const QString &b) {
+        const int ca = found.value(a).count, cb = found.value(b).count;
+        return ca != cb ? ca > cb : a < b;
+    });
+    m_genres.clear();
+    for (const QString &key : std::as_const(keys)) {
+        const Genre &g = found[key];
+        // The tile wears the colors and the cover of the album with the most tracks in the genre.
+        const QVariantMap album = albums.value(most(g.albums));
+        const auto [a, b] = Scanner::fallbackPalette(key);
+        // Its page shows a collage of the four biggest albums.
+        QStringList byCount = g.albums.keys();
+        std::sort(byCount.begin(), byCount.end(), [&g](const QString &x, const QString &y) {
+            return g.albums.value(x) != g.albums.value(y) ? g.albums.value(x) > g.albums.value(y) : x < y;
+        });
+        QStringList mosaic;
+        for (const QString &albumKey : std::as_const(byCount)) {
+            const QString cover = albums.value(albumKey).value("cover").toString();
+            if (!cover.isEmpty() && !mosaic.contains(cover))
+                mosaic << cover;
+            if (mosaic.size() == 4)
+                break;
+        }
+        m_genres << QVariantMap {
+            { "key", key }, { "name", most(g.spellings) }, { "count", g.count },
+            { "colorA", album.value("colorA", a) }, { "colorB", album.value("colorB", b) },
+            { "seed", Scanner::stableSeed(key) }, { "cover", album.value("cover").toString() },
+            { "mosaic", mosaic.size() == 4 ? mosaic : QStringList() } };
+    }
+    m_genresRevision = m_tracks->revision();
+    m_genresArtistRevision = artistGenres->revision();
+
+    // The genres of the artists with the most untagged tracks come from the iTunes catalog, in the
+    // background — their tiles show up as the answers come in.
+    QStringList artists = untagged.keys();
+    std::sort(artists.begin(), artists.end(), [&untagged](const QString &a, const QString &b) {
+        return untagged.value(a) != untagged.value(b) ? untagged.value(a) > untagged.value(b) : a < b;
+    });
+    if (artists.size() > 250)
+        artists.resize(250);
+    artistGenres->request(artists);
+    return m_genres;
+}
+
+QVariantList Library::tracksOfGenre(const QString &genre) const
+{
+    const QString wanted = genreKey(genre);
+    if (wanted.isEmpty())
+        return {};
+    return rowsWhere(m_tracks, [&](const Track &t) {
+        if (t.transient || t.demo)
+            return false;
+        for (const QString &name : genresOf(t))
+            if (genreKey(name) == wanted)
+                return true;
+        return false;
+    });
 }

@@ -47,6 +47,8 @@ qt_add_qml_module(Nokturn
         src/SpectrumAnalyzer.h  src/SpectrumAnalyzer.cpp
         src/Library.h           src/Library.cpp
         src/Playlists.h         src/Playlists.cpp
+        src/Recommendations.h   src/Recommendations.cpp
+        src/ArtistGenres.h      src/ArtistGenres.cpp
         src/PlayerController.h  src/PlayerController.cpp
         src/audio/Equalizer.h         src/audio/Equalizer.cpp
         src/audio/AudioEngine.h       src/audio/AudioEngine.cpp

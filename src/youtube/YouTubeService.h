@@ -7,6 +7,7 @@
 
 #include <QDateTime>
 #include <QHash>
+#include <QJsonObject>
 #include <QObject>
 #include <QSet>
 #include <QVariantList>
@@ -108,6 +109,11 @@ public:
     bool playlistLoading(const QString &playlistId) const { return m_loadingPlaylists.contains(playlistId); }
     void ensurePlaylist(const QString &playlistId);
     const QStringList &searchIds() const { return m_search; }
+    // "Recommended for you" (Recommendations): kept like search results, so they can be played.
+    void setRecommended(const QList<Track> &tracks);
+    const QStringList &recommendedIds() const { return m_recommended; }
+    static QJsonObject trackJson(const Track &t);
+    static Track trackFromJson(const QJsonObject &o);
     bool isLiked(const QString &trackId) const { return m_likedSet.contains(trackId); }
     void setTrackLiked(const QString &trackId, bool liked);
     void setTrackColors(const QString &trackId, const QColor &a, const QColor &b);
@@ -152,6 +158,7 @@ private:
     QSet<QString> m_loadingPlaylists;
     QSet<QString> m_refreshedPlaylists;
     QStringList m_search;
+    QStringList m_recommended;
     QHash<QString, QVariantMap> m_artists;        // browseId -> artist page
     QHash<QString, QStringList> m_artistSongs;    // browseId -> top song ids
     QSet<QString> m_loadingArtists;

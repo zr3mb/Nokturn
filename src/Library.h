@@ -32,6 +32,7 @@ class Library : public QObject
     Q_PROPERTY(bool scanning READ scanning NOTIFY scanChanged)
     Q_PROPERTY(qreal scanProgress READ scanProgress NOTIFY scanChanged)
     Q_PROPERTY(QString scanStatus READ scanStatus NOTIFY scanChanged)
+    Q_PROPERTY(int genresRevision READ genresRevision NOTIFY genresChanged)   // artist genres came in
 
 public:
     static Library *instance();
@@ -48,6 +49,7 @@ public:
     bool scanning() const { return m_watcher.isRunning(); }
     qreal scanProgress() const;
     QString scanStatus() const;
+    int genresRevision() const { return m_genresChanges; }
 
     Q_INVOKABLE void addFolder(const QUrl &url);
     Q_INVOKABLE void removeFolder(const QString &path);
@@ -66,7 +68,8 @@ public:
     Q_INVOKABLE QVariantList collectionRows(const QString &playlistId);       // album / playlist opened from an artist
 
     // Queue contexts: "playlist:<kind>", "yt:<playlist id>", "album:<key>", "artist:<name>", "library",
-    // "ytartist:<browseId>" (top songs), "ytc:<playlist id>" (album / playlist from an artist page).
+    // "ytartist:<browseId>" (top songs), "ytc:<playlist id>" (album / playlist from an artist page),
+    // "genre:<name>", "recs" (recommended for you).
     QString playlistContext(int index) const;
     int playlistIndex(const QString &context) const;   // -1 when the context isn't a playlist
     QString playlistName(int index) const;
@@ -74,6 +77,10 @@ public:
     QVariantList rowsForContext(const QString &context);   // current rows (YouTube playlists may still be growing)
     Q_INVOKABLE QVariantList libraryRows() const;           // local + liked on YouTube Music
     Q_INVOKABLE QVariantList onlineResults() const;         // latest YouTube Music search results
+    Q_INVOKABLE QVariantList recommendedRows() const;       // "Recommended for you" (Recommendations)
+    // Genres from the tags, most tracks first: [{ key, name, count, colorA, colorB, seed, cover, mosaic }].
+    Q_INVOKABLE QVariantList genres() const;
+    Q_INVOKABLE QVariantList tracksOfGenre(const QString &genre) const;
     Q_INVOKABLE int totalDuration(const QVariantList &rows) const;   // sum of durations (seconds)
 
     // Playlist covers: the user's own picture, otherwise the source's cover (YouTube Music, Spotify),
@@ -90,6 +97,7 @@ signals:
     void foldersChanged();
     void scanChanged();
     void sourcesChanged();
+    void genresChanged();
     void notice(const QString &text, const QString &icon);
 
 private:
@@ -104,6 +112,7 @@ private:
     void rebuildCollections();
     void rebuildPlaylists();
     QVariantList rowsOfIds(const QStringList &ids) const;
+    QStringList genresOf(const Track &t) const;
     static QString coverKey(const QVariantMap &playlist);
     void applyPlaylistCover(QVariantMap &playlist) const;
     void refreshPlaylistCover(int index);
@@ -121,6 +130,10 @@ private:
     QVariantList m_artists;
     QVariantList m_playlists;
     QVariantList m_sources;
+    mutable QVariantList m_genres;        // genres(), built when asked
+    mutable int m_genresRevision = -1;
+    mutable int m_genresArtistRevision = -1;
+    int m_genresChanges = 0;
 
     QFutureWatcher<Scanner::Result> m_watcher;
     QNetworkAccessManager m_net;

@@ -215,7 +215,6 @@
   "Classical": "Klasyka",
   "Focus": "Skupienie",
   "Rainy": "Deszczowo",
-  "Moods will be available once sources are connected": "Nastroje będą dostępne po podłączeniu źródeł",
   "What do you want to listen to today?": "Czego chcesz dziś posłuchać?",
   "All": "Wszystko",
   "In the library: %n results": [
@@ -690,5 +689,22 @@
   "The track isn't in this playlist anymore": "Tego utworu nie ma już w tej playliście",
   "YouTube Music didn't create the playlist": "YouTube Music nie utworzył playlisty",
   "YouTube Music refused the change (%1)": "YouTube Music odrzucił zmianę (%1)",
-  "Source: %1": "Źródło: %1"
+  "Source: %1": "Źródło: %1",
+  "Recommended for you": "Polecane dla Ciebie",
+  "Because you listen to %1": "Bo słuchasz: %1",
+  "Looking for music that fits your taste…": "Szukam muzyki w Twoim guście…",
+  "Show more (%1)": "Pokaż więcej (%1)",
+  "Your genres": "Twoje gatunki",
+  "What your library is made of — or just start typing": "Z tego składa się Twoja biblioteka — albo po prostu zacznij pisać",
+  "GENRE": "GATUNEK",
+  "From your library": "Z Twojej biblioteki",
+  "Alternative": "Alternatywa",
+  "Soundtrack": "Muzyka filmowa",
+  "Singer/Songwriter": "Singer-songwriter",
+  "Children's Music": "Dla dzieci",
+  "Christian": "Chrześcijańska",
+  "World": "Muzyka świata",
+  "Instrumental": "Instrumentalna",
+  "Holiday": "Świąteczna",
+  "Comedy": "Kabaret"
 }

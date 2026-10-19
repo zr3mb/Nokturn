@@ -3,6 +3,7 @@
 #include "AppPaths.h"
 #include "Language.h"
 #include "Library.h"
+#include "Recommendations.h"
 #include "TrackModel.h"
 #include "audio/Equalizer.h"
 #include "lyrics/LyricsService.h"
@@ -764,6 +765,26 @@ void PlayerController::skipAfterError(const QString &message)
     });
 }
 
+void PlayerController::countListening(double dt)
+{
+    // A track counts as listened to after 30 s of playback (half of a shorter one) — the taste the
+    // recommendations on the home page follow.
+    if (m_listenedId != m_currentId) {
+        m_listenedId = m_currentId;
+        m_listened = 0;
+        m_listenCounted = false;
+    }
+    const Track *t = current();
+    if (m_listenCounted || !t || !playing() || live())
+        return;
+    m_listened += dt;
+    const double total = player().duration() / 1000.0;
+    if (m_listened < (total > 0 ? std::min(30.0, total * 0.5) : 30.0))
+        return;
+    m_listenCounted = true;
+    Recommendations::instance()->notePlayed(*t);
+}
+
 void PlayerController::checkStall(double dt)
 {
     // A network stream can get stuck (the URL expired, the connection dropped): the player still says
@@ -1228,6 +1249,7 @@ void PlayerController::tick()
     m_heardLag += (m_engine.latency() - m_heardLag) * std::min(1.0, dt * 8.0);   // smoothed — the buffers refill in chunks
     updateMix(dt);
     checkStall(dt);
+    countListening(dt);
 
     if (active) {
         m_analyzer.compute(m_targets);

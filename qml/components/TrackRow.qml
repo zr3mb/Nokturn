@@ -11,6 +11,7 @@ Item {
     property int revealDelay: 0
     property bool animateIn: true   // false: shown at once (e.g. in a list built after its page appeared)
     property bool showAlbum: true
+    property bool compact: false   // narrow grid cells: no album and source columns
     property var queue: null   // rows that become the queue on click (null = the whole library)
     property string context: "" // queue origin ("playlist:…", "album:…") — the mix depends on it
 
@@ -85,7 +86,7 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: 14
         anchors.rightMargin: 10
-        spacing: 14
+        spacing: root.compact ? 10 : 14
 
         Item {
             Layout.preferredWidth: 26
@@ -155,7 +156,7 @@ Item {
         }
 
         Text {
-            visible: root.showAlbum
+            visible: root.showAlbum && !root.compact
             Layout.preferredWidth: root.width * 0.22
             text: root.t.album
             color: Theme.textDim
@@ -164,6 +165,7 @@ Item {
         }
 
         Item {
+            visible: !root.compact
             Layout.preferredWidth: 132
             Layout.fillHeight: true
             SourceBadge {
@@ -176,6 +178,7 @@ Item {
             Layout.preferredWidth: 38
             Layout.preferredHeight: 38
             active: root.t.liked || root.hovered
+            visible: !root.compact || active   // compact rows keep the room for the title
             sourceComponent: IconButton {
                 icon: root.t.liked ? "heart" : "heartOutline"
                 iconSize: 18
@@ -189,6 +192,7 @@ Item {
         }
 
         Text {
+            visible: !root.compact || !root.hovered   // the buttons take its place
             Layout.preferredWidth: 52
             horizontalAlignment: Text.AlignRight
             text: root.t.durationText
@@ -200,6 +204,7 @@ Item {
 
         Loader {
             id: moreButton
+            visible: !root.compact || active
             Layout.preferredWidth: 38
             Layout.preferredHeight: 38
             active: root.hovered

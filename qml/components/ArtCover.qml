@@ -200,7 +200,16 @@ Item {
     }
 
     // The collage (playlists): four tiles in the same rounded shape. Built only when used.
-    onMosaicChanged: mosaicReady = 0
+    // Keyed by the addresses — a list rebuilt with the same covers (a page re-evaluating) keeps the collage.
+    readonly property string mosaicKey: useMosaic ? Array.from(mosaic).slice(0, 4).join("\n") : ""
+    // The count goes back to zero before the new tiles exist (a cached image is ready at once).
+    property var mosaicUrls: []
+    function updateMosaic() {
+        mosaicReady = 0
+        mosaicUrls = mosaicKey === "" ? [] : mosaicKey.split("\n")
+    }
+    onMosaicKeyChanged: updateMosaic()
+    Component.onCompleted: if (mosaicKey !== "") updateMosaic()   // rows by the thousand skip it
     Loader {
         anchors.fill: parent
         active: root.useMosaic
@@ -219,7 +228,7 @@ Item {
                 Grid {
                     columns: 2
                     Repeater {
-                        model: root.mosaic.slice(0, 4)
+                        model: root.mosaicUrls
                         Image {
                             required property string modelData
                             readonly property int decodeSize: root.decodeSize(Math.max(root.w, root.h) / 2, root.w > 160 ? 256 : 96)

@@ -12,6 +12,14 @@ Item {
         { name: qsTr("Night Jazz — live"), kind: "radio", icon: "live", colorA: "#b9a889", colorB: "#4a4232", seed: 0 }
     ])
 
+    // Picked from YouTube Music radios of the tracks that say the most about the taste (Recommendations).
+    readonly property var recommended: {
+        Library.tracks.revision
+        YouTube.resultsRevision   // the picks are appended to the model, not rebuilt into it
+        return Library.recommendedRows()
+    }
+    property bool allRecommended: false
+
     function rowsOf(p, index) {
         if (p.kind === "radio") return Library.search("", "radio", 1)
         if (p.kind === "all" || p.kind === "mix") return Library.localTracks()
@@ -175,6 +183,98 @@ Item {
                         onClicked: page.openPick(modelData, index)
                         onPlayClicked: page.playPick(modelData, index)
                     }
+                }
+            }
+        }
+
+        Reveal {
+            delay: 175
+            visible: page.recommended.length > 0 || Recommendations.loading
+            ColumnLayout {
+                width: parent.width
+                spacing: 14
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            Layout.fillWidth: true
+                            text: qsTr("Recommended for you")
+                            color: Theme.text
+                            font.family: Theme.fontDisplay
+                            font.pixelSize: 22
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: Recommendations.basedOn.length > 0
+                                  ? qsTr("Because you listen to %1").arg(Recommendations.basedOn.slice(0, 3).join(", "))
+                                  : qsTr("Looking for music that fits your taste…")
+                            color: Theme.textDim
+                            font.pixelSize: 13
+                            elide: Text.ElideRight
+                        }
+                    }
+                    Spinner {
+                        visible: Recommendations.loading
+                        size: 18
+                        color: Theme.textDim
+                    }
+                    IconButton {
+                        icon: "refresh"
+                        iconSize: 20
+                        implicitWidth: 38; implicitHeight: 38
+                        showDot: false
+                        enabled: !Recommendations.loading
+                        opacity: enabled ? 1 : 0.4
+                        onClicked: Recommendations.refresh()
+                    }
+                    PillButton {
+                        kind: "ghost"
+                        icon: "play"
+                        text: qsTr("Play")
+                        fontSize: 13
+                        implicitHeight: 38
+                        enabled: page.recommended.length > 0
+                        onClicked: Player.playFrom(page.recommended, page.recommended[0], "recs")
+                    }
+                }
+
+                Grid {
+                    id: recGrid
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 100
+                    columns: width > 1100 ? 3 : width > 620 ? 2 : 1
+                    columnSpacing: 10
+                    readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
+                    readonly property int folded: columns * 4
+
+                    Repeater {
+                        model: page.recommended.slice(0, page.allRecommended ? page.recommended.length : recGrid.folded)
+                        TrackRow {
+                            required property var modelData
+                            required property int index
+                            width: recGrid.cellW
+                            compact: true
+                            trackIndex: modelData
+                            number: index + 1
+                            queue: page.recommended
+                            context: "recs"
+                            revealDelay: 220 + Math.min(index, 12) * 35
+                        }
+                    }
+                }
+
+                PillButton {
+                    visible: page.recommended.length > recGrid.folded
+                    kind: "ghost"
+                    icon: page.allRecommended ? "" : "expandMore"
+                    text: page.allRecommended ? qsTr("Show less") : qsTr("Show more (%1)").arg(page.recommended.length)
+                    fontSize: 13
+                    onClicked: page.allRecommended = !page.allRecommended
                 }
             }
         }

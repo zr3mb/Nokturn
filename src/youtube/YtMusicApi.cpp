@@ -13,6 +13,7 @@
 #include <QSet>
 #include <QLocale>
 
+#include <algorithm>
 #include <memory>
 
 namespace {
@@ -80,6 +81,11 @@ int parseDuration(const QString &text)
     if (!m.hasMatch())
         return -1;
     return m.captured(1).toInt() * 3600 + m.captured(2).toInt() * 60 + m.captured(3).toInt();
+}
+
+QString pageTypeOf(const QJsonObject &browseEndpoint)
+{
+    return dig(browseEndpoint, "browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType").toString();
 }
 
 QString bigThumbnail(const QJsonArray &thumbnails)
@@ -410,6 +416,78 @@ void YtMusicApi::search(const QString &query, TracksCallback callback, const QSt
     });
 }
 
+void YtMusicApi::radio(const QString &videoId, TracksCallback callback)
+{
+    // The track's radio ("Start radio"): the queue the player builds from it, ~50 similar tracks.
+    const QJsonObject body { { "videoId", videoId }, { "playlistId", QStringLiteral("RDAMVM") + videoId },
+                             { "isAudioOnly", true } };
+    call(QStringLiteral("next"), body, [callback](const QJsonObject &json, const QString &error) {
+        callback(error.isEmpty() ? parseQueue(json) : QList<Track>(), error);
+    });
+}
+
+QList<Track> YtMusicApi::parseQueue(const QJsonValue &root)
+{
+    QList<QJsonObject> panels;
+    collect(root, QStringLiteral("playlistPanelRenderer"), panels);
+    QList<Track> out;
+    if (panels.isEmpty())
+        return out;
+    static const QRegularExpression year(QStringLiteral("^\\d{4}$"));
+    QSet<QString> seen;
+    for (const QJsonValue &item : panels.first().value("contents").toArray()) {
+        // A song with a music video has both under a wrapper — the primary one is what plays.
+        QJsonObject r = item.toObject().value("playlistPanelVideoRenderer").toObject();
+        if (r.isEmpty())
+            r = dig(item, "playlistPanelVideoWrapperRenderer.primaryRenderer.playlistPanelVideoRenderer").toObject();
+        const QString videoId = r.value("videoId").toString();
+        if (videoId.isEmpty() || seen.contains(videoId))
+            continue;
+        const QString type = dig(r, "navigationEndpoint.watchEndpoint.watchEndpointMusicSupportedConfigs"
+                                    ".watchEndpointMusicConfig.musicVideoType").toString();
+        if (type.contains(QLatin1String("PODCAST")) || type.contains(QLatin1String("UGC")))
+            continue;   // uploads and episodes, not songs
+        seen.insert(videoId);
+
+        Track t;
+        t.title = runsText(r.value("title")).trimmed();
+        // "Artist • Album • 2018" (songs) or "Artist • 4,2 mld views • …" (music videos)
+        QStringList artists;
+        QString firstRun;
+        for (const QJsonValue &rv : dig(r, "longBylineText.runs").toArray()) {
+            const QJsonObject run = rv.toObject();
+            const QString text = run.value("text").toString();
+            const QString pageType = pageTypeOf(dig(run, "navigationEndpoint.browseEndpoint").toObject());
+            if (pageType == QLatin1String("MUSIC_PAGE_TYPE_ARTIST") || pageType == QLatin1String("MUSIC_PAGE_TYPE_USER_CHANNEL")) {
+                artists << text;
+                if (t.artistId.isEmpty())
+                    t.artistId = dig(run, "navigationEndpoint.browseEndpoint.browseId").toString();
+            } else if (pageType == QLatin1String("MUSIC_PAGE_TYPE_ALBUM")) {
+                t.album = text;
+            } else if (year.match(text.trimmed()).hasMatch()) {
+                t.year = text.trimmed().toInt();
+            } else if (firstRun.isEmpty() && !isNoiseRun(text)) {
+                firstRun = text.trimmed();
+            }
+        }
+        t.artist = !artists.isEmpty() ? artists.join(QStringLiteral(", "))
+                 : !firstRun.isEmpty() ? firstRun : QStringLiteral("YouTube Music");
+        t.duration = std::max(0, parseDuration(runsText(r.value("lengthText"))));
+        t.id = QStringLiteral("yt:") + videoId;
+        t.path = videoId;
+        t.source = QStringLiteral("youtube");
+        t.quality = QCoreApplication::translate("YouTubeService", "YouTube Music · stream");
+        t.cover = bigThumbnail(dig(r, "thumbnail.thumbnails").toArray());
+        const QString key = TrackModel::albumKey(t);
+        const auto [a, b] = Scanner::fallbackPalette(key);
+        t.colorA = a;
+        t.colorB = b;
+        t.seed = Scanner::stableSeed(key);
+        out << t;
+    }
+    return out;
+}
+
 // ---- artists --------------------------------------------------------------------
 
 namespace {
@@ -418,11 +496,6 @@ QString lastThumbnail(const QJsonValue &thumbnails)
 {
     const QJsonArray arr = thumbnails.toArray();
     return arr.isEmpty() ? QString() : arr.last().toObject().value("url").toString();
-}
-
-QString pageTypeOf(const QJsonObject &browseEndpoint)
-{
-    return dig(browseEndpoint, "browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType").toString();
 }
 
 // One card of a carousel (album, single, playlist, related artist); empty for videos and other items.

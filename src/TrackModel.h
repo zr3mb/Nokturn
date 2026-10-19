@@ -89,6 +89,7 @@ public:
 
     static QString formatDuration(int seconds);
     static QString albumKey(const Track &t);
+    static QString primaryArtist(const QString &artist);   // "A, B" / "A feat. B" -> "A"
 
 signals:
     void countChanged();

@@ -1,5 +1,7 @@
 #include "TrackModel.h"
 
+#include <QRegularExpression>
+
 #include <algorithm>
 
 TrackModel::TrackModel(QObject *parent)
@@ -184,4 +186,12 @@ QString TrackModel::albumKey(const Track &t)
 {
     const QString artist = t.albumArtist.isEmpty() ? t.artist : t.albumArtist;
     return artist.toCaseFolded() + QChar(0x1f) + t.album.toCaseFolded();
+}
+
+QString TrackModel::primaryArtist(const QString &artist)
+{
+    static const QRegularExpression split(QStringLiteral("\\s*(?:,|;|\\s(?:feat\\.?|ft\\.?|featuring)\\s)\\s*"),
+                                          QRegularExpression::CaseInsensitiveOption);
+    const QString first = artist.split(split).value(0).trimmed();
+    return first.isEmpty() ? artist.trimmed() : first;
 }

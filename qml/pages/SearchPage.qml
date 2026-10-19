@@ -36,6 +36,7 @@ Item {
         onTriggered: if (page.onlineEnabled) YouTube.search(page.query)
     }
 
+    // Moods to search for when the library has (almost) no genre tags.
     readonly property var moods: [
         { name: "Ambient",     a: "#9fb5a8", b: "#36504a", seed: 0 },
         { name: "Lo-fi",       a: "#b7aac9", b: "#463c5c", seed: 1 },
@@ -46,6 +47,24 @@ Item {
         { name: qsTr("Focus"),       a: "#8fb7b3", b: "#2e5150", seed: 0 },
         { name: qsTr("Rainy"),       a: "#a3b3c1", b: "#3b4a57", seed: 3 }
     ]
+    // The genres in the user's library (tags, or the artist's genre for streaming tracks), the most tracks first.
+    readonly property var genres: {
+        Library.tracks.revision
+        Library.genresRevision
+        return Library.genres()
+    }
+    property bool allGenres: false
+    readonly property int genreLimit: 12
+    readonly property var tiles: {
+        const own = genres.slice(0, allGenres ? genres.length : genreLimit).map(g => ({
+            name: g.name, key: g.key, count: g.count, a: g.colorA, b: g.colorB, seed: g.seed, cover: g.cover
+        }))
+        if (own.length >= 4)
+            return own
+        // A few genres only: moods to search for fill the rest of the grid.
+        const names = own.map(t => t.name.toLowerCase())
+        return own.concat(moods.filter(m => names.indexOf(m.name.toLowerCase()) < 0).slice(0, 8 - own.length))
+    }
 
     Connections {
         target: Nav
@@ -59,10 +78,13 @@ Item {
         field.forceActiveFocus()
     }
 
+    // A genre from the library (opens its tracks) or a mood (searches for it).
     component MoodTile: Item {
         id: tile
         required property var modelData
         required property int index
+        readonly property bool isGenre: modelData.key !== undefined
+        signal searchRequested(string text)
         implicitHeight: 124
         opacity: 0
         scale: 0.94
@@ -78,24 +100,64 @@ Item {
         Component.onCompleted: tileIn.start()
 
         HoverHandler { id: tileHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: Nav.toast(qsTr("Moods will be available once sources are connected"), "sparkle") }
+        TapHandler {
+            onTapped: {
+                if (tile.isGenre)
+                    Nav.navigate("playlist", { kind: "genre", key: tile.modelData.key, name: tile.modelData.name })
+                else
+                    tile.searchRequested(tile.modelData.name)
+            }
+        }
 
-        ArtCover {
+        Item {
             anchors.fill: parent
-            radius: 18
-            colorA: tile.modelData.a
-            colorB: tile.modelData.b
-            seed: tile.modelData.seed
             scale: tileHover.hovered ? 1.03 : 1
             Behavior on scale { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
-        }
-        Text {
-            anchors { left: parent.left; bottom: parent.bottom; margins: 18 }
-            text: tile.modelData.name
-            color: "#f6f2ec"
-            font.family: Theme.fontDisplay
-            font.pixelSize: 21
-            font.weight: Font.Bold
+
+            ArtCover {
+                anchors.fill: parent
+                radius: 18
+                colorA: tile.modelData.a
+                colorB: tile.modelData.b
+                seed: tile.modelData.seed
+                decorated: !cornerCover.visible
+            }
+            // The cover of the genre's biggest album, tilted in the corner
+            ArtCover {
+                id: cornerCover
+                visible: (tile.modelData.cover || "") !== ""
+                anchors { right: parent.right; bottom: parent.bottom; rightMargin: 14; bottomMargin: 14 }
+                width: 66; height: 66
+                radius: 8
+                colorA: tile.modelData.a
+                colorB: tile.modelData.b
+                seed: tile.modelData.seed
+                source: tile.modelData.cover || ""
+                rotation: tileHover.hovered ? 6 : 14
+                Behavior on rotation { NumberAnimation { duration: 420; easing.type: Easing.OutBack } }
+            }
+            Column {
+                anchors { left: parent.left; right: cornerCover.visible ? cornerCover.left : parent.right; bottom: parent.bottom
+                          leftMargin: 18; rightMargin: 12; bottomMargin: 16 }
+                spacing: 2
+                Text {
+                    width: parent.width
+                    text: tile.modelData.name
+                    color: "#f6f2ec"
+                    font.family: Theme.fontDisplay
+                    font.pixelSize: 21
+                    font.weight: Font.Bold
+                    fontSizeMode: Text.HorizontalFit   // long names shrink a little before they're cut
+                    minimumPixelSize: 15
+                    elide: Text.ElideRight
+                }
+                Text {
+                    visible: tile.isGenre
+                    text: qsTr("%n tracks", "", tile.modelData.count || 0)
+                    color: Qt.rgba(0.965, 0.95, 0.925, 0.72)
+                    font.pixelSize: 13
+                }
+            }
         }
     }
 
@@ -254,8 +316,9 @@ Item {
 
             SectionHeader {
                 Layout.fillWidth: true
-                title: qsTr("Browse moods")
-                subtitle: qsTr("Or just start typing")
+                title: page.genres.length > 0 ? qsTr("Your genres") : qsTr("Browse moods")
+                subtitle: page.genres.length > 0 ? qsTr("What your library is made of — or just start typing")
+                                                 : qsTr("Or just start typing")
             }
 
             Grid {
@@ -268,9 +331,21 @@ Item {
                 readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
 
                 Repeater {
-                    model: page.moods
-                    MoodTile { width: moodGrid.cellW }
+                    model: page.tiles
+                    MoodTile {
+                        width: moodGrid.cellW
+                        onSearchRequested: text => field.text = text
+                    }
                 }
+            }
+
+            PillButton {
+                visible: page.genres.length > page.genreLimit
+                kind: "ghost"
+                icon: page.allGenres ? "" : "expandMore"
+                text: page.allGenres ? qsTr("Show less") : qsTr("Show all (%1)").arg(page.genres.length)
+                fontSize: 13
+                onClicked: page.allGenres = !page.allGenres
             }
         }
     }

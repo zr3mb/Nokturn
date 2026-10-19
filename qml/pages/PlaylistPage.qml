@@ -30,6 +30,15 @@ Item {
                      cover: ar.cover || "", icon: "", round: true,
                      rows: Library.tracksOfArtist(a.artist) }
         }
+        if (a.kind === "genre") {
+            // A genre of the library (the search page): tags, or the artists' genres for streaming tracks
+            Library.genresRevision
+            const g =Library.genres().find(x => x.key === a.key) || { name: a.name || "", seed: 0, cover: "", mosaic: [] }
+            return { label: qsTr("GENRE"), title: g.name, meta: [qsTr("From your library")],
+                     colorA: g.colorA || Theme.accent, colorB: g.colorB || Theme.accent2, seed: g.seed,
+                     cover: g.mosaic.length >= 4 ? "" : g.cover, mosaic: g.mosaic, icon: "", round: false,
+                     rows: Library.tracksOfGenre(a.key) }
+        }
         if (a.kind === "ytcollection") {
             // An album / playlist opened from an artist profile — loaded from YouTube Music, not in the library.
             return { label: a.label || qsTr("ALBUM"), title: a.title || "", meta: a.subtitle ? [a.subtitle] : [],
@@ -62,6 +71,7 @@ Item {
         if (a.kind === "album") return "album:" + a.key
         if (a.kind === "artist") return "artist:" + a.artist
         if (a.kind === "ytcollection") return "ytc:" + a.playlistId
+        if (a.kind === "genre") return "genre:" + a.key
         const p = Library.playlists[a.index || 0]
         if (!p) return ""
         return p.kind === "ytplaylist" ? "yt:" + p.ytId : p.kind === "spplaylist" ? "sp:" + p.spId

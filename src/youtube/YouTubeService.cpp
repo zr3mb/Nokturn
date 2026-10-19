@@ -17,7 +17,7 @@ QString cookieFile() { return AppPaths::dataDir() + QStringLiteral("/youtube.coo
 QString cacheFile() { return AppPaths::dataDir() + QStringLiteral("/youtube.json"); }
 QString browserProfile() { return AppPaths::dataDir() + QStringLiteral("/browser"); }
 
-QJsonObject trackToJson(const Track &t)
+QJsonObject toJson(const Track &t)
 {
     return {
         { "id", t.path }, { "title", t.title }, { "artist", t.artist }, { "artistId", t.artistId }, { "album", t.album },
@@ -26,7 +26,7 @@ QJsonObject trackToJson(const Track &t)
     };
 }
 
-Track trackFromJson(const QJsonObject &o)
+Track fromJson(const QJsonObject &o)
 {
     Track t;
     t.path = o.value("id").toString();
@@ -62,6 +62,9 @@ QStringList fromArray(const QJsonArray &arr)
 }
 
 } // namespace
+
+QJsonObject YouTubeService::trackJson(const Track &t) { return toJson(t); }
+Track YouTubeService::trackFromJson(const QJsonObject &o) { return fromJson(o); }
 
 YouTubeService *YouTubeService::instance()
 {
@@ -155,7 +158,12 @@ void YouTubeService::logout()
     QDir(browserProfile()).removeRecursively();   // the session in the browser profile goes too
 
     m_account = {};
+    QList<Track> recommended;   // they don't come from the account
+    for (const QString &id : std::as_const(m_recommended))
+        if (const auto it = m_tracks.constFind(id); it != m_tracks.cend())
+            recommended << *it;
     m_tracks.clear();
+    storeTracks(recommended, true);
     m_liked.clear();
     m_likedSet.clear();
     m_playlists.clear();
@@ -408,6 +416,15 @@ void YouTubeService::search(const QString &query)
     });
 }
 
+void YouTubeService::setRecommended(const QList<Track> &tracks)
+{
+    storeTracks(tracks, true);
+    m_recommended.clear();
+    for (const Track &t : tracks)
+        m_recommended << t.id;
+    publishResults(m_recommended);
+}
+
 void YouTubeService::publishResults(const QStringList &ids)
 {
     // Only the tracks the model doesn't have yet are appended (Library::appendTracks) — a full model
@@ -551,6 +568,8 @@ QList<Track> YouTubeService::tracks() const
             add(id);
     for (const QString &id : m_search)
         add(id);
+    for (const QString &id : m_recommended)
+        add(id);
     for (const QStringList &ids : m_artistSongs)
         for (const QString &id : ids)
             add(id);
@@ -606,7 +625,7 @@ void YouTubeService::loadCache()
     m_account = { account.value("name").toString(), account.value("handle").toString(), account.value("photo").toString() };
 
     for (const QJsonValue &v : root.value("tracks").toArray()) {
-        const Track t = trackFromJson(v.toObject());
+        const Track t = fromJson(v.toObject());
         m_tracks.insert(t.id, t);
     }
     setLikedList(fromArray(root.value("liked").toArray()));
@@ -622,7 +641,7 @@ void YouTubeService::saveCache() const
     QJsonArray tracks;
     for (const Track &t : m_tracks)
         if (!t.transient)
-            tracks.append(trackToJson(t));
+            tracks.append(toJson(t));
     QJsonObject lists;
     for (auto it = m_playlistTracks.cbegin(); it != m_playlistTracks.cend(); ++it)
         lists.insert(it.key(), toArray(it.value()));
