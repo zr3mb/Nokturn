@@ -416,6 +416,41 @@ void YtMusicApi::search(const QString &query, TracksCallback callback, const QSt
     });
 }
 
+void YtMusicApi::searchPlaylists(const QString &query, bool featured,
+                                 std::function<void(const QVariantList &, const QString &)> callback)
+{
+    // The "Featured playlists" and "Community playlists" chips of music.youtube.com's search.
+    const QJsonObject body { { "query", query },
+                             { "params", featured ? QStringLiteral("EgeKAQQoADgBahIQAxAJEAQQChAFEBUQDhAQEBE=")
+                                                  : QStringLiteral("EgeKAQQoAEABahIQAxAJEAQQChAFEBUQDhAQEBE=") } };
+    call(QStringLiteral("search"), body, [callback](const QJsonObject &json, const QString &error) {
+        callback(error.isEmpty() ? parsePlaylistResults(json) : QVariantList(), error);
+    });
+}
+
+QVariantList YtMusicApi::parsePlaylistResults(const QJsonValue &root)
+{
+    QList<QJsonObject> items;
+    collect(root, QStringLiteral("musicResponsiveListItemRenderer"), items);
+    QVariantList out;
+    for (const QJsonObject &r : std::as_const(items)) {
+        // Playlists only ("VL…"); the results also hold podcasts made from playlists.
+        const QJsonObject browse = dig(r, "navigationEndpoint.browseEndpoint").toObject();
+        const QString browseId = browse.value("browseId").toString();
+        if (pageTypeOf(browse) != QLatin1String("MUSIC_PAGE_TYPE_PLAYLIST") || !browseId.startsWith(QLatin1String("VL")))
+            continue;
+        const QJsonArray flex = r.value("flexColumns").toArray();
+        out << QVariantMap {
+            { "id", browseId.mid(2) },
+            { "title", runsText(dig(flex, "0.musicResponsiveListItemFlexColumnRenderer.text")).trimmed() },
+            // "Owner • 345K views" or "YouTube Music • 57 songs"
+            { "subtitle", runsText(dig(flex, "1.musicResponsiveListItemFlexColumnRenderer.text")).trimmed() },
+            { "cover", bigThumbnail(dig(r, "thumbnail.musicThumbnailRenderer.thumbnail.thumbnails").toArray()) },
+        };
+    }
+    return out;
+}
+
 void YtMusicApi::radio(const QString &videoId, TracksCallback callback)
 {
     // The track's radio ("Start radio"): the queue the player builds from it, ~50 similar tracks.

@@ -395,8 +395,29 @@ void YouTubeService::search(const QString &query)
         m_searching = false;
         emit searchingChanged();
         publishResults({});
+        m_playlistResults.clear();
+        emit playlistResultsChanged();
         return;
     }
+    // Playlists alongside: the featured ones, then the community's (without repeats), at most 12.
+    m_api.searchPlaylists(q, true, [this, serial, q](const QVariantList &featured, const QString &) {
+        if (serial != m_searchSerial)
+            return;
+        m_api.searchPlaylists(q, false, [this, serial, featured](const QVariantList &community, const QString &) {
+            if (serial != m_searchSerial)
+                return;
+            QVariantList all;
+            QSet<QString> seen;
+            for (const QVariantList *list : { &featured, &community })
+                for (const QVariant &v : *list)
+                    if (all.size() < 12 && !seen.contains(v.toMap().value("id").toString())) {
+                        seen.insert(v.toMap().value("id").toString());
+                        all << v;
+                    }
+            m_playlistResults = all;
+            emit playlistResultsChanged();
+        });
+    });
     m_searching = true;
     emit searchingChanged();
     m_api.search(q, [this, serial](const QList<Track> &tracks, const QString &error) {

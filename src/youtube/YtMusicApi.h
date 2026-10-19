@@ -59,6 +59,11 @@ public:
     void fetchLibraryPlaylists(std::function<void(const QVariantList &, const QString &error)> callback);
     // filter: "" (everything), "songs" (official audio tracks only) or "videos".
     void search(const QString &query, TracksCallback callback, const QString &filter = {});
+    // Public playlists for a query: YouTube Music's own ("featured") or made by users ("community").
+    // [{ id, title, subtitle, cover }]
+    void searchPlaylists(const QString &query, bool featured,
+                         std::function<void(const QVariantList &playlists, const QString &error)> callback);
+    static QVariantList parsePlaylistResults(const QJsonValue &root);
     // The track's radio — similar tracks, the way "Start radio" in YouTube Music picks them.
     void radio(const QString &videoId, TracksCallback callback);
     void fetchArtist(const QString &browseId, std::function<void(const Artist &, const QString &error)> callback);

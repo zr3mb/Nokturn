@@ -36,6 +36,8 @@ class YouTubeService : public QObject
     Q_PROPERTY(int likedCount READ likedCount NOTIFY dataChanged)
     Q_PROPERTY(int playlistCount READ playlistCount NOTIFY dataChanged)
     Q_PROPERTY(bool searching READ searching NOTIFY searchingChanged)
+    // Public playlists matching the latest search: YouTube Music's own first, then users'.
+    Q_PROPERTY(QVariantList playlistResults READ playlistResults NOTIFY playlistResultsChanged)
     Q_PROPERTY(bool engineReady READ engineReady NOTIFY engineChanged)
     Q_PROPERTY(QString engineVersion READ engineVersion NOTIFY engineChanged)
     Q_PROPERTY(bool engineDownloading READ engineDownloading NOTIFY engineChanged)
@@ -61,6 +63,7 @@ public:
     int likedCount() const { return int(m_liked.size()); }
     int playlistCount() const { return int(m_playlists.size()); }
     bool searching() const { return m_searching; }
+    QVariantList playlistResults() const { return m_playlistResults; }
     bool engineReady() const { return m_resolver.ready(); }
     QString engineVersion() const { return m_resolver.version(); }
     bool engineDownloading() const { return m_resolver.downloading(); }
@@ -124,6 +127,7 @@ signals:
     void syncingChanged();
     void dataChanged();
     void searchingChanged();
+    void playlistResultsChanged();
     void engineChanged();
     void notice(const QString &text, const QString &icon);
     void artistsChanged();
@@ -158,6 +162,7 @@ private:
     QSet<QString> m_loadingPlaylists;
     QSet<QString> m_refreshedPlaylists;
     QStringList m_search;
+    QVariantList m_playlistResults;
     QStringList m_recommended;
     QHash<QString, QVariantMap> m_artists;        // browseId -> artist page
     QHash<QString, QStringList> m_artistSongs;    // browseId -> top song ids

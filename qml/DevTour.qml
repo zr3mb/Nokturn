@@ -379,7 +379,30 @@ Item {
         s.push({ name: "C9-end", run: () => root.overlayLog("end") })
         return s
     }
-    readonly property var steps: withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Public YouTube Music playlists in the search results, opened and played (--tour-search-playlists).
+    readonly property bool withSearchPlaylists: Qt.application.arguments.indexOf("--tour-search-playlists") >= 0
+    readonly property var searchPlaylistSteps: [
+        { name: "S1-search", run: () => { Nav.finishOnboarding(); Nav.navigate("search", { query: "vixa" }) } },
+        { name: "S2-wait", run: () => {} },
+        { name: "S3-results", run: () => {
+            const p = YouTube.playlistResults
+            console.log("tour: playlists", p.length, "|", p.slice(0, 6).map(x => x.title + " (" + x.subtitle + ")").join(" | "))
+            root.scrollPage(2780)
+        } },
+        { name: "S4-open", run: () => {
+            const p = YouTube.playlistResults[0]
+            root.album = p ? { playlistId: p.id } : null
+            if (p) Nav.navigate("playlist", { kind: "ytcollection", playlistId: p.id, title: p.title, subtitle: p.subtitle, cover: p.cover, label: "PLAYLIST" })
+        } },
+        { name: "S5-wait", run: () => {} },
+        { name: "S6-play", run: () => {
+            const r = root.album ? Library.collectionRows(root.album.playlistId) : []
+            console.log("tour: playlist rows", r.length, r.length ? Library.tracks.get(r[0]).title : "")
+            if (r.length) Player.playFrom(r, r[0], "ytc:" + root.album.playlistId)
+        } },
+        { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
+    ]
+    readonly property var steps: withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

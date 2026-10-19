@@ -22,6 +22,14 @@ Item {
         return onlineEnabled ? Library.onlineResults() : []
     }
 
+    // Public playlists for the query (YouTube Music's own, then users'); they open like an artist's albums.
+    readonly property var playlists: onlineEnabled ? YouTube.playlistResults : []
+    function openPlaylist(p) {
+        Nav.navigate("playlist", { kind: "ytcollection", playlistId: p.id, title: p.title, subtitle: p.subtitle,
+                                   cover: p.cover, label: qsTr("PLAYLIST") })
+    }
+    CardShadow { id: playlistShadow; size: 168 }
+
     // Rows are built at once (Repeater), so long result lists show in parts.
     property int shown: 40
     onQueryChanged: { shown = 40; onlineTimer.restart(); rememberState() }
@@ -249,10 +257,49 @@ Item {
                 onClicked: page.shown = page.results.length
             }
 
+            // Public playlists on YouTube Music
+            RowLayout {
+                visible: page.onlineEnabled && page.playlists.length > 0
+                Layout.fillWidth: true
+                Layout.topMargin: page.results.length > 0 ? 26 : 0
+                Layout.bottomMargin: 8
+                spacing: 10
+                Icon { name: "library"; size: 20; color: "#cf9d9d" }
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("Playlists on YouTube Music")
+                    color: Theme.text
+                    font.family: Theme.fontDisplay
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                }
+            }
+            Flow {
+                visible: page.onlineEnabled && page.playlists.length > 0
+                Layout.fillWidth: true
+                spacing: 18
+                Repeater {
+                    model: page.onlineEnabled ? page.playlists : []
+                    AlbumCard {
+                        required property var modelData
+                        required property int index
+                        width: 168
+                        shadow: playlistShadow
+                        title: modelData.title
+                        subtitle: modelData.subtitle
+                        cover: modelData.cover
+                        seed: index
+                        revealDelay: index * 30
+                        onClicked: page.openPlaylist(modelData)
+                        onPlayClicked: page.openPlaylist(modelData)
+                    }
+                }
+            }
+
             RowLayout {
                 visible: page.onlineEnabled && (page.online.length > 0 || YouTube.searching)
                 Layout.fillWidth: true
-                Layout.topMargin: page.results.length > 0 ? 26 : 0
+                Layout.topMargin: page.results.length > 0 || page.playlists.length > 0 ? 26 : 0
                 Layout.bottomMargin: 8
                 spacing: 10
                 Icon { name: "playCircle"; size: 20; color: "#cf9d9d" }
@@ -281,7 +328,7 @@ Item {
             }
 
             ColumnLayout {
-                visible: page.results.length === 0 && page.online.length === 0 && !YouTube.searching
+                visible: page.results.length === 0 && page.online.length === 0 && page.playlists.length === 0 && !YouTube.searching
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: 50
                 spacing: 10
