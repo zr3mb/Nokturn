@@ -257,12 +257,7 @@ Item {
                             icon: "shuffle"
                             iconSize: 24
                             implicitWidth: 46; implicitHeight: 46
-                            active: Player.shuffle
-                            onClicked: {
-                                Player.shuffle = true
-                                const rows = page.rows
-                                if (rows.length) Player.playFrom(rows, rows[Math.floor(Math.random() * rows.length)], page.context)
-                            }
+                            onClicked: Player.playShuffled(page.rows, page.context)
                         }
                         // "Mix" like in Spotify: smooth, DJ-style transitions between this playlist's tracks.
                         PillButton {

@@ -183,12 +183,7 @@ Item {
                     iconSize: 24
                     implicitWidth: 46; implicitHeight: 46
                     enabled: page.playRows.length > 0
-                    active: Player.shuffle
-                    onClicked: {
-                        Player.shuffle = true
-                        const rows = page.playRows
-                        Player.playFrom(rows, rows[Math.floor(Math.random() * rows.length)], page.context)
-                    }
+                    onClicked: Player.playShuffled(page.playRows, page.context)
                 }
                 Spinner {
                     visible: page.loading

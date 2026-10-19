@@ -282,7 +282,46 @@ Item {
         { name: "R9-loaded", run: () => root.artistLog("UC-ijAH6jOi6945c3oytlCuQ") },
         { name: "R10-scroll", run: () => root.scrollPage(700) }
     ]
-    readonly property var steps: withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Liked tracks: click the first row, then "next" must play the second (--tour-liked).
+    readonly property bool withLiked: Qt.application.arguments.indexOf("--tour-liked") >= 0
+    property var likedPage: null
+    function findRows(item) {   // the visible TrackRows of the current page, top to bottom
+        let out = []
+        if (item.visible && item.trackIndex !== undefined && item.play !== undefined)
+            out.push(item)
+        for (let i = 0; i < item.children.length; ++i)
+            out = out.concat(root.findRows(item.children[i]))
+        return out
+    }
+    function queueLog(label) {
+        console.log("tour:", label, "| playing", Player.title, "| shuffle", Player.shuffle, "| context", Player.queueContext,
+                    "| up next", Player.upNext.slice(0, 4).map(r => Library.tracks.get(r).title).join(" / "))
+    }
+    readonly property var likedSteps: [
+        { name: "V1-like", run: () => {
+            Nav.finishOnboarding()
+            const rows = Library.likedTracks().length > 0 ? [] : Library.libraryRows().slice(0, 6)
+            rows.forEach(r => { Player.playFrom(rows, r, "test"); if (!Player.liked) Player.toggleLiked() })
+            // A "shuffle play" button elsewhere first — it must not leave the shuffle mode on.
+            Player.playShuffled(Library.libraryRows().slice(0, 30), "test")
+            root.queueLog("shuffle play")
+            Player.pause()
+            console.log("tour: liked", Library.likedTracks().length)
+            const i = Library.playlists.findIndex(p => p.kind === "liked")
+            console.log("tour: liked playlist index", i, i >= 0 ? Library.playlists[i].name : "")
+            Nav.navigate("playlist", { index: i })
+        } },
+        { name: "V2-page", run: () => {
+            const rows = root.findRows(root.target).sort((a, b) => a.mapToItem(null, 0, 0).y - b.mapToItem(null, 0, 0).y)
+            console.log("tour: rows on the page", rows.map(r => Library.tracks.get(r.trackIndex).title).join(" / "))
+            console.log("tour: first row queue", rows.length ? (rows[0].queue || []).map(r => Library.tracks.get(r).title).join(" / ") : "-", "| context", rows.length ? rows[0].context : "")
+            if (rows.length) rows[0].play()
+        } },
+        { name: "V3-playing", run: () => root.queueLog("after click") },
+        { name: "V4-next", run: () => { Player.next(); root.queueLog("after next") } },
+        { name: "V5-next", run: () => root.queueLog("later") }
+    ]
+    readonly property var steps: withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

@@ -126,6 +126,8 @@ public:
     // Plays row `row`; `rows` become the queue (e.g. an album, a playlist, search results).
     // `context` identifies the queue's origin ("playlist:…", "album:…") — the mix depends on it.
     Q_INVOKABLE void playFrom(const QVariantList &rows, int row, const QString &context = {});
+    // The rows in a random order, once — the shuffle mode (the player bar's toggle) stays as it was.
+    Q_INVOKABLE void playShuffled(const QVariantList &rows, const QString &context = {});
     // Plays row `row` with the whole local library as the queue.
     Q_INVOKABLE void playIndex(int row);
     // Jumps to a track in the current queue (e.g. a click in "Up next").

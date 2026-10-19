@@ -566,6 +566,27 @@ void PlayerController::playFrom(const QVariantList &rows, int row, const QString
     load(id, true);
 }
 
+void PlayerController::playShuffled(const QVariantList &rows, const QString &context)
+{
+    QStringList ids = queueIds(rows);
+    std::shuffle(ids.begin(), ids.end(), *QRandomGenerator::global());
+    // The first one that can be played starts (not a sample track; the playback engine is ready).
+    for (int i = 0; i < ids.size(); ++i) {
+        const int row = m_tracks->rowOf(ids.at(i));
+        if (!canPlay(row, i == ids.size() - 1))
+            continue;
+        ids.move(i, 0);
+        if (ids.first() == m_currentId)
+            ids.move(0, ids.size() - 1);   // something else than what's playing now
+        playFrom(rows, m_tracks->rowOf(ids.first()), context);
+        // playFrom keeps the list's order — replace it with the shuffled one around the new position.
+        m_queue = ids;
+        m_queuePos = 0;
+        emit queueChanged();
+        return;
+    }
+}
+
 void PlayerController::playIndex(int row)
 {
     playFrom(Library::instance()->libraryRows(), row, QStringLiteral("library"));

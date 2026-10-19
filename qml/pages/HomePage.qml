@@ -33,9 +33,10 @@ Item {
             Nav.toast(Library.localCount === 0 ? qsTr("Add a music folder first") : qsTr("This playlist is still empty"), "music")
             return
         }
-        if (p.kind === "mix") Player.shuffle = true
-        const start = p.kind === "mix" ? rows[Math.floor(Math.random() * rows.length)] : rows[0]
-        Player.playFrom(rows, start)
+        if (p.kind === "mix")
+            Player.playShuffled(rows)
+        else
+            Player.playFrom(rows, rows[0])
     }
 
     function openPick(p, index) {

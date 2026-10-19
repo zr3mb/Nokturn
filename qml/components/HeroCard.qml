@@ -154,7 +154,7 @@ Item {
                     kind: "secondary"
                     icon: "shuffle"
                     text: qsTr("Shuffle")
-                    onClicked: { Player.shuffle = true; Player.play() }
+                    onClicked: Player.playShuffled(Library.libraryRows(), "library")
                 }
             }
 
