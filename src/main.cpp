@@ -1,4 +1,5 @@
 #include "Language.h"
+#include "platform/GameOverlay.h"
 
 #include <QElapsedTimer>
 #include <QFont>
@@ -35,6 +36,12 @@ int main(int argc, char *argv[])
     QGuiApplication::setFont(font);
 #endif
 
+    // "nokturn --overlay" (bound to a shortcut in the desktop's settings): the running Nokturn opens
+    // or closes its in-game menu; with none running, this one starts and opens it.
+    const bool overlayRequest = app.arguments().contains(QStringLiteral("--overlay"));
+    if (overlayRequest && GameOverlay::sendToRunning())
+        return 0;
+
     Language::instance()->apply();
 
     QQmlApplicationEngine engine;
@@ -43,6 +50,8 @@ int main(int argc, char *argv[])
         [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
     engine.loadFromModule("Nokturn", "Main");
+    if (overlayRequest)
+        QTimer::singleShot(1500, GameOverlay::instance(), &GameOverlay::show);
 
     // After a GPU reset the scene graph rebuilds its textures from the images' memory copies, which
     // QSG_TRANSIENT_IMAGES dropped — so the images are loaded again (Theme.imageEpoch changes their URLs).

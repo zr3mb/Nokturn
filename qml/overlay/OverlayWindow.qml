@@ -27,7 +27,12 @@ Window {
     visible: shown || fade > 0
     onVisibleChanged: GameOverlay.view = visible ? menu : null
 
+    property bool prepared: false
     function open() {
+        if (!prepared) {
+            GameOverlay.prepare(win)   // before it's first shown (layer-shell on Wayland)
+            prepared = true
+        }
         menu.adjusting = false
         shown = true
         GameOverlay.activate(win)
@@ -556,8 +561,8 @@ Window {
                 model: GameOverlay.padConnected
                     ? [["A", qsTr("Select")], ["B", qsTr("Back")], ["Y", qsTr("Play / pause")], ["LB RB", qsTr("Previous / next track")],
                        ["View + Menu", qsTr("Close")]]
-                    : [["← →", qsTr("Categories")], ["↑ ↓", qsTr("Choose")], ["Enter", qsTr("Select")], ["Esc", qsTr("Back")],
-                       [GameOverlay.hotkey, qsTr("Close")]]
+                    : [["← →", qsTr("Categories")], ["↑ ↓", qsTr("Choose")], ["Enter", qsTr("Select")], ["Esc", qsTr("Back")]]
+                      .concat(GameOverlay.hotkey !== "" ? [[GameOverlay.hotkey, qsTr("Close")]] : [])   // unknown when the desktop binds it
                 Row {
                     required property var modelData
                     spacing: 9 * menu.s

@@ -179,9 +179,20 @@ target_compile_definitions(Nokturn PRIVATE
     NOKTURN_SPOTIFY_CLIENT_ID="${NOKTURN_SPOTIFY_CLIENT_ID}")
 
 if(UNIX AND NOT APPLE)
-    target_sources(Nokturn PRIVATE src/platform/Mpris.h src/platform/Mpris.cpp)
+    target_sources(Nokturn PRIVATE src/platform/Mpris.h src/platform/Mpris.cpp
+                                   src/platform/ShortcutPortal.h src/platform/ShortcutPortal.cpp)
     target_link_libraries(Nokturn PRIVATE Qt6::DBus)
     target_compile_definitions(Nokturn PRIVATE NOKTURN_MPRIS)
+    # The in-game overlay as a layer-shell surface (KDE Plasma, Hyprland, Sway). Optional: without it
+    # the overlay is a full-screen window.
+    find_package(LayerShellQt 6 QUIET)
+    if(LayerShellQt_FOUND)
+        target_link_libraries(Nokturn PRIVATE LayerShellQt::Interface)
+        target_compile_definitions(Nokturn PRIVATE NOKTURN_LAYERSHELL)
+        message(STATUS "In-game overlay: layer-shell (LayerShellQt ${LayerShellQt_VERSION})")
+    else()
+        message(STATUS "In-game overlay: LayerShellQt not found — a full-screen window instead")
+    endif()
 endif()
 
 if(WIN32)

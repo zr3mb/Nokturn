@@ -350,7 +350,11 @@ Item {
     ]
     // The settings section, then waits for the real hotkey (WM_HOTKEY sent from outside) (--tour-hotkey).
     readonly property bool withHotkey: Qt.application.arguments.indexOf("--tour-hotkey") >= 0
-    function hotkeyLog() { console.log("tour: hotkey", GameOverlay.hotkey, "| taken", GameOverlay.hotkeyTaken, "| open", GameOverlay.open, "| pad", GameOverlay.padConnected) }
+    function hotkeyLog() {
+        console.log("tour: hotkey", GameOverlay.hotkey, "| taken", GameOverlay.hotkeyTaken, "| open", GameOverlay.open, "| pad", GameOverlay.padConnected)
+        if (GameOverlay.open)
+            root.overlayLog("menu")
+    }
     readonly property var hotkeySteps: [
         { name: "K1-settings", run: () => { Nav.finishOnboarding(); Nav.navigate("settings") } },
         { name: "K2-scroll", run: () => { root.scrollPage(900); root.hotkeyLog() } },

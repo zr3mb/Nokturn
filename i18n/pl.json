@@ -739,5 +739,12 @@
   "Xbox controller": "Pad Xbox",
   "Controller connected.": "Pad podłączony.",
   "No controller connected right now.": "Żaden pad nie jest teraz podłączony.",
-  "Hold View + Menu to open the menu; d-pad or stick to move, A selects, B goes back, Y pauses, LB / RB skip tracks.": "Przytrzymaj View + Menu, żeby otworzyć menu; krzyżak lub gałka do poruszania się, A wybiera, B cofa, Y pauzuje, LB / RB zmieniają utwór."
+  "Hold View + Menu to open the menu; d-pad or stick to move, A selects, B goes back, Y pauses, LB / RB skip tracks.": "Przytrzymaj View + Menu, żeby otworzyć menu; krzyżak lub gałka do poruszania się, A wybiera, B cofa, Y pauzuje, LB / RB zmieniają utwór.",
+  "Set in your desktop's shortcut settings — it opens and closes the menu from any game.": "Ustawiony w skrótach Twojego pulpitu — otwiera i zamyka menu w każdej grze.",
+  "Your desktop asks once whether Nokturn may have a shortcut. On Hyprland, add to hyprland.conf: %1": "Pulpit raz zapyta, czy Nokturn może mieć skrót. Na Hyprlandzie dopisz do hyprland.conf: %1",
+  "Change": "Zmień",
+  "Your desktop doesn't let apps add shortcuts. Add one in its keyboard settings that runs: %1": "Twój pulpit nie pozwala aplikacjom dodawać skrótów. Dodaj w jego ustawieniach klawiatury skrót, który uruchamia: %1",
+  "Copy command": "Kopiuj polecenie",
+  "Command copied": "Skopiowano polecenie",
+  "Open the Nokturn menu over a game": "Otwórz menu Nokturna nad grą"
 }

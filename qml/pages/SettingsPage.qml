@@ -196,7 +196,7 @@ Item {
                     }
                 }
                 SettingRow {
-                    visible: GameOverlay.enabled
+                    visible: GameOverlay.enabled && GameOverlay.hotkeyMode === "native"
                     icon: "key"
                     title: qsTr("Shortcut")
                     description: hotkeyField.recording ? qsTr("Press the new shortcut (with Ctrl or Alt, or an F key). Esc cancels.")
@@ -266,6 +266,60 @@ Item {
                                 rejected = !GameOverlay.setHotkey(event.key, event.modifiers)
                                 recording = false
                             }
+                        }
+                    }
+                }
+                // Linux: the desktop owns the shortcut (portal) …
+                SettingRow {
+                    visible: GameOverlay.enabled && GameOverlay.hotkeyMode === "portal"
+                    icon: "key"
+                    title: qsTr("Shortcut")
+                    description: GameOverlay.hotkey !== ""
+                        ? qsTr("Set in your desktop's shortcut settings — it opens and closes the menu from any game.")
+                        : qsTr("Your desktop asks once whether Nokturn may have a shortcut. On Hyprland, add to hyprland.conf: %1")
+                              .arg("bind = CTRL SHIFT, M, global, nokturn:overlay")
+                    Row {
+                        spacing: 12
+                        PillButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: GameOverlay.canConfigureHotkey
+                            kind: "ghost"
+                            text: qsTr("Change")
+                            onClicked: GameOverlay.configureHotkey()
+                        }
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: GameOverlay.hotkey !== ""
+                            width: portalKey.implicitWidth + 28
+                            height: 34
+                            radius: 9
+                            color: Theme.alpha(Theme.text, 0.06)
+                            border.width: 1
+                            border.color: Theme.alpha(Theme.text, 0.14)
+                            Text {
+                                id: portalKey
+                                anchors.centerIn: parent
+                                text: GameOverlay.hotkey
+                                color: Theme.text
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                            }
+                        }
+                    }
+                }
+                // … or there's no portal: a command for the desktop's own shortcut settings.
+                SettingRow {
+                    visible: GameOverlay.enabled && GameOverlay.hotkeyMode === "command"
+                    icon: "key"
+                    title: qsTr("Shortcut")
+                    description: qsTr("Your desktop doesn't let apps add shortcuts. Add one in its keyboard settings that runs: %1")
+                                 .arg(GameOverlay.toggleCommand)
+                    PillButton {
+                        kind: "ghost"
+                        text: qsTr("Copy command")
+                        onClicked: {
+                            GameOverlay.copyToClipboard(GameOverlay.toggleCommand)
+                            Nav.toast(qsTr("Command copied"), "check")
                         }
                     }
                 }
