@@ -48,8 +48,14 @@ Item {
     }
     // Images give up their memory copy once they're on the GPU (main.cpp); after a GPU reset they're
     // loaded again under a new address.
+    // Another window (the in-game overlay) keeps its own copies: an image already on the main window's
+    // GPU crashes Qt's renderer when a second window draws it.
+    property string cacheKey: ""
     function imageUrl(url) {
-        return url !== "" && Theme.imageEpoch > 0 ? url + "#" + Theme.imageEpoch : url
+        if (url === "")
+            return url
+        const tag = [Theme.imageEpoch > 0 ? String(Theme.imageEpoch) : "", cacheKey].filter(x => x !== "").join("-")
+        return tag !== "" ? url + "#" + tag : url
     }
 
     function waves() {

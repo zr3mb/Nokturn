@@ -244,6 +244,17 @@ ApplicationWindow {
         function onNotice(text, icon) { toast.show(text, icon) }
     }
 
+    // The in-game overlay (GameOverlay): its window exists only while the menu is open.
+    Loader {
+        id: gameOverlay
+        active: false
+        sourceComponent: OverlayWindow { onClosed: gameOverlay.active = false }
+    }
+    Connections {
+        target: GameOverlay
+        function onOpenChanged() { if (GameOverlay.open) gameOverlay.active = true }
+    }
+
     FolderDialog {
         id: folderDialog
         title: qsTr("Choose a music folder")

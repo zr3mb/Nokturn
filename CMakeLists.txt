@@ -63,6 +63,7 @@ qt_add_qml_module(Nokturn
         src/lyrics/SpeechEngine.h     src/lyrics/SpeechEngine.cpp
         src/lyrics/LyricsService.h    src/lyrics/LyricsService.cpp
         src/platform/DiscordPresence.h src/platform/DiscordPresence.cpp
+        src/platform/GameOverlay.h     src/platform/GameOverlay.cpp
         src/Updater.h           src/Updater.cpp
         src/Language.h          src/Language.cpp
         src/spotify/SpotifyService.h  src/spotify/SpotifyService.cpp
@@ -131,6 +132,8 @@ qt_add_qml_module(Nokturn
         qml/pages/ArtistPage.qml
         qml/pages/SourcesPage.qml
         qml/pages/SettingsPage.qml
+
+        qml/overlay/OverlayWindow.qml
 
         qml/onboarding/Onboarding.qml
         qml/onboarding/LayoutPreview.qml

@@ -167,6 +167,119 @@ Item {
             }
         }
 
+        // The in-game overlay (GameOverlay, qml/overlay) — Windows only.
+        Reveal {
+            delay: 135
+            visible: GameOverlay.supported
+            ColumnLayout {
+                width: parent.width
+                spacing: 8
+                Heading { text: qsTr("In-game overlay") }
+                SettingRow {
+                    icon: "gamepad"
+                    title: qsTr("Music menu over games")
+                    description: qsTr("A menu over the dimmed game to pause, skip, change the volume or switch the playlist without leaving it. Games in exclusive full screen are minimized while it's open — borderless or windowed mode works best.")
+                    Row {
+                        spacing: 12
+                        PillButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: GameOverlay.enabled
+                            kind: "ghost"
+                            text: qsTr("Try it")
+                            onClicked: GameOverlay.show()
+                        }
+                        Toggle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            checked: GameOverlay.enabled
+                            onToggled: c => GameOverlay.enabled = c
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: GameOverlay.enabled
+                    icon: "key"
+                    title: qsTr("Shortcut")
+                    description: hotkeyField.recording ? qsTr("Press the new shortcut (with Ctrl or Alt, or an F key). Esc cancels.")
+                               : hotkeyField.rejected ? qsTr("That can't be a shortcut — add Ctrl or Alt, or use an F key.")
+                               : GameOverlay.hotkeyTaken ? qsTr("Another app already uses %1 — pick a different shortcut.").arg(GameOverlay.hotkey)
+                               : qsTr("Opens and closes the menu from any game. Click to change it.")
+                    Row {
+                        spacing: 12
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: GameOverlay.hotkey !== "Ctrl+Shift+M" && !hotkeyField.recording
+                            text: qsTr("Reset")
+                            color: resetMouse.containsMouse ? Theme.text : Theme.accent
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                            MouseArea {
+                                id: resetMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: GameOverlay.resetHotkey()
+                            }
+                        }
+                        // The shortcut as a key cap; click, then press the new one.
+                        Rectangle {
+                            id: hotkeyField
+                            property bool recording: false
+                            property bool rejected: false
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.max(130, hotkeyText.implicitWidth + 28)
+                            height: 34
+                            radius: 9
+                            color: recording ? Theme.alpha(Theme.accent, 0.22) : Theme.alpha(Theme.text, keyMouse.containsMouse ? 0.1 : 0.06)
+                            border.width: 1
+                            border.color: recording ? Theme.accent : GameOverlay.hotkeyTaken ? Theme.danger : Theme.alpha(Theme.text, 0.14)
+                            onActiveFocusChanged: if (!activeFocus) recording = false
+                            Text {
+                                id: hotkeyText
+                                anchors.centerIn: parent
+                                text: hotkeyField.recording ? qsTr("Press keys…") : GameOverlay.hotkey
+                                color: Theme.text
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                            }
+                            MouseArea {
+                                id: keyMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    hotkeyField.rejected = false
+                                    hotkeyField.recording = true
+                                    hotkeyField.forceActiveFocus()
+                                }
+                            }
+                            Keys.onPressed: event => {
+                                if (!recording)
+                                    return
+                                event.accepted = true
+                                if (event.key === Qt.Key_Escape) {
+                                    recording = false
+                                    return
+                                }
+                                // Modifiers alone: wait for the key.
+                                if ([Qt.Key_Control, Qt.Key_Shift, Qt.Key_Alt, Qt.Key_Meta, Qt.Key_AltGr].indexOf(event.key) >= 0)
+                                    return
+                                rejected = !GameOverlay.setHotkey(event.key, event.modifiers)
+                                recording = false
+                            }
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: GameOverlay.enabled
+                    icon: "gamepad"
+                    title: qsTr("Xbox controller")
+                    description: (GameOverlay.padConnected ? qsTr("Controller connected.") : qsTr("No controller connected right now.")) + " "
+                                 + qsTr("Hold View + Menu to open the menu; d-pad or stick to move, A selects, B goes back, Y pauses, LB / RB skip tracks.")
+                    Toggle { checked: GameOverlay.padEnabled; onToggled: c => GameOverlay.padEnabled = c }
+                }
+            }
+        }
+
         Reveal {
             delay: 150
             ColumnLayout {

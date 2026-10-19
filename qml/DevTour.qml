@@ -321,7 +321,47 @@ Item {
         { name: "V4-next", run: () => { Player.next(); root.queueLog("after next") } },
         { name: "V5-next", run: () => root.queueLog("later") }
     ]
-    readonly property var steps: withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // The in-game overlay, driven like a pad (--tour-overlay).
+    readonly property bool withOverlay: Qt.application.arguments.indexOf("--tour-overlay") >= 0
+    function overlayLog(label) {
+        const m = GameOverlay.view
+        if (!m) { console.log("tour:", label, "| overlay closed, open =", GameOverlay.open); return }
+        const it = m.items[m.selection] || {}
+        console.log("tour:", label, "| category", m.categories[m.cat].key, "| sub", m.sub ? m.sub.title : "-", "| item", m.selection, "/", m.items.length,
+                    it.title, "|", it.subtitle || "", "| adjusting", m.adjusting, "| playing", Player.title, "| volume", Math.round(Player.volume * 100))
+    }
+    function pad(actions) { actions.forEach(a => GameOverlay.simulate(a)) }
+    readonly property var overlaySteps: [
+        { name: "O1-open", run: () => { Nav.finishOnboarding(); const r = Library.libraryRows(); Player.playFrom(r, r[3], "library"); GameOverlay.show() } },
+        { name: "O2-now", run: () => root.overlayLog("now playing") },
+        { name: "O3-volume", run: () => { Player.volume = 0.5; root.pad(["down", "down", "down", "accept", "right", "right", "up"]); root.overlayLog("volume (50 + 15)") } },
+        { name: "O4-queue", run: () => { root.pad(["back", "right"]); root.overlayLog("queue") } },
+        { name: "O5-queue-down", run: () => { root.pad(["down", "down", "down", "down"]); root.overlayLog("queue down") } },
+        { name: "O6-playlists", run: () => { root.pad(["right"]); root.overlayLog("playlists") } },
+        { name: "O7-open", run: () => { root.pad(["down", "down", "down", "accept"]); root.overlayLog("opened") } },
+        { name: "O8-track", run: () => { root.pad(["down", "down", "down"]); root.overlayLog("track") } },
+        { name: "O9-play", run: () => { root.pad(["accept"]); root.overlayLog("played") } },
+        { name: "O10-back", run: () => { root.pad(["back"]); root.overlayLog("back") } },
+        { name: "O11-close", run: () => { root.pad(["back"]); root.overlayLog("closing") } },
+        { name: "O12-closed", run: () => root.overlayLog("closed") },
+        { name: "O13-reopen", run: () => { GameOverlay.toggle(); root.overlayLog("reopened") } },
+        { name: "O14-shown", run: () => { root.overlayLog("shown"); GameOverlay.toggle() } },
+        { name: "O15-gone", run: () => root.overlayLog("gone") }
+    ]
+    // The settings section, then waits for the real hotkey (WM_HOTKEY sent from outside) (--tour-hotkey).
+    readonly property bool withHotkey: Qt.application.arguments.indexOf("--tour-hotkey") >= 0
+    function hotkeyLog() { console.log("tour: hotkey", GameOverlay.hotkey, "| taken", GameOverlay.hotkeyTaken, "| open", GameOverlay.open, "| pad", GameOverlay.padConnected) }
+    readonly property var hotkeySteps: [
+        { name: "K1-settings", run: () => { Nav.finishOnboarding(); Nav.navigate("settings") } },
+        { name: "K2-scroll", run: () => { root.scrollPage(900); root.hotkeyLog() } },
+        { name: "K3-wait", run: () => root.hotkeyLog() },
+        { name: "K4-wait", run: () => root.hotkeyLog() },
+        { name: "K5-wait", run: () => root.hotkeyLog() },
+        { name: "K6-wait", run: () => root.hotkeyLog() },
+        { name: "K7-wait", run: () => root.hotkeyLog() },
+        { name: "K8-wait", run: () => root.hotkeyLog() }
+    ]
+    readonly property var steps: withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
@@ -404,7 +444,7 @@ Item {
             if (root.step >= 0 && root.step < root.steps.length && !root.withPerf && !root.withSeek) {   // screenshots would skew the timings
                 const name = root.steps[root.step].name
                 // An open dialog lives in the overlay, outside the shell — its content is grabbed instead.
-                let source = root.target
+                let source = GameOverlay.open && GameOverlay.view ? GameOverlay.view.parent : root.target
                 const overlay = root.target.Overlay.overlay
                 if (overlay)
                     for (let i = 0; i < overlay.children.length; ++i) {
