@@ -19,6 +19,10 @@ permissions:
 env:
   QT_VERSION: "6.8.3"
   TAGLIB_VERSION: "v2.0.2"
+  # The in-game overlay as a layer-shell surface (KDE, Hyprland, Sway): LayerShellQt built against the
+  # bundled Qt — the system's copy is tied to the system's Qt. 6.4 is the last one that takes Qt 6.8.
+  ECM_VERSION: "v6.14.0"
+  LAYERSHELLQT_VERSION: "v6.4.5"
 
 jobs:
   appimage:
@@ -42,7 +46,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             g++-12 ninja-build libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 \
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
-            libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libpulse-dev libfuse2 zlib1g-dev file
+            libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libpulse-dev libfuse2 zlib1g-dev file \
+            libwayland-dev wayland-protocols
 
       - name: Qt ${{ env.QT_VERSION }}
         uses: jurplel/install-qt-action@v4
@@ -60,6 +65,20 @@ jobs:
           cmake --build /tmp/taglib/build
           sudo cmake --install /tmp/taglib/build
           sudo ldconfig
+
+      - name: LayerShellQt ${{ env.LAYERSHELLQT_VERSION }} (into the Qt directory)
+        run: |
+          git clone --depth 1 --branch "$ECM_VERSION" https://invent.kde.org/frameworks/extra-cmake-modules.git /tmp/ecm
+          cmake -S /tmp/ecm -B /tmp/ecm/build -G Ninja -DBUILD_TESTING=OFF -DBUILD_DOC=OFF \
+            -DBUILD_HTML_DOCS=OFF -DBUILD_MAN_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF
+          sudo cmake --install /tmp/ecm/build
+          git clone --depth 1 --branch "$LAYERSHELLQT_VERSION" https://invent.kde.org/plasma/layer-shell-qt.git /tmp/lsq
+          cmake -S /tmp/lsq -B /tmp/lsq/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+            -DCMAKE_CXX_COMPILER=g++-12 -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DCMAKE_INSTALL_PREFIX="$QT_ROOT_DIR" \
+            -DKDE_INSTALL_USE_QT_SYS_PATHS=ON
+          cmake --build /tmp/lsq/build
+          cmake --install /tmp/lsq/build
+          find "$QT_ROOT_DIR" -iname "*layer*shell*" | grep -v "/include/" | head
 
       - name: Deno (yt-dlp's JavaScript runtime, shipped inside the AppImage)
         run: |
@@ -95,6 +114,7 @@ jobs:
           for f in usr/plugins/platforms/libqwayland-egl.so \
                    usr/plugins/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so \
                    usr/plugins/platforms/libqxcb.so \
+                   usr/lib/libLayerShellQtInterface.so.6 \
                    usr/plugins/multimedia/libffmpegmediaplugin.so \
                    usr/bin/deno; do
             test -e "squashfs-root/$f" && echo "ok  $f" || { echo "MISSING  $f"; exit 1; }
