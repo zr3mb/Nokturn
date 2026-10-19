@@ -158,7 +158,8 @@ Panel {
                         compact: root.compact
                         label: modelData.name
                         subtitle: {
-                            Library.tracks.revision
+                            if (Library.tracks.revision < 0)   // never: re-run when the tracks change
+                                return ""
                             if (modelData.kind === "ytplaylist")
                                 return "YouTube Music" + (modelData.count >= 0 ? " · " + qsTr("%n tracks", "", modelData.count) : "")
                             if (modelData.kind === "spplaylist" || modelData.kind === "spotifyliked")

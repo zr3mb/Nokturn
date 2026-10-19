@@ -468,7 +468,7 @@ void YouTubeService::loadArtist(const QString &browseId)
         m_artistIdByName.insert(a.name.toLower(), browseId);
         m_artists.insert(browseId, {
             { "browseId", browseId }, { "name", a.name }, { "description", a.description },
-            { "subscribers", a.subscribers }, { "photo", a.photo }, { "songsPlaylistId", a.songsPlaylistId },
+            { "subscribers", a.subscribers }, { "photo", a.photo }, { "songsPlaylistId", a.songsPlaylistId }, { "videosOnly", a.videosOnly },
             { "sections", a.sections } });
         publishResults(ids);   // the top songs join the track model, so they can be played
         ++m_artistsRevision;

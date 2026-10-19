@@ -12,10 +12,12 @@ Item {
     property var args: ({})
 
     readonly property var info: {
-        Library.tracks.revision
         const a = args || {}
-        if (a.kind === "ytcollection")
-            YouTube.resultsRevision   // its tracks are appended to the model, not rebuilt into it
+        // Never true: the reads make the binding re-run when they change (a bare read is compiled away).
+        // A collection's tracks are appended to the model, not rebuilt into it; genres fill in later.
+        if (Library.tracks.revision < 0 || (a.kind === "ytcollection" && YouTube.resultsRevision < 0)
+                || (a.kind === "genre" && Library.genresRevision < 0))
+            return {}
         if (a.kind === "album") {
             const al = Library.albums.find(x => x.key === a.key) || { title: "", artist: "", year: 0 }
             return { label: qsTr("ALBUM"), title: al.title, meta: [al.artist].concat(al.year > 0 ? [String(al.year)] : []),
@@ -32,8 +34,7 @@ Item {
         }
         if (a.kind === "genre") {
             // A genre of the library (the search page): tags, or the artists' genres for streaming tracks
-            Library.genresRevision
-            const g =Library.genres().find(x => x.key === a.key) || { name: a.name || "", seed: 0, cover: "", mosaic: [] }
+            const g = Library.genres().find(x => x.key === a.key) || { name: a.name || "", seed: 0, cover: "", mosaic: [] }
             return { label: qsTr("GENRE"), title: g.name, meta: [qsTr("From your library")],
                      colorA: g.colorA || Theme.accent, colorB: g.colorB || Theme.accent2, seed: g.seed,
                      cover: g.mosaic.length >= 4 ? "" : g.cover, mosaic: g.mosaic, icon: "", round: false,
@@ -97,7 +98,7 @@ Item {
                                                   : String(a.v).localeCompare(String(b.v), undefined, { sensitivity: "base" }))
         return items.map(x => x.r)
     }
-    readonly property var mix: { Player.mixRevision; return Player.mixFor(context) }
+    readonly property var mix: Player.mixRevision >= 0 ? Player.mixFor(context) : ({})
     readonly property int totalSeconds: Library.totalDuration(info.rows)
     readonly property real pad: 34
 

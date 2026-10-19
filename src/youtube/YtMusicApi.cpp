@@ -543,6 +543,39 @@ QVariantMap parseCard(const QJsonObject &r)
     };
 }
 
+// A video card of a carousel ("Videos" on a channel that uploads remixes, mixes…) as a playable track.
+std::optional<Track> parseVideoCard(const QJsonObject &r)
+{
+    const QString videoId = dig(r, "navigationEndpoint.watchEndpoint.videoId").toString();
+    if (videoId.isEmpty())
+        return std::nullopt;
+    Track t;
+    t.title = runsText(r.value("title")).trimmed();
+    // "Channel • 2.2K views"
+    QStringList artists;
+    for (const QJsonValue &rv : dig(r, "subtitle.runs").toArray()) {
+        const QJsonObject run = rv.toObject();
+        const QString type = pageTypeOf(dig(run, "navigationEndpoint.browseEndpoint").toObject());
+        if (type == QLatin1String("MUSIC_PAGE_TYPE_ARTIST") || type == QLatin1String("MUSIC_PAGE_TYPE_USER_CHANNEL")) {
+            artists << run.value("text").toString();
+            if (t.artistId.isEmpty())
+                t.artistId = dig(run, "navigationEndpoint.browseEndpoint.browseId").toString();
+        }
+    }
+    t.artist = !artists.isEmpty() ? artists.join(QStringLiteral(", ")) : QStringLiteral("YouTube Music");
+    t.id = QStringLiteral("yt:") + videoId;
+    t.path = videoId;
+    t.source = QStringLiteral("youtube");
+    t.quality = QCoreApplication::translate("YouTubeService", "YouTube Music · stream");
+    t.cover = bigThumbnail(dig(r, "thumbnailRenderer.musicThumbnailRenderer.thumbnail.thumbnails").toArray());
+    const QString key = TrackModel::albumKey(t);
+    const auto [a, b] = Scanner::fallbackPalette(key);
+    t.colorA = a;
+    t.colorB = b;
+    t.seed = Scanner::stableSeed(key);
+    return t;
+}
+
 } // namespace
 
 YtMusicApi::Artist YtMusicApi::parseArtist(const QJsonObject &root)
@@ -562,6 +595,8 @@ YtMusicApi::Artist YtMusicApi::parseArtist(const QJsonObject &root)
 
     const QJsonArray sections = dig(root, "contents.singleColumnBrowseResultsRenderer.tabs.0.tabRenderer.content"
                                           ".sectionListRenderer.contents").toArray();
+    QList<Track> videos;
+    QSet<QString> videoIds;
     for (const QJsonValue &sv : sections) {
         const QJsonObject s = sv.toObject();
         if (s.contains("musicShelfRenderer")) {
@@ -576,9 +611,15 @@ YtMusicApi::Artist YtMusicApi::parseArtist(const QJsonObject &root)
             QVariantList items;
             QString kind;
             for (const QJsonValue &iv : shelf.value("contents").toArray()) {
-                const QVariantMap card = parseCard(iv.toObject().value("musicTwoRowItemRenderer").toObject());
-                if (card.isEmpty())
+                const QJsonObject item = iv.toObject().value("musicTwoRowItemRenderer").toObject();
+                const QVariantMap card = parseCard(item);
+                if (card.isEmpty()) {
+                    if (const auto t = parseVideoCard(item); t && !videoIds.contains(t->id)) {
+                        videoIds.insert(t->id);
+                        videos << *t;
+                    }
                     continue;
+                }
                 items << card;
                 const QString k = card.value("kind").toString();
                 if (kind.isEmpty())
@@ -591,6 +632,11 @@ YtMusicApi::Artist YtMusicApi::parseArtist(const QJsonObject &root)
                 { "title", runsText(dig(shelf, "header.musicCarouselShelfBasicHeaderRenderer.title")) },
                 { "kind", kind }, { "items", items } };
         }
+    }
+    // A channel (remixes, mixes uploaded to YouTube) has no songs, only its videos — they take the songs' place.
+    if (a.songs.isEmpty() && !videos.isEmpty()) {
+        a.songs = videos;
+        a.videosOnly = true;
     }
     return a;
 }

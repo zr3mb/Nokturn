@@ -312,7 +312,7 @@ Panel {
                         id: q
                         required property var modelData
                         required property int index
-                        readonly property var t: { Library.tracks.revision; return Library.tracks.get(modelData) }
+                        readonly property var t: Library.tracks.revision >= 0 ? Library.tracks.get(modelData) : ({})
                         Layout.fillWidth: true
                         implicitHeight: 52
 

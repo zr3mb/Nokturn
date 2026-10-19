@@ -126,7 +126,7 @@ Item {
                         Text {
                             id: chipText
                             anchors.centerIn: parent
-                            text: { Language.effective; return Equalizer.presetLabel(chip.modelData) }   // re-evaluated when the language changes
+                            text: Language.effective !== "" ? Equalizer.presetLabel(chip.modelData) : ""   // re-evaluated when the language changes
                             color: chip.current ? "#15161a" : Theme.textDim
                             font.pixelSize: 13
                             font.weight: chip.current ? Font.DemiBold : Font.Medium

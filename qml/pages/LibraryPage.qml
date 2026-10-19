@@ -15,7 +15,8 @@ Item {
     readonly property real pad: 34
     // Local files + liked on YouTube Music
     readonly property var libraryRows: {
-        Library.tracks.revision
+        if (Library.tracks.revision < 0)   // never: the read makes the binding re-run (a bare read is compiled away)
+            return []
         return Library.libraryRows()
     }
 

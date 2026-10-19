@@ -26,7 +26,8 @@ public:
     // "featured on" playlists, related artists) as QML-ready maps.
     struct Artist {
         QString browseId, name, description, subscribers, photo;
-        QList<Track> songs;          // "Top songs"
+        QList<Track> songs;          // "Top songs" — or a channel's videos (videosOnly)
+        bool videosOnly = false;     // a YouTube channel without songs (remixes, mixes…)
         QString songsPlaylistId;     // the full song list ("See all")
         QVariantList sections;       // [{ title, kind: "albums"|"playlists"|"artists", items: [...] }]
     };

@@ -14,8 +14,9 @@ Item {
 
     // Picked from YouTube Music radios of the tracks that say the most about the taste (Recommendations).
     readonly property var recommended: {
-        Library.tracks.revision
-        YouTube.resultsRevision   // the picks are appended to the model, not rebuilt into it
+        // The picks are appended to the model, not rebuilt into it. (Never true: the reads make the binding re-run.)
+        if (Library.tracks.revision < 0 || YouTube.resultsRevision < 0)
+            return []
         return Library.recommendedRows()
     }
     property bool allRecommended: false
@@ -363,7 +364,7 @@ Item {
                 }
                 Repeater {
                     id: recentRepeater
-                    model: { Library.tracks.revision; return Library.recentlyAdded(5) }
+                    model: Library.tracks.revision >= 0 ? Library.recentlyAdded(5) : []
                     TrackRow {
                         required property var modelData
                         required property int index

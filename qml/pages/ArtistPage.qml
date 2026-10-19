@@ -14,18 +14,17 @@ Item {
     property bool searched: false          // the name lookup has finished
     property bool descriptionOpen: false
 
-    readonly property var yt: { YouTube.artistsRevision; return browseId !== "" ? YouTube.artist(browseId) : ({}) }
+    readonly property var yt: YouTube.artistsRevision >= 0 && browseId !== "" ? YouTube.artist(browseId) : ({})
     readonly property string displayName: yt.name || name
     readonly property bool loading: yt.loading === true || (browseId === "" && !searched && name !== "")
     readonly property var topRows: {
-        Library.tracks.revision
-        YouTube.resultsRevision
+        if (Library.tracks.revision < 0 || YouTube.resultsRevision < 0)   // never: re-run when they change
+            return []
         return browseId !== "" ? Library.artistSongRows(browseId) : []
     }
     // Library tracks by this artist (local files and liked songs — not search results).
     readonly property var libraryRows: {
-        Library.tracks.revision
-        if (displayName === "")
+        if (Library.tracks.revision < 0 || displayName === "")
             return []
         return Library.tracksOfArtist(displayName).filter(r => {
             const t = Library.tracks.get(r)
@@ -251,7 +250,7 @@ Item {
                 width: parent.width
                 spacing: 6
                 SectionHeader {
-                    title: qsTr("Popular")
+                    title: page.yt.videosOnly ? qsTr("Videos") : qsTr("Popular")
                     action: (page.yt.songsPlaylistId || "") !== "" ? qsTr("Show all") : ""
                     onActionClicked: Nav.navigate("playlist", {
                         kind: "ytcollection", playlistId: page.yt.songsPlaylistId, title: page.displayName,
@@ -266,6 +265,7 @@ Item {
                         trackIndex: modelData
                         number: index + 1
                         queue: page.topRows
+                        compact: page.yt.videosOnly === true   // long upload titles get the album's room
                         context: "ytartist:" + page.browseId
                         revealDelay: 140 + index * 30
                     }

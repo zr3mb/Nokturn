@@ -10,14 +10,15 @@ Item {
     readonly property var filterKeys: ["", "local", "youtube", "radio"]
     readonly property bool searching: query.trim().length > 0 || filter > 0
     readonly property var results: {
-        Library.tracks.revision
+        if (Library.tracks.revision < 0)   // never: the read makes the binding re-run (a bare read is compiled away)
+            return []
         return Library.search(query, filterKeys[filter])
     }
     // Online search in the YouTube Music catalog for "All" and "YouTube Music"
     readonly property bool onlineEnabled: query.trim().length > 1 && (filter === 0 || filter === 2)
     readonly property var online: {
-        Library.tracks.revision
-        YouTube.resultsRevision
+        if (Library.tracks.revision < 0 || YouTube.resultsRevision < 0)
+            return []
         return onlineEnabled ? Library.onlineResults() : []
     }
 
@@ -49,8 +50,8 @@ Item {
     ]
     // The genres in the user's library (tags, or the artist's genre for streaming tracks), the most tracks first.
     readonly property var genres: {
-        Library.tracks.revision
-        Library.genresRevision
+        if (Library.tracks.revision < 0 || Library.genresRevision < 0)
+            return []
         return Library.genres()
     }
     property bool allGenres: false

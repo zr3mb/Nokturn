@@ -35,7 +35,8 @@ Item {
     }
 
     readonly property var t: {
-        Library.tracks.revision
+        if (Library.tracks.revision < 0)   // never: the read makes the binding re-run (a bare read is compiled away)
+            return ({})
         return Library.tracks.get(trackIndex)
     }
     readonly property bool current: Player.currentIndex === trackIndex

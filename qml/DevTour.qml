@@ -258,7 +258,31 @@ Item {
         { name: "H13d-wait", run: () => {} },
         { name: "H14-wait", run: () => console.log("tour: position", Math.round(Player.position), "s of", Player.title) }
     ]
-    readonly property var steps: withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Artist profiles: a real artist found by name, then a YouTube channel that uploads remixes (--tour-artist).
+    readonly property bool withArtist: Qt.application.arguments.indexOf("--tour-artist") >= 0
+    function artistLog(id) {
+        const a = YouTube.artist(id)
+        console.log("tour: artist", id, a.name, "| photo", (a.photo || "") !== "", "| songs", Library.artistSongRows(id).length,
+                    "| all", a.songsPlaylistId, "| sections", (a.sections || []).map(s => s.title + " " + s.kind + " " + s.items.length).join(", "),
+                    "| error", a.error || "")
+        // What the page shows (its bindings must follow the loaded data)
+        const f = root.findFlick(root.target)
+        if (f && f.parent.yt !== undefined)
+            console.log("tour:   page has", (f.parent.yt.sections || []).length, "sections, height", Math.round(f.contentHeight))
+    }
+    readonly property var artistSteps: [
+        { name: "R1-artist", run: () => { Nav.finishOnboarding(); Nav.openArtist("Kizo", "") } },
+        { name: "R2-wait", run: () => {} },
+        { name: "R3-loaded", run: () => root.artistLog(YouTube.knownArtistId("Kizo")) },
+        { name: "R4-scroll", run: () => root.scrollPage(700) },
+        { name: "R5-scroll", run: () => root.scrollPage(1400) },
+        { name: "R6-scroll", run: () => root.scrollPage(2100) },
+        { name: "R7-channel", run: () => Nav.openArtist("Rogal575", "UC-ijAH6jOi6945c3oytlCuQ") },
+        { name: "R8-wait", run: () => {} },
+        { name: "R9-loaded", run: () => root.artistLog("UC-ijAH6jOi6945c3oytlCuQ") },
+        { name: "R10-scroll", run: () => root.scrollPage(700) }
+    ]
+    readonly property var steps: withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
