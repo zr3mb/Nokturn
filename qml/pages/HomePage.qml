@@ -7,11 +7,28 @@ Item {
     id: page
     property var args: ({})
 
-    readonly property var quickPicks: Library.playlists.concat([
-        { name: qsTr("All tracks"), kind: "all", icon: "library", colorA: "#a3b3c1", colorB: "#3b4a57", seed: 0 },
-        { name: qsTr("Random mix"), kind: "mix", icon: "shuffle", colorA: "#b7aac9", colorB: "#463c5c", seed: 0 },
-        { name: qsTr("Night Jazz — live"), kind: "radio", icon: "live", colorA: "#b9a889", colorB: "#4a4232", seed: 0 }
-    ])
+    // The built-in lists, next to "Continue listening"; { p, index } with the Library.playlists index.
+    readonly property var shortcuts: {
+        const out = []
+        Library.playlists.forEach((p, i) => {
+            if (["liked", "recent", "history", "youtube"].includes(p.kind))
+                out.push({ p: p, index: i })
+        })
+        return out.concat([
+            { p: { name: qsTr("All tracks"), kind: "all", icon: "library", colorA: "#a3b3c1", colorB: "#3b4a57", seed: 0 }, index: -1 },
+            { p: { name: qsTr("Random mix"), kind: "mix", icon: "shuffle", colorA: "#b7aac9", colorB: "#463c5c", seed: 0 }, index: -1 },
+            { p: { name: qsTr("Night Jazz — live"), kind: "radio", icon: "live", colorA: "#b9a889", colorB: "#4a4232", seed: 0 }, index: -1 }
+        ])
+    }
+    // Whole playlists (your own, YouTube Music, Spotify), at the end of the page.
+    readonly property var fullPlaylists: {
+        const out = []
+        Library.playlists.forEach((p, i) => {
+            if (!["liked", "recent", "history", "youtube"].includes(p.kind))
+                out.push({ p: p, index: i })
+        })
+        return out
+    }
 
     // Picked from YouTube Music radios of the tracks that say the most about the taste (Recommendations).
     readonly property var recommended: {
@@ -117,6 +134,64 @@ Item {
                     font.pixelSize: 12
                 }
             }
+        }
+    }
+
+    component ShortcutRow: Item {
+        id: shortcut
+        required property var modelData
+        width: 230
+        height: 34
+
+        HoverHandler { id: shortcutHover; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: page.openPick(shortcut.modelData.p, shortcut.modelData.index) }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 8
+            color: Theme.alpha(Theme.text, shortcutHover.hovered ? 0.06 : 0)
+            Behavior on color { ColorAnimation { duration: Theme.fast } }
+        }
+        ArtCover {
+            id: shortcutCover
+            x: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 26
+            height: 26
+            radius: 7
+            decorated: false
+            colorA: shortcut.modelData.p.colorA
+            colorB: shortcut.modelData.p.colorB
+            seed: shortcut.modelData.p.seed
+            source: shortcut.modelData.p.cover || ""
+            mosaic: shortcut.modelData.p.mosaic || []
+            Icon {
+                anchors.centerIn: parent
+                visible: !shortcutCover.hasPicture
+                name: shortcut.modelData.p.icon || "music"
+                size: 15
+                color: "#f4efe8"
+            }
+        }
+        Text {
+            anchors { left: shortcutCover.right; leftMargin: 12; right: shortcutPlay.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
+            text: shortcut.modelData.p.name
+            color: Theme.text
+            font.pixelSize: 13
+            font.weight: Font.Medium
+            elide: Text.ElideRight
+        }
+        IconButton {
+            id: shortcutPlay
+            anchors { right: parent.right; rightMargin: 2; verticalCenter: parent.verticalCenter }
+            implicitWidth: 30
+            implicitHeight: 30
+            icon: "play"
+            iconSize: 16
+            showDot: false
+            opacity: shortcutHover.hovered ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+            onClicked: page.playPick(shortcut.modelData.p, shortcut.modelData.index)
         }
     }
 
@@ -230,42 +305,106 @@ Item {
 
         Reveal {
             delay: 70
-            HeroCard { width: parent.width }
-        }
-
-        Reveal {
-            delay: 140
-            Grid {
-                id: quick
+            GridLayout {
+                id: topRow
                 width: parent.width
-                columns: width > 1000 ? 3 : 2
-                columnSpacing: 14
+                columns: width > 800 ? 2 : 1
+                columnSpacing: 18
                 rowSpacing: 14
-                readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
-
-                Repeater {
-                    model: page.quickPicks
-                    QuickTile {
-                        required property var modelData
-                        required property int index
-                        width: quick.cellW
-                        title: modelData.name
-                        colorA: modelData.colorA
-                        colorB: modelData.colorB
-                        seed: modelData.seed
-                        coverIcon: modelData.icon
-                        coverSource: modelData.cover || ""
-                        coverMosaic: modelData.mosaic || []
-                        revealDelay: 180 + index * 55
-                        onClicked: page.openPick(modelData, index)
-                        onPlayClicked: page.playPick(modelData, index)
+                HeroCard { Layout.alignment: Qt.AlignTop }
+                // The built-in lists, beside the card (below it, in two columns, in a narrow window)
+                Grid {
+                    id: shortcutList
+                    Layout.preferredWidth: topRow.columns > 1 ? 230 : topRow.width
+                    Layout.alignment: Qt.AlignTop
+                    columns: topRow.columns > 1 ? 1 : 2
+                    columnSpacing: 14
+                    readonly property real cellW: (Layout.preferredWidth - columnSpacing * (columns - 1)) / columns
+                    Repeater {
+                        model: page.shortcuts
+                        ShortcutRow { width: shortcutList.cellW }
                     }
                 }
             }
         }
 
         Reveal {
-            delay: 175
+            delay: 140
+            ColumnLayout {
+                width: parent.width
+                spacing: 18
+                SectionHeader {
+                    Layout.fillWidth: true
+                    title: qsTr("Your albums")
+                    action: qsTr("Show all")
+                    onActionClicked: Nav.navigate("library", { tab: 1 })
+                }
+                Grid {
+                    id: albumGrid
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 100
+                    columns: Math.max(3, Math.floor((width + columnSpacing) / 200))
+                    columnSpacing: 22
+                    readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
+
+                    Repeater {
+                        model: Library.recentAlbums.slice(0, albumGrid.columns)
+                        AlbumCard {
+                            required property var modelData
+                            required property int index
+                            width: albumGrid.cellW
+                            shadow: albumShadow
+                            title: modelData.title
+                            subtitle: modelData.artist + (modelData.year > 0 ? " · " + modelData.year : "")
+                            colorA: modelData.colorA
+                            colorB: modelData.colorB
+                            seed: modelData.seed
+                            cover: modelData.cover
+                            playing: Player.playing && Player.albumKey === modelData.key
+                            revealDelay: 320 + index * 60
+                            onClicked: Nav.navigate("playlist", { kind: "album", key: modelData.key })
+                            onPlayClicked: {
+                                if (playing) { Player.toggle(); return }
+                                const rows = Library.tracksOfAlbum(modelData.key)
+                                Player.playFrom(rows, rows[0])
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Reveal {
+            delay: 210
+            visible: recentRepeater.count > 0
+            ColumnLayout {
+                width: parent.width
+                spacing: 6
+                SectionHeader {
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 10
+                    title: qsTr("Recently added")
+                    action: qsTr("Library")
+                    onActionClicked: Nav.navigate("library")
+                }
+                Repeater {
+                    id: recentRepeater
+                    model: Library.tracks.revision >= 0 ? Library.recentlyAdded(5) : []
+                    TrackRow {
+                        required property var modelData
+                        required property int index
+                        Layout.fillWidth: true
+                        trackIndex: modelData
+                        queue: Library.recentlyAdded(50)
+                        number: index + 1
+                        revealDelay: 400 + index * 50
+                    }
+                }
+            }
+        }
+
+        Reveal {
+            delay: 280
             visible: page.recommended.length > 0 || Recommendations.loading
             ColumnLayout {
                 width: parent.width
@@ -357,7 +496,51 @@ Item {
         }
 
         Reveal {
-            delay: 210
+            delay: 350
+            visible: page.fullPlaylists.length > 0
+            ColumnLayout {
+                width: parent.width
+                spacing: 18
+                SectionHeader {
+                    Layout.fillWidth: true
+                    title: qsTr("Playlists")
+                    subtitle: qsTr("Yours, from YouTube Music and Spotify")
+                }
+                Grid {
+                    id: playlistGrid
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 100
+                    columns: Math.max(3, Math.floor((width + columnSpacing) / 200))
+                    columnSpacing: 22
+                    rowSpacing: 18
+                    readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
+
+                    Repeater {
+                        model: page.fullPlaylists
+                        AlbumCard {
+                            required property var modelData
+                            required property int index
+                            width: playlistGrid.cellW
+                            shadow: albumShadow
+                            title: modelData.p.name
+                            subtitle: modelData.p.count !== undefined && modelData.p.count >= 0
+                                      ? qsTr("%n tracks", "", modelData.p.count) : ""
+                            colorA: modelData.p.colorA
+                            colorB: modelData.p.colorB
+                            seed: modelData.p.seed
+                            cover: modelData.p.cover || ""
+                            mosaic: modelData.p.mosaic || []
+                            revealDelay: 380 + Math.min(index, 8) * 50
+                            onClicked: page.openPick(modelData.p, modelData.index)
+                            onPlayClicked: page.playPick(modelData.p, modelData.index)
+                        }
+                    }
+                }
+            }
+        }
+
+        Reveal {
+            delay: 420
             ColumnLayout {
                 width: parent.width
                 spacing: 16
@@ -374,81 +557,6 @@ Item {
                     Repeater {
                         model: Library.sources
                         SourceMini {}
-                    }
-                }
-            }
-        }
-
-        Reveal {
-            delay: 280
-            ColumnLayout {
-                width: parent.width
-                spacing: 18
-                SectionHeader {
-                    Layout.fillWidth: true
-                    title: qsTr("Your albums")
-                    action: qsTr("Show all")
-                    onActionClicked: Nav.navigate("library", { tab: 1 })
-                }
-                Grid {
-                    id: albumGrid
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 100
-                    columns: Math.max(3, Math.floor((width + columnSpacing) / 200))
-                    columnSpacing: 22
-                    readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
-
-                    Repeater {
-                        model: Library.recentAlbums.slice(0, albumGrid.columns)
-                        AlbumCard {
-                            required property var modelData
-                            required property int index
-                            width: albumGrid.cellW
-                            shadow: albumShadow
-                            title: modelData.title
-                            subtitle: modelData.artist + (modelData.year > 0 ? " · " + modelData.year : "")
-                            colorA: modelData.colorA
-                            colorB: modelData.colorB
-                            seed: modelData.seed
-                            cover: modelData.cover
-                            playing: Player.playing && Player.albumKey === modelData.key
-                            revealDelay: 320 + index * 60
-                            onClicked: Nav.navigate("playlist", { kind: "album", key: modelData.key })
-                            onPlayClicked: {
-                                if (playing) { Player.toggle(); return }
-                                const rows = Library.tracksOfAlbum(modelData.key)
-                                Player.playFrom(rows, rows[0])
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Reveal {
-            delay: 350
-            visible: recentRepeater.count > 0
-            ColumnLayout {
-                width: parent.width
-                spacing: 6
-                SectionHeader {
-                    Layout.fillWidth: true
-                    Layout.bottomMargin: 10
-                    title: qsTr("Recently added")
-                    action: qsTr("Library")
-                    onActionClicked: Nav.navigate("library")
-                }
-                Repeater {
-                    id: recentRepeater
-                    model: Library.tracks.revision >= 0 ? Library.recentlyAdded(5) : []
-                    TrackRow {
-                        required property var modelData
-                        required property int index
-                        Layout.fillWidth: true
-                        trackIndex: modelData
-                        queue: Library.recentlyAdded(50)
-                        number: index + 1
-                        revealDelay: 400 + index * 50
                     }
                 }
             }

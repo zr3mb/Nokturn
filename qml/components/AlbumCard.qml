@@ -11,6 +11,7 @@ Item {
     property color colorB: Theme.accent2
     property int seed: 0
     property string cover: ""
+    property var mosaic: []   // a playlist without its own cover: a 2×2 collage
     property bool round: false
     property bool playing: false
     property int revealDelay: 0
@@ -84,6 +85,7 @@ Item {
             colorB: root.colorB
             seed: root.seed
             source: root.cover
+            mosaic: root.mosaic
             layer.enabled: root.shadow === null
             layer.effect: MultiEffect {
                 shadowEnabled: true
