@@ -15,7 +15,7 @@ C++20 · Qt 6.8+ (Qt Quick / QML, Qt Multimedia, Qt WebSockets, Qt DBus on Linux
 
 Grab the latest version from [Releases](https://github.com/zr3mb/Nokturn/releases/latest):
 
-- **Windows** — `Nokturn-<version>-setup.exe` (installer).
+- **Windows** — `Nokturn-<version>-setup.exe` (a small installer that downloads the app from the release).
 - **Linux** — `Nokturn-<version>-x86_64.AppImage`: `chmod +x Nokturn-*.AppImage` and run it (put it somewhere
   you can write to, e.g. `~/Applications`, so it can update itself). Needs `fuse2` (Arch: `sudo pacman -S fuse2`).
 
@@ -37,12 +37,21 @@ pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,qt6-base,qt6-declarative,qt6-mu
 ## Installer and updates
 
 ```powershell
-.\build-installer.ps1                                       # installer\Nokturn-<version>-setup.exe (Inno Setup 6, ships Deno)
+.\build-installer.ps1                                       # installer\Nokturn-<version>-setup.exe and -win64.tar.zst
 .\release.ps1 -Version 0.3.0 -Notes "- What has changed"   # a new version for users
 ```
 
-`release.ps1` bumps the number in `CMakeLists.txt`, builds the installer, computes SHA-256, commits, tags `v0.3.0`,
-pushes and creates a **GitHub Release** with the installer (requires `gh` and a public repository). Without
+The installer is our own (`packaging/windows/setup/setup.cpp`, Win32 + Direct2D in the app's colors, under 1 MB).
+`build-installer.ps1` packs `dist\` (with Deno) into `Nokturn-<version>-win64.tar.zst` and builds the setup with
+that file's size and SHA-256 inside; the setup downloads it from the same GitHub release, checks it and installs
+per user to `%LOCALAPPDATA%\Programs\Nokturn` (no admin rights). It takes over an install made by the old Inno
+Setup installer, removes files the previous version had and this one doesn't, and copies itself as
+`uninstall.exe` for *Settings → Apps*. Switches: `/SILENT` (progress window only), `/VERYSILENT`, `/DIR="…"`; for
+testing `--payload <file>`, `--url <url>`, `--test` (separate registry entry and shortcuts), `--no-launch` and
+`--preview <screen> <file.png>` (renders a screen without opening the window).
+
+`release.ps1` bumps the number in `CMakeLists.txt`, builds the setup and the package, computes SHA-256, commits,
+tags `v0.3.0`, pushes and creates a **GitHub Release** with both (requires `gh` and a public repository). Without
 `-Notes` the change list is generated from the commits.
 
 Publishing the release starts the **Linux AppImage** workflow (`.github/workflows/linux-appimage.yml`, GitHub
@@ -52,8 +61,8 @@ It can also be run by hand from the Actions tab (without a tag it only builds an
 
 The app (`src/Updater.*`) checks `releases/latest` 5 s after startup and every 6 hours. When the release is newer,
 it shows a dialog with the change list: *Update now* downloads the installer, verifies SHA-256 (the `digest` field
-from the API or the `.sha256` file), runs it with `/SILENT` and closes Nokturn — the installer overwrites the
-previous version and starts the new one. *Skip this version* silences the dialog until the next release; manually:
+from the API or the `.sha256` file), runs it with `/SILENT` and closes Nokturn — the setup downloads the new version, replaces
+the previous one and starts it. *Skip this version* silences the dialog until the next release; manually:
 *Settings → Check for updates*. On Linux the AppImage downloads the new `…-x86_64.AppImage` next to itself
 (SHA-256 verified), renames it over the running file and restarts; a build installed from source opens the release
 page instead. `NOKTURN_UPDATE_API=<url>` overrides
@@ -362,7 +371,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `i18n/` | Translations: `pl.json` (Polish), `en.json` (English plural forms) |
 | `scripts/check_translations.py` | Translation completeness check |
 | `packaging/linux/` | `.desktop` file, SVG icon, metainfo (AppStream) |
-| `packaging/windows/` | Inno Setup script and installer artwork |
+| `packaging/windows/` | The setup (`setup/`), the package it downloads (`make_payload.py`), the icon |
 | `qml/onboarding/` | First-run wizard: steps, animated layout thumbnails (`LayoutPreview`), transition preview |
 | `qml/Theme.qml` | Palette, fonts, animation timings; the accent smoothly follows the cover |
 | `qml/Nav.qml` | Navigation (back/forward history), panel state, notifications |

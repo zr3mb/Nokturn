@@ -35,11 +35,12 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 $text = [IO.File]::ReadAllText($cmake) -replace 'project\(Nokturn VERSION [\d.]+', "project(Nokturn VERSION $Version"
 [IO.File]::WriteAllText($cmake, $text, (New-Object Text.UTF8Encoding $false))   # without BOM
 
-# 2. Installer + the checksum the Updater verifies before installing
+# 2. Setup + the package it downloads, and the checksum the Updater verifies before running the setup
 & (Join-Path $root 'build-installer.ps1')
 if ($LASTEXITCODE) { git checkout -- $cmake; exit $LASTEXITCODE }
 $setupName = "Nokturn-$Version-setup.exe"
 $setup = Join-Path $root "installer\$setupName"
+$payload = Join-Path $root "installer\Nokturn-$Version-win64.tar.zst"
 $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
 $sha = "$setup.sha256"
 Set-Content $sha "$hash  $setupName" -Encoding ascii -NoNewline
@@ -52,8 +53,8 @@ git tag "v$Version"
 git push origin main "v$Version"
 if ($LASTEXITCODE) { throw "Couldn't push version $Version" }
 
-# 4. GitHub Release with the installer
-$ghArgs = @("v$Version", $setup, $sha, '--title', "Nokturn $Version")
+# 4. GitHub Release with the setup and its package (the setup downloads it from this release)
+$ghArgs = @("v$Version", $setup, $sha, $payload, '--title', "Nokturn $Version")
 if ($NotesFile) { $ghArgs += @('--notes-file', $NotesFile) }
 elseif ($Notes) { $ghArgs += @('--notes', $Notes) }
 else { $ghArgs += '--generate-notes' }

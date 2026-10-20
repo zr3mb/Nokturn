@@ -1,4 +1,4 @@
-# Generates the installer artwork (PNG + ICO) from SVG files with rsvg-convert from MSYS2.
+# Generates the Windows icon (ICO) from the app's SVG icon with rsvg-convert from MSYS2.
 import struct, subprocess, sys
 from pathlib import Path
 
@@ -24,9 +24,4 @@ for s, data in zip(sizes, pngs):
 (out / "nokturn.ico").write_bytes(head + entries + b"".join(pngs))
 for s in sizes:
     (out / f"icon-{s}.png").unlink()
-
-# Wizard side image and small logo (100% and 200% sizes for HiDPI screens).
-for scale in (1, 2):
-    render(here / "wizard.svg", out / f"wizard-{scale * 100}.png", 164 * scale, 314 * scale)
-    render(icon_svg, out / f"small-{scale * 100}.png", 55 * scale, 55 * scale)
 print("Done:", out)

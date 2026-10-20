@@ -250,8 +250,8 @@ void Updater::verifyAndRun(const QByteArray &expectedSha)
     }
     setState(QStringLiteral("installing"));
 #ifdef Q_OS_WIN
-    // Silent mode: a progress window without questions. The installer closes Nokturn, overwrites the files
-    // in the same folder (same AppId) and starts the new version.
+    // Silent mode: a progress window without questions. The setup downloads the release, closes Nokturn,
+    // replaces the files in the same folder and starts the new version.
     const QStringList args = { QStringLiteral("/SILENT"), QStringLiteral("/SUPPRESSMSGBOXES"),
                                QStringLiteral("/NORESTART"), QStringLiteral("/NOCANCEL") };
     if (!QProcess::startDetached(m_installerPath, args)) {
