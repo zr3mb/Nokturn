@@ -22,6 +22,9 @@ class YtMusicApi : public QObject
 
 public:
     struct Account { QString name; QString handle; QString photo; };
+    // A channel the signed-in browser session can act as: one of the Google accounts in it
+    // (authUser, the browser's account index) and its own or a brand channel (pageId).
+    struct Identity { QString name, handle, photo, email, pageId; int authUser = 0; };
     // An artist's YouTube Music page: header, top songs and the carousels (albums, singles,
     // "featured on" playlists, related artists) as QML-ready maps.
     struct Artist {
@@ -48,6 +51,7 @@ public:
 
     void setCookies(const YtCookies &cookies) { m_cookies = cookies; }
     bool authenticated() const { return m_cookies.isLoggedIn(); }
+    void setIdentity(int authUser, const QString &pageId) { m_authUser = authUser; m_pageId = pageId; }
 
     void call(const QString &endpoint, QJsonObject body, JsonCallback callback, const QUrlQuery &query = {});
     void callAs(const Client &client, const QString &endpoint, QJsonObject body, JsonCallback callback,
@@ -56,6 +60,8 @@ public:
     // Fetches the whole list (with further pages) — e.g. "VLLM" (liked) or "VL<playlist id>".
     void browseTracks(const QString &browseId, TracksCallback callback, int maxPages = 30);
     void fetchAccount(std::function<void(const Account &, const QString &error)> callback);
+    // Every channel of every Google account signed in to the session.
+    void fetchIdentities(std::function<void(const QList<Identity> &, const QString &error)> callback);
     void fetchLibraryPlaylists(std::function<void(const QVariantList &, const QString &error)> callback);
     // filter: "" (everything), "songs" (official audio tracks only) or "videos".
     void search(const QString &query, TracksCallback callback, const QString &filter = {});
@@ -102,7 +108,14 @@ private:
     void browsePage(const QString &browseId, const QString &continuation, bool commandStyle,
                     QList<Track> collected, int pagesLeft, TracksCallback callback);
 
+    void send(const Client &client, const QString &endpoint, QJsonObject body, JsonCallback callback,
+              const QUrlQuery &query, int authUser, const QString &pageId);
+    void identitiesFrom(int authUser, QList<Identity> found, QStringList emails,
+                        std::function<void(const QList<Identity> &, const QString &error)> callback);
+
     QNetworkAccessManager m_net;
+    int m_authUser = 0;
+    QString m_pageId;
     YtCookies m_cookies;
     Client m_web;
 };

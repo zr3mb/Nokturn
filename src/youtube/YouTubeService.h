@@ -28,6 +28,9 @@ class YouTubeService : public QObject
     Q_PROPERTY(QString accountName READ accountName NOTIFY accountChanged)
     Q_PROPERTY(QString accountHandle READ accountHandle NOTIFY accountChanged)
     Q_PROPERTY(QString accountPhoto READ accountPhoto NOTIFY accountChanged)
+    // The channels the session can use ({ name, handle, photo, email, selected }) — more than one
+    // when the browser has several Google accounts or the account has brand channels.
+    Q_PROPERTY(QVariantList identities READ identities NOTIFY accountChanged)
     Q_PROPERTY(bool loggingIn READ loggingIn NOTIFY loggingInChanged)
     Q_PROPERTY(QString loginStatus READ loginStatus NOTIFY loggingInChanged)
     Q_PROPERTY(QString browserName READ browserName CONSTANT)
@@ -55,6 +58,7 @@ public:
     QString accountName() const { return m_account.name; }
     QString accountHandle() const { return m_account.handle; }
     QString accountPhoto() const { return m_account.photo; }
+    QVariantList identities() const;
     bool loggingIn() const { return m_login.running(); }
     QString loginStatus() const { return m_login.status(); }
     QString browserName() const { return m_browserName; }
@@ -73,6 +77,7 @@ public:
     Q_INVOKABLE void cancelLogin();
     Q_INVOKABLE void loginWithCookies(const QString &cookieHeader);
     Q_INVOKABLE void logout();
+    Q_INVOKABLE void selectIdentity(int index);
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void downloadEngine();
     Q_INVOKABLE void search(const QString &query);
@@ -146,6 +151,7 @@ private:
     void publishResults(const QStringList &ids);
     void updatePlaylistInfo(const QString &playlistId, const QVariantMap &changes);
     void setLikedList(const QStringList &ids);
+    void clearAccountData();
     void loadCache();
     void saveCache() const;
 
@@ -156,6 +162,9 @@ private:
     QString m_browserName;
 
     YtMusicApi::Account m_account;
+    QList<YtMusicApi::Identity> m_identities;
+    int m_authUser = 0;
+    QString m_pageId;
     QHash<QString, Track> m_tracks;
     QStringList m_liked;
     QSet<QString> m_likedSet;

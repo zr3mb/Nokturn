@@ -238,6 +238,12 @@ void YtMusicApi::call(const QString &endpoint, QJsonObject body, JsonCallback ca
 void YtMusicApi::callAs(const Client &client, const QString &endpoint, QJsonObject body, JsonCallback callback,
                         const QUrlQuery &query)
 {
+    send(client, endpoint, std::move(body), std::move(callback), query, m_authUser, m_pageId);
+}
+
+void YtMusicApi::send(const Client &client, const QString &endpoint, QJsonObject body, JsonCallback callback,
+                      const QUrlQuery &query, int authUser, const QString &pageId)
+{
     QUrl url(kOrigin + QStringLiteral("/youtubei/v1/") + endpoint);
     QUrlQuery q = query;
     q.addQueryItem(QStringLiteral("prettyPrint"), QStringLiteral("false"));
@@ -247,7 +253,7 @@ void YtMusicApi::callAs(const Client &client, const QString &endpoint, QJsonObje
         { "client", QJsonObject {
             { "clientName", client.name }, { "clientVersion", client.version },
             { "hl", hl() }, { "gl", gl() } } },
-        { "user", QJsonObject {} },
+        { "user", pageId.isEmpty() ? QJsonObject {} : QJsonObject { { "onBehalfOfUser", pageId } } },
     });
 
     QNetworkRequest request(url);
@@ -262,7 +268,7 @@ void YtMusicApi::callAs(const Client &client, const QString &endpoint, QJsonObje
     if (client.signedIn && m_cookies.isLoggedIn()) {
         request.setRawHeader("Cookie", m_cookies.headerFor(url));
         request.setRawHeader("Authorization", m_cookies.authorization(kOrigin));
-        request.setRawHeader("X-Goog-AuthUser", "0");
+        request.setRawHeader("X-Goog-AuthUser", QByteArray::number(authUser));
     }
 
     QNetworkReply *reply = m_net.post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
@@ -393,6 +399,47 @@ void YtMusicApi::fetchAccount(std::function<void(const Account &, const QString 
         }
         callback(account, error.isEmpty() && account.name.isEmpty() ? tr("No account data") : error);
     });
+}
+
+void YtMusicApi::fetchIdentities(std::function<void(const QList<Identity> &, const QString &)> callback)
+{
+    identitiesFrom(0, {}, {}, std::move(callback));
+}
+
+void YtMusicApi::identitiesFrom(int authUser, QList<Identity> found, QStringList emails,
+                                std::function<void(const QList<Identity> &, const QString &)> callback)
+{
+    // The browser numbers its Google accounts from 0; past the last one Google answers with an
+    // error or with the first account again.
+    send(m_web, QStringLiteral("account/accounts_list"), {},
+         [this, authUser, found, emails, callback](const QJsonObject &json, const QString &error) mutable {
+        QList<QJsonObject> headers, items;
+        collect(json, QStringLiteral("googleAccountHeaderRenderer"), headers);
+        collect(json, QStringLiteral("accountItem"), items);
+        const QString email = headers.isEmpty() ? QString() : runsText(headers.first().value("email"));
+        QString seen = email;   // what tells this account from the ones before
+        for (const QJsonObject &item : std::as_const(items))
+            seen += runsText(item.value("accountName")) + runsText(item.value("channelHandle"));
+        if (!error.isEmpty() || items.isEmpty() || emails.contains(seen) || authUser >= 8) {
+            callback(found, found.isEmpty() ? (error.isEmpty() ? tr("No account data") : error) : QString());
+            return;
+        }
+        emails << seen;
+        for (const QJsonObject &item : std::as_const(items)) {
+            Identity id;
+            id.authUser = authUser;
+            id.email = email;
+            id.name = runsText(item.value("accountName"));
+            id.handle = runsText(item.value("channelHandle"));
+            id.photo = bigThumbnail(dig(item, "accountPhoto.thumbnails").toArray());
+            QList<QJsonObject> tokens;
+            collect(item, QStringLiteral("pageIdToken"), tokens);
+            if (!tokens.isEmpty())
+                id.pageId = tokens.first().value("pageId").toString();
+            found << id;
+        }
+        identitiesFrom(authUser + 1, found, emails, callback);
+    }, {}, authUser, QString());
 }
 
 void YtMusicApi::fetchLibraryPlaylists(std::function<void(const QVariantList &, const QString &)> callback)

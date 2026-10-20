@@ -97,6 +97,9 @@ YouTubeService::YouTubeService(QObject *parent)
     connect(&m_resolver, &StreamResolver::notice, this, &YouTubeService::notice);
     m_resolver.detect();
 
+    m_authUser = AppPaths::settings()->value("youtube/authUser", 0).toInt();
+    m_pageId = AppPaths::settings()->value("youtube/pageId").toString();
+    m_api.setIdentity(m_authUser, m_pageId);
     const YtCookies saved = YtCookies::load(cookieFile());
     if (saved.isLoggedIn()) {
         loadCache();
@@ -137,6 +140,13 @@ void YouTubeService::useCookies(const YtCookies &cookies, bool fresh)
     m_api.setCookies(cookies);
     m_resolver.setCookies(cookies);
     if (fresh) {
+        // A new session: start from its first account; the others can be picked once they're listed.
+        m_authUser = 0;
+        m_pageId.clear();
+        m_api.setIdentity(0, {});
+        AppPaths::settings()->remove("youtube/authUser");
+        AppPaths::settings()->remove("youtube/pageId");
+        m_identities.clear();
         if (!cookies.save(cookieFile()))
             emit notice(tr("Couldn't save the session to disk"), QStringLiteral("close"));
         emit notice(tr("Signed in to YouTube Music"), QStringLiteral("check"));
@@ -158,6 +168,12 @@ void YouTubeService::logout()
     QDir(browserProfile()).removeRecursively();   // the session in the browser profile goes too
 
     m_account = {};
+    m_identities.clear();
+    m_authUser = 0;
+    m_pageId.clear();
+    m_api.setIdentity(0, {});
+    AppPaths::settings()->remove("youtube/authUser");
+    AppPaths::settings()->remove("youtube/pageId");
     QList<Track> recommended;   // they don't come from the account (nor does the history)
     for (const QStringList *ids : { &m_recommended, &m_history })
         for (const QString &id : *ids)
@@ -165,15 +181,49 @@ void YouTubeService::logout()
                 recommended << *it;
     m_tracks.clear();
     storeTracks(recommended, true);
+    clearAccountData();
+    m_search.clear();
+    emit accountChanged();
+    emit dataChanged();
+    emit notice(tr("Signed out of YouTube Music"), QStringLiteral("person"));
+}
+
+void YouTubeService::clearAccountData()
+{
     m_liked.clear();
     m_likedSet.clear();
     m_playlists.clear();
     m_playlistTracks.clear();
     m_refreshedPlaylists.clear();
-    m_search.clear();
+}
+
+QVariantList YouTubeService::identities() const
+{
+    QVariantList out;
+    for (const YtMusicApi::Identity &id : m_identities)
+        out << QVariantMap { { "name", id.name }, { "handle", id.handle }, { "photo", id.photo }, { "email", id.email },
+                             { "selected", id.authUser == m_authUser && id.pageId == m_pageId } };
+    return out;
+}
+
+void YouTubeService::selectIdentity(int index)
+{
+    if (index < 0 || index >= m_identities.size())
+        return;
+    const YtMusicApi::Identity &id = m_identities.at(index);
+    AppPaths::settings()->setValue("youtube/authUser", id.authUser);   // chosen, even if unchanged
+    AppPaths::settings()->setValue("youtube/pageId", id.pageId);
+    if (id.authUser == m_authUser && id.pageId == m_pageId)
+        return;
+    m_authUser = id.authUser;
+    m_pageId = id.pageId;
+    m_api.setIdentity(m_authUser, m_pageId);
+    // Liked tracks and playlists belong to the channel — the other one's are fetched anew.
+    m_account = { id.name, id.handle, id.photo };
+    clearAccountData();
     emit accountChanged();
     emit dataChanged();
-    emit notice(tr("Signed out of YouTube Music"), QStringLiteral("person"));
+    refresh();
 }
 
 // ---- syncing ----------------------------------------------------------------------
@@ -182,7 +232,7 @@ void YouTubeService::refresh()
 {
     if (!connected() || syncing())
         return;
-    m_pendingSync = 3;
+    m_pendingSync = 4;
     m_syncError.clear();
     emit syncingChanged();
 
@@ -192,6 +242,17 @@ void YouTubeService::refresh()
             emit accountChanged();
         }
         syncStep(error);
+    });
+
+    m_api.fetchIdentities([this](const QList<YtMusicApi::Identity> &identities, const QString &) {
+        if (!identities.isEmpty()) {
+            const bool first = m_identities.isEmpty();
+            m_identities = identities;
+            emit accountChanged();
+            if (first && identities.size() > 1 && !AppPaths::settings()->contains("youtube/authUser"))
+                emit notice(tr("Several YouTube channels found — pick yours in Sources"), QStringLiteral("person"));
+        }
+        syncStep({});
     });
 
     m_api.browseTracks(QStringLiteral("VLLM"), [this](const QList<Track> &tracks, const QString &error) {

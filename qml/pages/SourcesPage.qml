@@ -361,6 +361,76 @@ Item {
                             }
                         }
 
+                        // Several Google accounts in the browser, or brand channels: which one is used
+                        ColumnLayout {
+                            visible: YouTube.connected && YouTube.identities.length > 1
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                Layout.bottomMargin: 4
+                                text: qsTr("Channel")
+                                color: Theme.textDim
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                            }
+                            Repeater {
+                                model: YouTube.identities
+                                Rectangle {
+                                    id: identity
+                                    required property var modelData
+                                    required property int index
+                                    Layout.fillWidth: true
+                                    implicitHeight: 44
+                                    radius: 10
+                                    color: identityMouse.containsMouse ? Theme.alpha(Theme.text, 0.05) : "transparent"
+                                    RowLayout {
+                                        anchors { fill: parent; leftMargin: 8; rightMargin: 10 }
+                                        spacing: 10
+                                        ArtCover {
+                                            Layout.preferredWidth: 28
+                                            Layout.preferredHeight: 28
+                                            radius: 14
+                                            decorated: false
+                                            colorA: "#cf9d9d"
+                                            colorB: "#5c3a42"
+                                            source: identity.modelData.photo
+                                        }
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 0
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: identity.modelData.name
+                                                color: Theme.text
+                                                font.pixelSize: 13
+                                                elide: Text.ElideRight
+                                            }
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: [identity.modelData.handle, identity.modelData.email].filter(x => x).join(" · ")
+                                                color: Theme.textDim
+                                                font.pixelSize: 11
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+                                        Icon {
+                                            visible: identity.modelData.selected
+                                            name: "check"
+                                            size: 18
+                                            color: Theme.accent
+                                        }
+                                    }
+                                    MouseArea {
+                                        id: identityMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: YouTube.selectIdentity(identity.index)
+                                    }
+                                }
+                            }
+                        }
+
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.topMargin: 4
