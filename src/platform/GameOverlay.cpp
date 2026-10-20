@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 #include <QCursor>
 #include <QDir>
+#include <QFileSystemWatcher>
 #include <QGuiApplication>
 #include <QJSEngine>
 #include <QKeySequence>
@@ -15,6 +16,7 @@
 #include <QQuickWindow>
 #include <QRegularExpression>
 #include <QScreen>
+#include <QThreadPool>
 #include <QWindow>
 
 #ifdef Q_OS_WIN
@@ -202,6 +204,50 @@ bool testBit(const unsigned long *bits, int bit)
 {
     constexpr int perLong = sizeof(unsigned long) * 8;
     return (bits[bit / perLong] >> (bit % perLong)) & 1;
+}
+
+struct FoundPad {
+    int fd = -1;
+    int absMin[2] = { -32768, -32768 }, absMax[2] = { 32767, 32767 };
+    QByteArray label, path;
+};
+
+// The first event device that looks like a pad: gamepad buttons and a stick, no letter keys — virtual
+// keyboards (ydotool, remote desktops) claim every button there is. logind gives the seat's user access
+// to pads. Runs off the GUI thread: opening some input devices takes a while.
+FoundPad findPad()
+{
+    FoundPad found;
+    const QStringList devices = QDir(QStringLiteral("/dev/input")).entryList({ QStringLiteral("event*") }, QDir::System);
+    for (const QString &name : devices) {
+        const QByteArray path = QByteArrayLiteral("/dev/input/") + name.toLatin1();
+        const int fd = ::open(path.constData(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+        if (fd < 0)
+            continue;
+        unsigned long keys[(KEY_MAX + 1) / (8 * sizeof(unsigned long)) + 1] = {};
+        unsigned long axes[(ABS_MAX + 1) / (8 * sizeof(unsigned long)) + 1] = {};
+        const bool pad = ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) >= 0
+                      && ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(axes)), axes) >= 0
+                      && testBit(keys, BTN_SOUTH) && testBit(axes, ABS_X) && !testBit(keys, KEY_Q);
+        if (!pad) {
+            ::close(fd);
+            continue;
+        }
+        for (int axis : { ABS_X, ABS_Y }) {
+            input_absinfo info {};
+            if (ioctl(fd, EVIOCGABS(axis), &info) >= 0 && info.maximum > info.minimum) {
+                found.absMin[axis] = info.minimum;
+                found.absMax[axis] = info.maximum;
+            }
+        }
+        char label[128] = {};
+        ioctl(fd, EVIOCGNAME(sizeof(label) - 1), label);
+        found.fd = fd;
+        found.label = label;
+        found.path = path;
+        break;
+    }
+    return found;
 }
 #endif
 
@@ -609,6 +655,45 @@ void GameOverlay::closePad()
     m_padSlot = -1;
 }
 
+void GameOverlay::findPadAsync()
+{
+#ifdef Q_OS_LINUX
+    if (!m_inputWatcher) {
+        m_inputWatcher = new QFileSystemWatcher(this);
+        // A pad plugged in shows up as a new /dev/input/event*: looked for then, and once more a moment
+        // later, when logind has given us access to it.
+        if (m_inputWatcher->addPath(QStringLiteral("/dev/input"))) {
+            connect(m_inputWatcher, &QFileSystemWatcher::directoryChanged, this, [this] {
+                m_inputChanged = true;
+                m_nextPadScan = m_clock.elapsed() + 2000;
+            });
+        }
+    }
+    m_padScanning = true;
+    m_inputChanged = false;
+    m_nextPadScan = m_clock.elapsed() + 30000;
+    QThreadPool::globalInstance()->start([self = QPointer<GameOverlay>(this)] {
+        const FoundPad found = findPad();
+        QMetaObject::invokeMethod(qApp, [self, found] {
+            if (!self || self->m_padFd >= 0 || !self->m_padTimer.isActive()) {
+                if (found.fd >= 0)
+                    ::close(found.fd);
+                if (self)
+                    self->m_padScanning = false;
+                return;
+            }
+            self->m_padScanning = false;
+            if (found.fd < 0)
+                return;
+            std::copy(std::begin(found.absMin), std::end(found.absMin), self->m_absMin);
+            std::copy(std::begin(found.absMax), std::end(found.absMax), self->m_absMax);
+            self->m_padFd = found.fd;
+            qInfo("GameOverlay: pad %s (%s)", found.label.constData(), found.path.constData());
+        }, Qt::QueuedConnection);
+    });
+#endif
+}
+
 bool GameOverlay::readPad(unsigned &buttons, int &x, int &y)
 {
     const qint64 now = m_clock.elapsed();
@@ -650,41 +735,11 @@ bool GameOverlay::readPad(unsigned &buttons, int &x, int &y)
     return true;
 #elif defined(Q_OS_LINUX)
     if (m_padFd < 0) {
-        if (now < m_nextPadScan)
-            return false;
-        m_nextPadScan = now + 3000;
-        // The first event device that looks like a pad: gamepad buttons and a stick, no letter keys —
-        // virtual keyboards (ydotool, remote desktops) claim every button there is.
-        // logind gives the seat's user access to pads.
-        const QStringList devices = QDir(QStringLiteral("/dev/input")).entryList({ QStringLiteral("event*") }, QDir::System);
-        for (const QString &name : devices) {
-            const QByteArray path = QByteArrayLiteral("/dev/input/") + name.toLatin1();
-            const int fd = ::open(path.constData(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-            if (fd < 0)
-                continue;
-            unsigned long keys[(KEY_MAX + 1) / (8 * sizeof(unsigned long)) + 1] = {};
-            unsigned long axes[(ABS_MAX + 1) / (8 * sizeof(unsigned long)) + 1] = {};
-            const bool pad = ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) >= 0
-                          && ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(axes)), axes) >= 0
-                          && testBit(keys, BTN_SOUTH) && testBit(axes, ABS_X) && !testBit(keys, KEY_Q);
-            if (pad) {
-                for (int axis : { ABS_X, ABS_Y }) {
-                    input_absinfo info {};
-                    if (ioctl(fd, EVIOCGABS(axis), &info) >= 0 && info.maximum > info.minimum) {
-                        m_absMin[axis] = info.minimum;
-                        m_absMax[axis] = info.maximum;
-                    }
-                }
-                char label[128] = {};
-                ioctl(fd, EVIOCGNAME(sizeof(label) - 1), label);
-                qInfo("GameOverlay: pad %s (%s)", label, path.constData());
-                m_padFd = fd;
-                break;
-            }
-            ::close(fd);
-        }
-        if (m_padFd < 0)
-            return false;
+        // Looked for in the background, when /dev/input changes (and now and then as a fallback) —
+        // doing it here every few seconds froze the whole app, music included, for a moment.
+        if (!m_padScanning && (m_inputChanged || now >= m_nextPadScan))
+            findPadAsync();
+        return false;
     }
     // Everything that happened since the last tick
     auto scale = [this](int axis, int value) {
@@ -734,7 +789,7 @@ bool GameOverlay::readPad(unsigned &buttons, int &x, int &y)
     }
     if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
         closePad();   // unplugged
-        m_nextPadScan = now + 1000;
+        m_nextPadScan = now + 1000;   // another pad may still be there
         return false;
     }
     buttons = m_evButtons | m_evHat;

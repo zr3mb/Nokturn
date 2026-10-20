@@ -11,6 +11,7 @@
 
 class QQmlEngine;
 class QJSEngine;
+class QFileSystemWatcher;
 class QLocalServer;
 class ShortcutPortal;
 
@@ -99,6 +100,7 @@ private:
     void pollPad();
     bool readPad(unsigned &buttons, int &x, int &y);   // the platform's pad, false = none
     void closePad();
+    void findPadAsync();   // Linux
     void saveSettings();
 
     bool m_open = false;
@@ -125,6 +127,9 @@ private:
     int m_evX = 0, m_evY = 0;      // the left stick, ±32767, up positive
     int m_absMin[2] = { -32768, -32768 }, m_absMax[2] = { 32767, 32767 };
     qint64 m_nextPadScan = 0;      // looking for a pad is slow — not every tick
+    bool m_padScanning = false;    // Linux: a look through /dev/input is running in the background
+    bool m_inputChanged = true;    // Linux: /dev/input changed since the last look
+    QFileSystemWatcher *m_inputWatcher = nullptr;
     unsigned m_lastButtons = 0;
     QString m_held;                // the direction being held (repeats)
     qint64 m_heldNext = 0;
