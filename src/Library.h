@@ -100,6 +100,10 @@ signals:
     void genresChanged();
     void notice(const QString &text, const QString &icon);
 
+public:
+    // The track's genres in the interface language: its tags, or its artist's genre (streaming).
+    QStringList genresOf(const Track &t) const;
+
 private:
     explicit Library(QObject *parent = nullptr);
 
@@ -112,7 +116,6 @@ private:
     void rebuildCollections();
     void rebuildPlaylists();
     QVariantList rowsOfIds(const QStringList &ids) const;
-    QStringList genresOf(const Track &t) const;
     static QString coverKey(const QVariantMap &playlist);
     void applyPlaylistCover(QVariantMap &playlist) const;
     void refreshPlaylistCover(int index);

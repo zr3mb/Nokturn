@@ -158,10 +158,11 @@ void YouTubeService::logout()
     QDir(browserProfile()).removeRecursively();   // the session in the browser profile goes too
 
     m_account = {};
-    QList<Track> recommended;   // they don't come from the account
-    for (const QString &id : std::as_const(m_recommended))
-        if (const auto it = m_tracks.constFind(id); it != m_tracks.cend())
-            recommended << *it;
+    QList<Track> recommended;   // they don't come from the account (nor does the history)
+    for (const QStringList *ids : { &m_recommended, &m_history })
+        for (const QString &id : *ids)
+            if (const auto it = m_tracks.constFind(id); it != m_tracks.cend())
+                recommended << *it;
     m_tracks.clear();
     storeTracks(recommended, true);
     m_liked.clear();
@@ -446,6 +447,15 @@ void YouTubeService::setRecommended(const QList<Track> &tracks)
     publishResults(m_recommended);
 }
 
+void YouTubeService::setHistory(const QList<Track> &tracks)
+{
+    storeTracks(tracks, true);
+    m_history.clear();
+    for (const Track &t : tracks)
+        m_history << t.id;
+    publishResults(m_history);
+}
+
 void YouTubeService::publishResults(const QStringList &ids)
 {
     // Only the tracks the model doesn't have yet are appended (Library::appendTracks) — a full model
@@ -590,6 +600,8 @@ QList<Track> YouTubeService::tracks() const
     for (const QString &id : m_search)
         add(id);
     for (const QString &id : m_recommended)
+        add(id);
+    for (const QString &id : m_history)
         add(id);
     for (const QStringList &ids : m_artistSongs)
         for (const QString &id : ids)

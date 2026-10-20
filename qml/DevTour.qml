@@ -402,7 +402,39 @@ Item {
         } },
         { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
     ]
-    readonly property var steps: withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    // Stats, "Recently played" and resuming a long recording (--tour-stats).
+    readonly property bool withStats: Qt.application.arguments.indexOf("--tour-stats") >= 0
+    property int longRow: -1
+    property int shortRow: -1
+    function statsLog(period) {
+        const s = ListeningHistory.stats(period)
+        console.log("tour: stats", period, "| minutes", s.minutes, "| plays", s.plays, "| artists", s.artists, "| days", s.days,
+                    "| top", (s.topArtists || []).slice(0, 3).map(a => a.name + " " + a.plays).join(", "),
+                    "| tracks", (s.topTracks || []).length, "| genres", (s.topGenres || []).map(g => g.name).join(", "),
+                    "| peak hour", (s.byHour || []).indexOf(Math.max(...(s.byHour || [0]))))
+    }
+    readonly property var statsSteps: [
+        { name: "T1-stats", run: () => { Nav.finishOnboarding(); Nav.navigate("stats"); ["month", "year", "all"].forEach(p => root.statsLog(p)) } },
+        { name: "T2-history", run: () => {
+            const i = Library.playlists.findIndex(p => p.kind === "history")
+            console.log("tour: history playlist", i, i >= 0 ? Library.playlists[i].name : "", "| rows", i >= 0 ? Library.playlistRows(i).length : -1)
+            if (i >= 0) Nav.navigate("playlist", { kind: "playlist", index: i })
+        } },
+        { name: "T3-long", run: () => {
+            const rows = Library.libraryRows()
+            root.longRow = rows.find(r => Library.tracks.get(r).duration >= 1200 && Library.tracks.get(r).source === "youtube") ?? -1
+            root.shortRow = rows.find(r => Library.tracks.get(r).duration > 0 && Library.tracks.get(r).duration < 400) ?? -1
+            console.log("tour: long", root.longRow >= 0 ? Library.tracks.get(root.longRow).title + " " + Library.tracks.get(root.longRow).duration : "none")
+            if (root.longRow >= 0) Player.playFrom([root.longRow], root.longRow, "test")
+        } },
+        { name: "T4-wait", run: () => {} },
+        { name: "T5-seek", run: () => { Player.seek(125); console.log("tour: seeked", Player.position.toFixed(0)) } },
+        { name: "T6-other", run: () => { if (root.shortRow >= 0) Player.playFrom([root.shortRow], root.shortRow, "test"); console.log("tour: switched to", Player.title) } },
+        { name: "T7-back", run: () => { Player.playFrom([root.longRow], root.longRow, "test") } },
+        { name: "T8-wait", run: () => console.log("tour: back on", Player.title, "| position", Player.position.toFixed(0)) },
+        { name: "T9-wait", run: () => console.log("tour: position", Player.position.toFixed(0)) }
+    ]
+    readonly property var steps: withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

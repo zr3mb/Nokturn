@@ -3,6 +3,7 @@
 #include "AppPaths.h"
 #include "Language.h"
 #include "Library.h"
+#include "ListeningHistory.h"
 #include "Recommendations.h"
 #include "TrackModel.h"
 #include "audio/Equalizer.h"
@@ -133,6 +134,10 @@ PlayerController::PlayerController(QObject *parent)
     new WindowsMediaControls(this);   // Windows: media flyout, lock screen, media keys
 #endif
 
+    const QVariantMap resume = settings->value("player/resume").toMap();
+    for (auto it = resume.cbegin(); it != resume.cend(); ++it)
+        m_resume.insert(it.key(), it.value().toLongLong());
+
     // Labels computed here ("Nothing playing", mix style names) follow the interface language.
     connect(Language::instance(), &Language::changed, this, [this] {
         emit currentChanged();
@@ -205,7 +210,37 @@ void PlayerController::saveState() const
     settings->setValue("player/repeat", m_repeat);
     settings->setValue("player/lastId", m_currentId);
     settings->setValue("player/lastPosition", qint64(position() * 1000));
+    rememberPosition();
     settings->sync();
+}
+
+void PlayerController::rememberPosition() const
+{
+    // Mixes, sets and podcasts (15 min and longer) are remembered past their first minute and until
+    // the last minute and a half; shorter tracks just start over.
+    constexpr qint64 kLong = 15 * 60 * 1000;
+    const Track *t = current();
+    if (!t || live())
+        return;
+    const qint64 duration = player().duration() > 0 ? player().duration() : qint64(t->duration) * 1000;
+    const qint64 pos = m_pendingSeek >= 0 ? m_pendingSeek : player().position();
+    if (duration < kLong)
+        return;
+    if (pos > 60000 && pos < duration - 90000)
+        m_resume.insert(m_currentId, pos);
+    else
+        m_resume.remove(m_currentId);
+    storeResume();
+}
+
+void PlayerController::storeResume() const
+{
+    while (m_resume.size() > 60)
+        m_resume.erase(m_resume.begin());
+    QVariantMap stored;
+    for (auto it = m_resume.cbegin(); it != m_resume.cend(); ++it)
+        stored.insert(it.key(), it.value());
+    AppPaths::settings()->setValue("player/resume", stored);
 }
 
 // ---- current track info ----------------------------------------------------
@@ -379,12 +414,22 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
     cancelPreload();
 
     if (!m_currentId.isEmpty() && m_currentId != id) {
+        rememberPosition();
         m_history << m_currentId;
         if (m_history.size() > 200)
             m_history.removeFirst();
     }
     m_currentId = id;
     m_index = row;
+    // A long recording started again goes on from where it was left.
+    if (m_pendingSeek < 0) {
+        if (const qint64 at = m_resume.value(id, -1); at > 0) {
+            m_pendingSeek = at;
+            const QTime time = QTime(0, 0).addMSecs(int(at));
+            emit notice(tr("Continuing from %1").arg(time.toString(at >= 3600000 ? QStringLiteral("H:mm:ss") : QStringLiteral("m:ss"))),
+                        QStringLiteral("play"));
+        }
+    }
     // On an automatic transition we don't clear the buffer — the end of the previous track plays out smoothly.
     if (flushAudio) {
         m_engine.flush();
@@ -796,14 +841,19 @@ void PlayerController::countListening(double dt)
         m_listenCounted = false;
     }
     const Track *t = current();
-    if (m_listenCounted || !t || !playing() || live())
+    if (!t || !playing() || live())
         return;
+    if (m_listenCounted) {
+        ListeningHistory::instance()->addListening(m_listenedId, dt);   // the minutes in the stats
+        return;
+    }
     m_listened += dt;
     const double total = player().duration() / 1000.0;
     if (m_listened < (total > 0 ? std::min(30.0, total * 0.5) : 30.0))
         return;
     m_listenCounted = true;
     Recommendations::instance()->notePlayed(*t);
+    ListeningHistory::instance()->notePlay(*t, m_listened);
 }
 
 void PlayerController::checkStall(double dt)
@@ -932,6 +982,8 @@ void PlayerController::onDeckMediaStatus(int d, QMediaPlayer::MediaStatus status
         prefetchNext();
         break;
     case QMediaPlayer::EndOfMedia:
+        if (m_resume.remove(m_currentId))
+            storeResume();
         if (m_repeat == 2) {
             player().setPosition(0);
             player().play();

@@ -48,6 +48,7 @@ qt_add_qml_module(Nokturn
         src/Library.h           src/Library.cpp
         src/Playlists.h         src/Playlists.cpp
         src/Recommendations.h   src/Recommendations.cpp
+        src/ListeningHistory.h  src/ListeningHistory.cpp
         src/ArtistGenres.h      src/ArtistGenres.cpp
         src/PlayerController.h  src/PlayerController.cpp
         src/audio/Equalizer.h         src/audio/Equalizer.cpp
@@ -132,6 +133,7 @@ qt_add_qml_module(Nokturn
         qml/pages/ArtistPage.qml
         qml/pages/SourcesPage.qml
         qml/pages/SettingsPage.qml
+        qml/pages/StatsPage.qml
 
         qml/overlay/OverlayWindow.qml
 

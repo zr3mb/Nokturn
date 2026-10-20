@@ -165,6 +165,7 @@ ApplicationWindow {
     Component { id: sourcesPage; SourcesPage {} }
     Component { id: settingsPage; SettingsPage {} }
     Component { id: equalizerPage; EqualizerPage {} }
+    Component { id: statsPage; StatsPage {} }
 
     function pageComponent(name) {
         switch (name) {
@@ -175,6 +176,7 @@ ApplicationWindow {
         case "sources": return sourcesPage
         case "settings": return settingsPage
         case "equalizer": return equalizerPage
+        case "stats": return statsPage
         default: return homePage
         }
     }

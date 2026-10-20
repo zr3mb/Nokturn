@@ -219,6 +219,8 @@ private:
     void skipAfterError(const QString &message);
     void checkStall(double dt);
     void countListening(double dt);
+    void rememberPosition() const;
+    void storeResume() const;
     void startStream(int deck, const Track &t);
     QString streamIdOf(const Track &t) const;
     bool retryStream(int deck);
@@ -242,6 +244,7 @@ private:
     int m_queuePos = -1;
     QStringList m_history;
     qint64 m_pendingSeek = -1;
+    mutable QHash<QString, qint64> m_resume;   // long recordings: where they were left (ms)
     bool m_autoplayAfterResolve = false;
     QString m_context;
     bool m_autoplay = true;

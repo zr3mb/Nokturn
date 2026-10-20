@@ -114,6 +114,8 @@ public:
     const QStringList &searchIds() const { return m_search; }
     // "Recommended for you" (Recommendations): kept like search results, so they can be played.
     void setRecommended(const QList<Track> &tracks);
+    // Recently played YouTube Music tracks (ListeningHistory): kept in the model like the recommendations.
+    void setHistory(const QList<Track> &tracks);
     const QStringList &recommendedIds() const { return m_recommended; }
     static QJsonObject trackJson(const Track &t);
     static Track trackFromJson(const QJsonObject &o);
@@ -164,6 +166,7 @@ private:
     QStringList m_search;
     QVariantList m_playlistResults;
     QStringList m_recommended;
+    QStringList m_history;
     QHash<QString, QVariantMap> m_artists;        // browseId -> artist page
     QHash<QString, QStringList> m_artistSongs;    // browseId -> top song ids
     QSet<QString> m_loadingArtists;

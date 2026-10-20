@@ -63,5 +63,6 @@
   "With %n tracks": [
     "With %n track",
     "With %n tracks"
-  ]
+  ],
+  "%n plays": ["%n play", "%n plays"]
 }

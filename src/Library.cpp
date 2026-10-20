@@ -1,5 +1,7 @@
 #include "Library.h"
 
+#include "ListeningHistory.h"
+
 #include "AppPaths.h"
 #include "ArtistGenres.h"
 #include "Language.h"
@@ -445,6 +447,8 @@ void Library::rebuildPlaylists()
                       { "colorA", QColor("#c9a0a8") }, { "colorB", QColor("#4d3440") }, { "seed", 1 } },
         QVariantMap { { "name", tr("Recently added") }, { "kind", "recent" }, { "icon", "clock" },
                       { "colorA", QColor("#9fb3c8") }, { "colorB", QColor("#34425a") }, { "seed", 2 } },
+        QVariantMap { { "name", tr("Recently played") }, { "kind", "history" }, { "icon", "refresh" },
+                      { "colorA", QColor("#b7a9cf") }, { "colorB", QColor("#3f3655") }, { "seed", 4 } },
         QVariantMap { { "name", yt->connected() ? tr("Liked on YouTube Music") : tr("Discovered on YouTube") },
                       { "kind", "youtube" }, { "icon", "playCircle" },
                       { "colorA", QColor("#d0b29a") }, { "colorB", QColor("#5c4334") }, { "seed", 3 } },
@@ -548,6 +552,8 @@ void Library::applyPlaylistCover(QVariantMap &p) const
         rows = likedTracks();
     else if (kind == QLatin1String("recent"))
         rows = recentlyAdded(50);
+    else if (kind == QLatin1String("history"))
+        rows = rowsOfIds(ListeningHistory::instance()->recentIds(200));
     else if (kind == QLatin1String("youtube"))
         rows = yt->connected() ? rowsOfIds(yt->likedIds())
                                : rowsWhere(m_tracks, [](const Track &t) { return t.source == QLatin1String("youtube") && t.demo; });
@@ -862,6 +868,8 @@ QVariantList Library::playlistRows(int index)
         return likedTracks();
     if (kind == QLatin1String("recent"))
         return recentlyAdded(50);
+    if (kind == QLatin1String("history"))
+        return rowsOfIds(ListeningHistory::instance()->recentIds(200));
     if (kind == QLatin1String("youtube")) {
         if (yt->connected())
             return rowsOfIds(yt->likedIds());
