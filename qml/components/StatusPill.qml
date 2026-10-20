@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Source status with an animated dot (pulses when connected).
+// Source status as a tinted label (a spinner while connecting).
 Rectangle {
     id: root
     property string status: "available"   // connected | disconnected | connecting | available
@@ -23,42 +23,12 @@ Rectangle {
         anchors.centerIn: parent
         spacing: 8
 
-        Item {
-            width: 8; height: 8
+        Spinner {
             anchors.verticalCenter: parent.verticalCenter
-
-            Rectangle {
-                id: ping
-                anchors.centerIn: parent
-                width: 8; height: 8; radius: 4
-                color: root.info.color
-                visible: root.status === "connected"
-                SequentialAnimation on scale {
-                    running: ping.visible
-                    loops: Animation.Infinite
-                    NumberAnimation { from: 1; to: 2.6; duration: 1400; easing.type: Easing.OutCubic }
-                    PauseAnimation { duration: 600 }
-                }
-                SequentialAnimation on opacity {
-                    running: ping.visible
-                    loops: Animation.Infinite
-                    NumberAnimation { from: 0.6; to: 0; duration: 1400; easing.type: Easing.OutCubic }
-                    PauseAnimation { duration: 600 }
-                }
-            }
-            Rectangle {
-                anchors.centerIn: parent
-                width: 8; height: 8; radius: 4
-                color: root.info.color
-                visible: root.status !== "connecting"
-            }
-            Spinner {
-                anchors.centerIn: parent
-                size: 11
-                thickness: 2
-                color: root.info.color
-                visible: root.status === "connecting"
-            }
+            size: 11
+            thickness: 2
+            color: root.info.color
+            visible: root.status === "connecting"
         }
 
         Text {

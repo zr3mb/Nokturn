@@ -55,7 +55,7 @@ Item {
                 spacing: 8
                 Heading { text: qsTr("Appearance") }
                 SettingRow {
-                    icon: "sparkle"
+                    icon: "refresh"
                     title: qsTr("First-run wizard")
                     description: qsTr("Go through choosing the layout, colors, music sources, transitions and integrations again.")
                     PillButton {
@@ -78,7 +78,7 @@ Item {
                     }
                 }
                 SettingRow {
-                    icon: "sparkle"
+                    icon: "image"
                     title: qsTr("Dynamic accent color")
                     description: qsTr("Interface colors smoothly adapt to the cover of the playing track.")
                     Toggle { checked: Theme.dynamicAccent; onToggled: c => Theme.dynamicAccent = c }
@@ -131,7 +131,7 @@ Item {
                 }
                 SettingRow {
                     visible: Player.crossfade > 0
-                    icon: "sparkle"
+                    icon: "mix"
                     title: qsTr("Transition style")
                     description: Player.mixStyleDescription(Player.crossfadeStyle)
                     SegmentedTabs {
@@ -346,7 +346,7 @@ Item {
                     description: qsTr("Lyrics of the playing track (synced when available) in the “Now playing” panel and in full-screen mode. For local files the track is looked up by artist and title; as a fallback, an .lrc file next to the track or lyrics stored in the tags are used.")
                 }
                 SettingRow {
-                    icon: "sparkle"
+                    icon: "clock"
                     title: qsTr("Automatic timing (alpha)")
                     description: Lyrics.hardwareOk
                         ? qsTr("When lyrics have no timestamps, Nokturn recognizes the singing in the recording (whisper.cpp, locally on your computer) and aligns the lyric lines to it. It puts a heavy load on the CPU for tens of seconds to a few minutes per track; the result is remembered. Your hardware: %1.").arg(Lyrics.hardwareSummary)

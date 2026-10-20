@@ -257,7 +257,7 @@ Item {
         PillButton {
             visible: Lyrics.canAlign && !Lyrics.aligning
             kind: "secondary"
-            icon: "sparkle"
+            icon: "clock"
             text: qsTr("Align the timing (alpha)")
             fontSize: 12
             implicitHeight: 30

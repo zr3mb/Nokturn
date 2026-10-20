@@ -98,7 +98,7 @@ Panel {
                         { key: "library", label: qsTr("Library"), icon: "library" },
                         { key: "sources", label: qsTr("Sources"), icon: "sources" },
                         { key: "equalizer", label: qsTr("Equalizer"), icon: "equalizer" },
-                        { key: "stats", label: qsTr("Stats"), icon: "sparkle" }
+                        { key: "stats", label: qsTr("Stats"), icon: "chart" }
                     ]
 
                     SidebarItem {

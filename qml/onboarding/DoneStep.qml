@@ -17,7 +17,7 @@ Item {
     readonly property var summary: [
         { icon: "menuOpen", label: qsTr("Sidebar"), value: Nav.sidebarCompact ? qsTr("compact") : qsTr("full") },
         { icon: "queue", label: qsTr("“Now playing”"), value: Nav.queueOpen ? qsTr("visible") : qsTr("hidden") },
-        { icon: "sparkle", label: qsTr("Accent color"), value: Theme.dynamicAccent ? qsTr("from the cover") : qsTr("fixed") },
+        { icon: "image", label: qsTr("Accent color"), value: Theme.dynamicAccent ? qsTr("from the cover") : qsTr("fixed") },
         { icon: "album", label: qsTr("Background"), value: Theme.ambient ? qsTr("live") : qsTr("calm") },
         { icon: "folder", label: qsTr("Folders"), value: Library.folders.length === 0 ? qsTr("none") : qsTr("%n folders", "", Library.folders.length) },
         { icon: "playCircle", label: "YouTube Music", value: YouTube.connected ? (YouTube.accountName || qsTr("connected")) : qsTr("no account") },

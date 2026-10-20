@@ -68,8 +68,6 @@ Item {
                 color: Theme.alpha(root.tint, 0.15)
                 border.width: 1
                 border.color: Theme.alpha(root.tint, 0.22)
-                scale: 1 + root.glow * 0.05
-                rotation: root.glow * -4
 
                 Icon {
                     anchors.centerIn: parent

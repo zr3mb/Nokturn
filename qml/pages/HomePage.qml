@@ -103,12 +103,6 @@ Item {
             }
             Row {
                 spacing: 6
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 7; height: 7; radius: 3.5
-                    color: mini.status === "connected" ? Theme.success
-                         : mini.status === "disconnected" ? Theme.danger : Theme.textFaint
-                }
                 Text {
                     text: mini.isLocal
                           ? (Library.scanning ? qsTr("Scanning…")

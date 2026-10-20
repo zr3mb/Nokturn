@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Main Play/Pause button: smooth icon swap + a pulsing ring while playing.
+// Main Play/Pause button: smooth icon swap.
 Item {
     id: root
     property real size: 46
@@ -13,29 +13,6 @@ Item {
 
     implicitWidth: size
     implicitHeight: size
-
-    Rectangle {
-        id: ring
-        anchors.centerIn: parent
-        width: root.size
-        height: root.size
-        radius: width / 2
-        color: "transparent"
-        border.width: 2
-        border.color: Theme.accent
-        opacity: 0
-        visible: root.playing
-    }
-
-    SequentialAnimation {
-        running: root.playing
-        loops: Animation.Infinite
-        ParallelAnimation {
-            NumberAnimation { target: ring; property: "scale"; from: 1; to: 1.65; duration: 1700; easing.type: Easing.OutCubic }
-            NumberAnimation { target: ring; property: "opacity"; from: 0.5; to: 0; duration: 1700; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 500 }
-    }
 
     Rectangle {
         id: disc

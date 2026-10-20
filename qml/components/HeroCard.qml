@@ -4,20 +4,13 @@ import QtQuick.Shapes
 import QtQuick.Effects
 import Nokturn
 
-// Big "Continue listening" card with a wandering glow and a visualizer in the background.
+// Big "Continue listening" card with a visualizer in the background.
 Item {
     id: root
     implicitHeight: 236
     Layout.fillWidth: true
 
     readonly property string frame: Theme.roundedRectPath(width, height, 24)
-
-    property real glowX: 0.25
-    SequentialAnimation on glowX {
-        loops: Animation.Infinite
-        NumberAnimation { from: 0.2; to: 0.85; duration: 9000; easing.type: Easing.InOutSine }
-        NumberAnimation { from: 0.85; to: 0.2; duration: 9000; easing.type: Easing.InOutSine }
-    }
 
     Shape {
         anchors.fill: parent
@@ -29,19 +22,8 @@ Item {
             fillGradient: LinearGradient {
                 x1: 0; y1: 0; x2: root.width; y2: root.height
                 GradientStop { position: 0; color: Theme.alpha(Theme.accent, 0.3) }
-                GradientStop { position: 0.55; color: Theme.alpha(Theme.accent2, 0.22) }
+                GradientStop { position: 0.55; color: Theme.alpha(Theme.accent, 0.16) }
                 GradientStop { position: 1; color: Theme.alpha(Theme.surfaceHi, 0.5) }
-            }
-            PathSvg { path: root.frame }
-        }
-        ShapePath {
-            strokeColor: "transparent"
-            fillGradient: RadialGradient {
-                centerX: root.width * root.glowX; centerY: root.height * 0.1
-                focalX: root.width * root.glowX; focalY: root.height * 0.1
-                centerRadius: root.width * 0.45; focalRadius: 0
-                GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 0.09 + Player.level * 0.06) }
-                GradientStop { position: 1; color: Qt.rgba(1, 1, 1, 0) }
             }
             PathSvg { path: root.frame }
         }
