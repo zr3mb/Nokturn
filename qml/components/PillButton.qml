@@ -11,7 +11,7 @@ Item {
     property real fontSize: 14
     signal clicked
 
-    readonly property color fg: kind === "primary" ? "#15161a" : Theme.text
+    readonly property color fg: kind === "primary" ? Theme.onAccent : Theme.text
 
     implicitHeight: 40
     implicitWidth: row.implicitWidth + 36

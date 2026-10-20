@@ -63,7 +63,7 @@ Item {
                     anchors.centerIn: parent
                     name: root.icon
                     size: 15
-                    color: "#15161a"
+                    color: Theme.onAccent
                 }
             }
             Text {

@@ -34,6 +34,10 @@ ApplicationWindow {
             onTapped: (eventPoint, button) => button === Qt.BackButton ? Nav.back() : Nav.forward()
         }
 
+        ThemeBackdrop {
+            anchors.fill: parent
+        }
+
         AmbientBackground {
             anchors.fill: parent
             visible: Theme.ambient

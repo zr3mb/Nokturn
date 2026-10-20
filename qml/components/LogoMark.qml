@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import Nokturn
 
 // Logo: a rounded tile with an accent gradient and "breathing" bars.
@@ -21,6 +22,25 @@ Rectangle {
     }
 
     readonly property var spec: Player.spectrum
+
+    // Femboy theme: cat ears on top of the tile
+    Shape {
+        visible: Theme.femboy
+        z: -1
+        width: root.width; height: 12
+        y: -7
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            strokeColor: "transparent"
+            fillColor: Qt.lighter(Theme.accent, 1.08)
+            PathSvg { path: `M 2 14 L 4 0 L 15 9 Z M ${root.width - 2} 14 L ${root.width - 4} 0 L ${root.width - 15} 9 Z` }
+        }
+        ShapePath {
+            strokeColor: "transparent"
+            fillColor: Theme.alpha(Theme.onAccent, 0.45)
+            PathSvg { path: `M 5.5 11 L 6.5 4.5 L 11.5 8.8 Z M ${root.width - 5.5} 11 L ${root.width - 6.5} 4.5 L ${root.width - 11.5} 8.8 Z` }
+        }
+    }
 
     Row {
         anchors.centerIn: parent

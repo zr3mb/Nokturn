@@ -8,6 +8,9 @@ Item {
     id: root
     property color colorA: "#a3bcab"
     property color colorB: "#3e594d"
+    // The generated gradient leans toward the theme's own colors in the Femboy theme.
+    readonly property color fillA: Theme.femboy ? Qt.tint(colorA, Theme.alpha(Theme.staticAccent, 0.7)) : colorA
+    readonly property color fillB: Theme.femboy ? Qt.tint(colorB, Theme.alpha(Theme.staticAccent2, 0.7)) : colorB
     property real radius: 10
     property int seed: 0
     property bool decorated: true
@@ -77,8 +80,8 @@ Item {
             strokeColor: "transparent"
             fillGradient: LinearGradient {
                 x1: 0; y1: 0; x2: root.w; y2: root.h
-                GradientStop { position: 0; color: Qt.lighter(root.colorA, 1.06) }
-                GradientStop { position: 1; color: root.colorB }
+                GradientStop { position: 0; color: Qt.lighter(root.fillA, 1.06) }
+                GradientStop { position: 1; color: root.fillB }
             }
             PathSvg { path: root.frame }
         }
@@ -229,7 +232,7 @@ Item {
 
                 Rectangle {
                     anchors.fill: parent
-                    color: root.colorB
+                    color: root.fillB
                 }
                 Grid {
                     columns: 2

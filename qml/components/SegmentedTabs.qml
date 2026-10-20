@@ -22,7 +22,7 @@ Item {
         height: root.pill ? root.height : 2
         y: root.pill ? 0 : root.height - 2
         radius: root.pill ? height / 2 : 1
-        color: root.pill ? Theme.text : Theme.accent
+        color: root.pill ? Theme.selection : Theme.accent
         Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutQuint } }
         Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutQuint } }
     }
@@ -58,7 +58,7 @@ Item {
                     anchors.centerIn: parent
                     anchors.verticalCenterOffset: root.pill ? 0 : -2
                     text: tab.modelData
-                    color: tab.selected ? (root.pill ? "#15161a" : Theme.text)
+                    color: tab.selected ? (root.pill ? Theme.onSelection : Theme.text)
                                         : (tabMouse.containsMouse ? Theme.text : Theme.textDim)
                     font.pixelSize: root.pill ? 13 : 15
                     font.weight: tab.selected ? Font.DemiBold : Font.Medium

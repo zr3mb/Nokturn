@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import Nokturn
 
@@ -128,6 +129,85 @@ Item {
     PageFlick {
         anchors.fill: parent
 
+        // Femboy theme: a neon banner above the greeting
+        Reveal {
+            visible: Theme.femboy
+            Rectangle {
+                id: banner
+                width: parent.width
+                height: 168
+                radius: 22
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.0; color: Theme.alpha(Theme.accent2, 0.5) }
+                    GradientStop { position: 0.55; color: Theme.alpha(Theme.accent, 0.2) }
+                    GradientStop { position: 1.0; color: Theme.alpha(Theme.accent, 0.06) }
+                }
+                border.width: 1
+                border.color: Theme.alpha(Theme.accent, 0.3)
+
+                Repeater {
+                    model: [
+                        { x: 0.62, y: 0.18, s: 40, i: "heartOutline", r: 12 },
+                        { x: 0.74, y: 0.52, s: 26, i: "heart", r: -10 },
+                        { x: 0.83, y: 0.14, s: 20, i: "sparkle", r: 0 },
+                        { x: 0.90, y: 0.46, s: 52, i: "cat", r: 8 },
+                        { x: 0.68, y: 0.74, s: 16, i: "sparkle", r: 0 }
+                    ]
+                    Icon {
+                        required property var modelData
+                        x: banner.width * modelData.x
+                        y: banner.height * modelData.y
+                        size: modelData.s
+                        name: modelData.i
+                        rotation: modelData.r
+                        color: Theme.accent
+                        opacity: 0.55
+                    }
+                }
+
+                Column {
+                    anchors { left: parent.left; leftMargin: 34; verticalCenter: parent.verticalCenter }
+                    spacing: 2
+                    Row {
+                        spacing: 10
+                        Text {
+                            id: bannerTitle
+                            text: "Nokturn"
+                            color: Qt.lighter(Theme.accent, 1.12)
+                            font.family: Theme.fontDisplay
+                            font.pixelSize: 64
+                            font.weight: Font.Black
+                            layer.enabled: true
+                            layer.effect: MultiEffect {
+                                shadowEnabled: true
+                                shadowColor: Theme.accent
+                                shadowBlur: 0.8
+                                shadowOpacity: 0.9
+                                shadowHorizontalOffset: 0
+                                shadowVerticalOffset: 0
+                            }
+                        }
+                        Icon {
+                            anchors.verticalCenter: bannerTitle.verticalCenter
+                            anchors.verticalCenterOffset: -10
+                            name: "heartOutline"
+                            size: 30
+                            rotation: 14
+                            color: Theme.accent
+                        }
+                    }
+                    Text {
+                        leftPadding: 4
+                        text: qsTr("Your music · Your rules")
+                        color: Theme.text
+                        font.pixelSize: 17
+                        font.weight: Font.Medium
+                    }
+                }
+            }
+        }
+
         Reveal {
             ColumnLayout {
                 width: parent.width
@@ -140,7 +220,8 @@ Item {
                     font.weight: Font.Bold
                 }
                 Text {
-                    text: qsTr("Your music from disk, YouTube Music and radio — in one place.")
+                    text: Theme.femboy ? qsTr("Listening to femboy music again? ♡")
+                                       : qsTr("Your music from disk, YouTube Music and radio — in one place.")
                     color: Theme.textDim
                     font.pixelSize: 15
                 }

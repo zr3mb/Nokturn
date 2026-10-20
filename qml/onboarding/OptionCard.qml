@@ -58,7 +58,7 @@ Item {
                     anchors.centerIn: parent
                     name: "check"
                     size: 14
-                    color: "#15161a"
+                    color: Theme.onAccent
                     scale: root.selected ? 1 : 0
                     Behavior on scale { NumberAnimation { duration: 360; easing.type: Easing.OutBack } }
                 }

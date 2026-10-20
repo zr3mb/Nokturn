@@ -147,7 +147,7 @@ Item {
                 PlayButton {
                     size: 52
                     bgColor: Theme.accent
-                    fgColor: "#15161a"
+                    fgColor: Theme.onAccent
                     onClicked: Player.toggle()
                 }
 

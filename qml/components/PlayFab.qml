@@ -34,7 +34,7 @@ Item {
             anchors.horizontalCenterOffset: root.playing ? 0 : root.size * 0.03
             name: root.playing ? "pause" : "play"
             size: root.size * 0.48
-            color: "#15161a"
+            color: Theme.onAccent
         }
     }
 

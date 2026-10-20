@@ -40,6 +40,6 @@ Item {
         radius: root.radius
         color: "transparent"
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.05)
+        border.color: Theme.panelBorder
     }
 }

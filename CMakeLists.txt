@@ -113,6 +113,8 @@ qt_add_qml_module(Nokturn
         qml/components/Toggle.qml
         qml/components/UpdateDialog.qml
         qml/components/TrackListHeader.qml
+        qml/components/ThemeBackdrop.qml
+        qml/components/ThemePicker.qml
         qml/components/TrackRow.qml
         qml/components/Visualizer.qml
         qml/components/WindowControls.qml

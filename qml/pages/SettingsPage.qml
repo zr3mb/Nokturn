@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import Nokturn
 
@@ -54,6 +55,48 @@ Item {
                 width: parent.width
                 spacing: 8
                 Heading { text: qsTr("Appearance") }
+                ThemePicker {
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 6
+                }
+                SettingRow {
+                    icon: "image"
+                    title: qsTr("Background image")
+                    description: Theme.wallpaper !== ""
+                        ? decodeURIComponent(Theme.wallpaper.replace(/^.*[\/]/, ""))
+                        : qsTr("Your own picture behind the interface — in any theme.")
+                    Row {
+                        spacing: 8
+                        PillButton {
+                            visible: Theme.wallpaper !== ""
+                            kind: "ghost"
+                            text: qsTr("Remove")
+                            fontSize: 13
+                            implicitHeight: 36
+                            onClicked: Theme.wallpaper = ""
+                        }
+                        PillButton {
+                            kind: "secondary"
+                            icon: "image"
+                            text: Theme.wallpaper !== "" ? qsTr("Change") : qsTr("Choose a picture")
+                            fontSize: 13
+                            implicitHeight: 36
+                            onClicked: wallpaperDialog.open()
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: Theme.wallpaper !== ""
+                    icon: "tune"
+                    title: qsTr("Background dimming")
+                    description: qsTr("How much the picture is darkened so the text stays readable.")
+                    ProgressSlider {
+                        width: 170
+                        value: Theme.wallpaperDim
+                        labelFor: function(v) { return Math.round(v * 100) + "%" }
+                        onMoved: v => Theme.wallpaperDim = Math.round(v * 100) / 100
+                    }
+                }
                 SettingRow {
                     icon: "refresh"
                     title: qsTr("First-run wizard")
@@ -80,8 +123,15 @@ Item {
                 SettingRow {
                     icon: "image"
                     title: qsTr("Dynamic accent color")
-                    description: qsTr("Interface colors smoothly adapt to the cover of the playing track.")
-                    Toggle { checked: Theme.dynamicAccent; onToggled: c => Theme.dynamicAccent = c }
+                    description: Theme.preset.fixedAccent
+                        ? qsTr("The %1 theme keeps its own colors.").arg(Theme.preset.name)
+                        : qsTr("Interface colors smoothly adapt to the cover of the playing track.")
+                    Toggle {
+                        enabled: !Theme.preset.fixedAccent
+                        opacity: enabled ? 1 : 0.4
+                        checked: Theme.dynamicAccent
+                        onToggled: c => Theme.dynamicAccent = c
+                    }
                 }
                 SettingRow {
                     icon: "album"
@@ -546,5 +596,12 @@ Item {
                 }
             }
         }
+    }
+
+    FileDialog {
+        id: wallpaperDialog
+        title: qsTr("Choose a background picture")
+        nameFilters: [qsTr("Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)")]
+        onAccepted: Theme.wallpaper = selectedFile.toString()
     }
 }

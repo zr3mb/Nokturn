@@ -434,7 +434,19 @@ Item {
         { name: "T8-wait", run: () => console.log("tour: back on", Player.title, "| position", Player.position.toFixed(0)) },
         { name: "T9-wait", run: () => console.log("tour: position", Player.position.toFixed(0)) }
     ]
-    readonly property var steps: withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property bool withThemes: Qt.application.arguments.indexOf("--tour-themes") >= 0
+    // Every theme on the home page, then the Femboy theme across the main screens.
+    readonly property var themeSteps: [
+        { name: "T1-nokturn", run: () => { Nav.finishOnboarding(); Nav.queueOpen = true; Theme.themeId = "nokturn"; Nav.navigate("home") } },
+        { name: "T2-midnight", run: () => { Theme.themeId = "midnight"; Nav.navigate("home") } },
+        { name: "T3-sunset", run: () => { Theme.themeId = "sunset"; Nav.navigate("home") } },
+        { name: "T4-femboy", run: () => { Theme.themeId = "femboy"; Nav.navigate("home") } },
+        { name: "T5-femboy-settings", run: () => Nav.navigate("settings") },
+        { name: "T6-femboy-library", run: () => Nav.navigate("library") },
+        { name: "T7-femboy-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
+        { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
+    ]
+    readonly property var steps: withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

@@ -121,13 +121,13 @@ Item {
                         width: chipText.implicitWidth + 30
                         height: 34
                         radius: 17
-                        color: current ? Theme.text : Theme.alpha(Theme.text, chipMouse.containsMouse ? 0.11 : 0.06)
+                        color: current ? Theme.selection : Theme.alpha(Theme.text, chipMouse.containsMouse ? 0.11 : 0.06)
                         Behavior on color { ColorAnimation { duration: Theme.normal } }
                         Text {
                             id: chipText
                             anchors.centerIn: parent
                             text: Language.effective !== "" ? Equalizer.presetLabel(chip.modelData) : ""   // re-evaluated when the language changes
-                            color: chip.current ? "#15161a" : Theme.textDim
+                            color: chip.current ? Theme.onSelection : Theme.textDim
                             font.pixelSize: 13
                             font.weight: chip.current ? Font.DemiBold : Font.Medium
                         }
