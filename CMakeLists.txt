@@ -11,9 +11,9 @@ if(UNIX AND NOT APPLE)
     find_package(Qt6 6.8 REQUIRED COMPONENTS DBus)   # MPRIS (media keys, system panel)
 endif()
 
-# Discord application ID (discord.com/developers) for the "Listening to …" status.
-# Empty = the user enters their own in Settings.
-set(NOKTURN_DISCORD_CLIENT_ID "" CACHE STRING "Application ID aplikacji Discord dla Rich Presence")
+# Discord application ID (discord.com/developers) for the "Listening to …" status — Nokturn's own app.
+# Users can still enter their own in Settings.
+set(NOKTURN_DISCORD_CLIENT_ID "1560656071805108224" CACHE STRING "Application ID aplikacji Discord dla Rich Presence")
 # Spotify app ("Client ID" from developer.spotify.com) used by default; users can enter their own in Sources.
 set(NOKTURN_SPOTIFY_CLIENT_ID "" CACHE STRING "Spotify Web API Client ID")
 

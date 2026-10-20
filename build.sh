@@ -5,7 +5,7 @@
 #   ./build.sh --install       — build and install into ~/.local (program, icon, .desktop file)
 #   ./build.sh --appimage      — build + a standalone Nokturn-x86_64.AppImage file (linuxdeploy)
 # Variables: QT_DIR=/path/to/Qt/6.x/gcc_64 (when Qt isn't the system one), PREFIX=/usr/local (for --install),
-#            DISCORD_CLIENT_ID=<Application ID> (built-in ID for the Discord status).
+#            DISCORD_CLIENT_ID=<Application ID> (another built-in ID for the Discord status; default: Nokturn's).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,7 +38,7 @@ install_prefix="${PREFIX:-$HOME/.local}"
 
 cmake -S "$root" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$install_prefix" \
-    -DNOKTURN_DISCORD_CLIENT_ID="${DISCORD_CLIENT_ID:-}" "${prefix_path[@]}"
+    ${DISCORD_CLIENT_ID:+-DNOKTURN_DISCORD_CLIENT_ID="$DISCORD_CLIENT_ID"} "${prefix_path[@]}"
 cmake --build "$build"
 
 if [[ $install == 1 ]]; then
