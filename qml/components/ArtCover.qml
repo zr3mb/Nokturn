@@ -8,9 +8,9 @@ Item {
     id: root
     property color colorA: "#a3bcab"
     property color colorB: "#3e594d"
-    // The generated gradient leans toward the theme's own colors in the Femboy theme.
-    readonly property color fillA: Theme.femboy ? Qt.tint(colorA, Theme.alpha(Theme.staticAccent, 0.7)) : colorA
-    readonly property color fillB: Theme.femboy ? Qt.tint(colorB, Theme.alpha(Theme.staticAccent2, 0.7)) : colorB
+    // The generated gradient leans toward the theme's own colors in the Cat theme.
+    readonly property color fillA: Theme.cat ? Qt.tint(colorA, Theme.alpha(Theme.staticAccent, 0.7)) : colorA
+    readonly property color fillB: Theme.cat ? Qt.tint(colorB, Theme.alpha(Theme.staticAccent2, 0.7)) : colorB
     property real radius: 10
     property int seed: 0
     property bool decorated: true

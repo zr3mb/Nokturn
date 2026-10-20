@@ -23,9 +23,9 @@ Rectangle {
 
     readonly property var spec: Player.spectrum
 
-    // Femboy theme: cat ears on top of the tile
+    // Cat theme: cat ears on top of the tile
     Shape {
-        visible: Theme.femboy
+        visible: Theme.cat
         z: -1
         width: root.width; height: 12
         y: -7

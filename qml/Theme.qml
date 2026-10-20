@@ -18,16 +18,16 @@ Item {
         sunset: { name: "Sunset", bg: "#15100f", surface: "#211917", surfaceHi: "#2c211e",
                   text: "#f1e6dc", textDim: "#b39f93", textFaint: "#7a6960",
                   accent: "#e0a27c", accent2: "#6b3b44", onAccent: "#1c120f", fixedAccent: false },
-        femboy: { name: "Femboy", bg: "#110914", surface: "#1d1121", surfaceHi: "#2a172f",
+        cat: { name: "Cat", bg: "#110914", surface: "#1d1121", surfaceHi: "#2a172f",
                   text: "#fbeaf6", textDim: "#c9a3c2", textFaint: "#8a6a86",
                   accent: "#ff7ad6", accent2: "#8a3fd0", onAccent: "#2a0a23", fixedAccent: true }
     })
-    readonly property var themeIds: ["nokturn", "midnight", "sunset", "femboy"]
+    readonly property var themeIds: ["nokturn", "midnight", "sunset", "cat"]
 
     property string themeId: Prefs.stringValue("ui/theme", "nokturn")
     onThemeIdChanged: Prefs.setValue("ui/theme", themeId)
     readonly property var preset: themes[themeId] || themes.nokturn
-    readonly property bool femboy: themeId === "femboy"
+    readonly property bool cat: themeId === "cat"
 
     property color bg: preset.bg
     property color surface: preset.surface
@@ -46,10 +46,10 @@ Item {
     readonly property color danger: "#c98585"
     readonly property color warning: "#cdb388"
 
-    // Selected pills (tabs, chips): light text color by default, the accent in the Femboy theme.
-    readonly property color selection: femboy ? accent : text
-    readonly property color onSelection: femboy ? onAccent : "#15161a"
-    readonly property color panelBorder: femboy ? alpha(accent, 0.16) : Qt.rgba(1, 1, 1, 0.05)
+    // Selected pills (tabs, chips): light text color by default, the accent in the Cat theme.
+    readonly property color selection: cat ? accent : text
+    readonly property color onSelection: cat ? onAccent : "#15161a"
+    readonly property color panelBorder: cat ? alpha(accent, 0.16) : Qt.rgba(1, 1, 1, 0.05)
 
     // Remembered between launches (Settings, first-run wizard).
     property bool dynamicAccent: Prefs.boolValue("ui/dynamicAccent", true)

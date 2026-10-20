@@ -72,7 +72,7 @@ RowLayout {
                         Rectangle { width: parent.width * 0.55; height: parent.height; radius: 2; color: card.t.accent }
                     }
                     Icon {
-                        visible: card.modelData === "femboy"
+                        visible: card.modelData === "cat"
                         anchors { right: parent.right; rightMargin: 7; top: parent.top; topMargin: 6 }
                         name: "heart"
                         size: 13

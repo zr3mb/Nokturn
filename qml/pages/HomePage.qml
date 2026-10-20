@@ -129,9 +129,9 @@ Item {
     PageFlick {
         anchors.fill: parent
 
-        // Femboy theme: a neon banner above the greeting
+        // Cat theme: a neon banner above the greeting
         Reveal {
-            visible: Theme.femboy
+            visible: Theme.cat
             Rectangle {
                 id: banner
                 width: parent.width
@@ -220,7 +220,7 @@ Item {
                     font.weight: Font.Bold
                 }
                 Text {
-                    text: Theme.femboy ? qsTr("Listening to femboy music again? ♡")
+                    text: Theme.cat ? qsTr("Back for more music? ♡")
                                        : qsTr("Your music from disk, YouTube Music and radio — in one place.")
                     color: Theme.textDim
                     font.pixelSize: 15

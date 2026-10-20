@@ -28,16 +28,16 @@ Panel {
             id: brand
             anchors { left: mark.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
             text: "Nokturn"
-            color: Theme.femboy ? Theme.accent : Theme.text
+            color: Theme.cat ? Theme.accent : Theme.text
             font.family: Theme.fontDisplay
             font.pixelSize: 22
-            font.weight: Theme.femboy ? Font.Bold : Font.DemiBold
+            font.weight: Theme.cat ? Font.Bold : Font.DemiBold
             font.letterSpacing: 0.2
             opacity: root.compact ? 0 : 1
             Behavior on opacity { NumberAnimation { duration: 220 } }
         }
         Icon {
-            visible: Theme.femboy
+            visible: Theme.cat
             anchors { left: brand.right; leftMargin: 8; verticalCenter: brand.verticalCenter; verticalCenterOffset: -6 }
             name: "heart"
             size: 14

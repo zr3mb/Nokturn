@@ -4,7 +4,7 @@ import QtQuick.Shapes
 import QtQuick.Window
 import Nokturn
 
-// What sits behind the panels: the chosen wallpaper (any theme) and, in the Femboy theme,
+// What sits behind the panels: the chosen wallpaper (any theme) and, in the Cat theme,
 // a neon night city with hearts and sparkles. The translucent panels let it show through.
 Item {
     id: root
@@ -32,12 +32,12 @@ Item {
 
     Loader {
         anchors.fill: parent
-        active: Theme.femboy
-        sourceComponent: femboyDecor
+        active: Theme.cat
+        sourceComponent: catDecor
     }
 
     Component {
-        id: femboyDecor
+        id: catDecor
 
         Item {
             id: decor
