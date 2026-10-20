@@ -66,12 +66,37 @@ QString serverName()
 std::atomic<UINT> g_hookVk { 0 };      // 0 = off
 std::atomic<UINT> g_hookMods { 0 };    // MOD_* bits
 std::atomic<bool> g_hookDown { false };
+std::atomic<bool> g_menuOpen { false };   // the menu takes the navigation keys (the game keeps the focus)
 DWORD g_hookThread = 0;
+
+// While the menu is open the game stays the active window — games that pause or stop drawing without
+// the focus (GTA V) keep running underneath — so the menu's keys come from the hook too, and the game
+// doesn't get them.
+const char *menuAction(DWORD vk)
+{
+    switch (vk) {
+    case VK_LEFT: return "left";
+    case VK_RIGHT: return "right";
+    case VK_UP: return "up";
+    case VK_DOWN: return "down";
+    case VK_RETURN: case VK_SPACE: return "accept";
+    case VK_ESCAPE: case VK_BACK: return "back";
+    default: return nullptr;
+    }
+}
 
 LRESULT CALLBACK keyboardHook(int code, WPARAM wParam, LPARAM lParam)
 {
     if (code == HC_ACTION) {
         const auto *key = reinterpret_cast<const KBDLLHOOKSTRUCT *>(lParam);
+        if (g_menuOpen.load()) {
+            if (const char *action = menuAction(key->vkCode)) {
+                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)   // auto-repeat included
+                    QMetaObject::invokeMethod(GameOverlay::instance(), "simulate", Qt::QueuedConnection,
+                                              Q_ARG(QString, QString::fromLatin1(action)));
+                return 1;
+            }
+        }
         const UINT vk = g_hookVk.load();
         if (vk && key->vkCode == vk) {
             const bool down = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
@@ -477,6 +502,9 @@ void GameOverlay::show()
 #endif
     m_area = screen ? screen->geometry() : QRect(0, 0, 1280, 720);
     m_open = true;
+#ifdef Q_OS_WIN
+    g_menuOpen = true;
+#endif
     m_held.clear();
     m_padTimer.setInterval(16);
     emit openChanged();
@@ -490,6 +518,7 @@ void GameOverlay::hide()
     m_padTimer.setInterval(60);
     emit openChanged();
 #ifdef Q_OS_WIN
+    g_menuOpen = false;
     // Back to the game (we're in front, so we may hand the focus over).
     const HWND game = reinterpret_cast<HWND>(m_previous);
     if (game && IsWindow(game)) {
@@ -538,18 +567,13 @@ void GameOverlay::activate(QWindow *window)
     if (!window)
         return;
 #ifdef Q_OS_WIN
-    // Windows lets only the app in front take the focus. The hotkey counts as our input, the pad
-    // doesn't — joining the front window's input queue for a moment makes the switch allowed.
+    // On top, but the game stays the active window (WS_EX_NOACTIVATE, Qt::WindowDoesNotAcceptFocus):
+    // games that pause or stop drawing without the focus keep running under the menu. Keys come
+    // through the keyboard hook, the pad as always; mouse clicks reach the window without activating it.
     const HWND hwnd = reinterpret_cast<HWND>(window->winId());
-    const DWORD front = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
-    const DWORD self = GetCurrentThreadId();
-    const bool attached = front && front != self && AttachThreadInput(self, front, TRUE);
-    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-    SetForegroundWindow(hwnd);
-    BringWindowToTop(hwnd);
-    SetFocus(hwnd);
-    if (attached)
-        AttachThreadInput(self, front, FALSE);
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, GetWindowLongPtrW(hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
+    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    return;
 #else
     // Without layer-shell (GNOME) the menu is a full-screen window the compositor stacks over the game.
     if (!m_layerShell)

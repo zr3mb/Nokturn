@@ -10,7 +10,10 @@ import Nokturn
 Window {
     id: win
 
+    // Windows: never the active window — the game keeps the focus (and keeps drawing); keys come from
+    // GameOverlay's keyboard hook.
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.NoDropShadowWindowHint
+           | (Theme.windows ? Qt.WindowDoesNotAcceptFocus : 0)
     transientParent: null      // its own window: not hidden with a minimized main window
     color: "transparent"
     title: "Nokturn"
