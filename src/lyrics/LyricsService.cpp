@@ -4,6 +4,7 @@
 #include "Language.h"
 #include "LyricsAligner.h"
 #include "TagLibPath.h"
+#include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 
 #include <QCryptographicHash>
@@ -422,15 +423,27 @@ void LyricsService::runSpeech(bool recognize)
     m_alignTried.insert(m_track.id, true);
     m_alignProgress = 0;
     m_alignStage = tr("Preparing");
-    if (m_track.source == QLatin1String("youtube")) {
+    // Streaming tracks are heard from YouTube: a Spotify track through the video it was matched to.
+    QString videoId;
+    if (m_track.source == QLatin1String("youtube"))
+        videoId = m_track.path;
+    else if (m_track.source == QLatin1String("spotify"))
+        videoId = SpotifyService::instance()->matchedVideoId(m_track.id);
+    if (m_track.source == QLatin1String("spotify") && videoId.isEmpty()) {
+        emit notice(tr("This track hasn't been found on YouTube Music yet, so there's nothing to listen to"),
+                    QStringLiteral("close"));
+        emit alignChanged();
+        return;
+    }
+    if (!videoId.isEmpty()) {
         StreamResolver *resolver = YouTubeService::instance()->resolver();
-        const QUrl cached = resolver->cachedUrl(m_track.path);
+        const QUrl cached = resolver->cachedUrl(videoId);
         if (cached.isValid()) {
             startAlign(cached);
         } else {
-            m_waitingStream = m_track.path;
+            m_waitingStream = videoId;
             emit alignChanged();
-            resolver->resolve(m_track.path);
+            resolver->resolve(videoId);
         }
         return;
     }
