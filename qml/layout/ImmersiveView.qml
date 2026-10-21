@@ -35,6 +35,7 @@ Item {
         hoverEnabled: true
         acceptedButtons: Qt.AllButtons
         onWheel: wheel => wheel.accepted = true
+        onPressed: mouse => { if (mouse.button === Qt.BackButton) Nav.immersive = false }   // the mouse's back button leaves full screen
     }
 
     Loader {
