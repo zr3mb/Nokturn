@@ -36,6 +36,10 @@ namespace {
 // which come in separate build releases (bNNNN).
 const char *kReleaseApi = "https://api.github.com/repos/ggml-org/whisper.cpp/releases?per_page=20";
 const char *kReleaseAsset = "whisper-bin-x64.zip";
+// The CUDA 12.4 build: the only Windows one that ships cuBLAS too (the CUDA 11.8 one expects it installed).
+// Its name changed between releases.
+const char *kGpuAssets[] = { "whisper-bin-win-cuda-12.4.0-x64.zip", "whisper-cublas-12.4.0-bin-x64.zip" };
+constexpr int kGpuMinDriver = 551;   // CUDA 12.4 on Windows
 const char *kModelTreeApi = "https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/main";
 const char *kModelBase = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
 constexpr int kSampleRate = 16000;
@@ -132,12 +136,15 @@ struct SpeechEngine::Job
     std::unique_ptr<QTemporaryDir> dir;
     QByteArray pcm;
     double resamplePos = 0;
+    QString wav, outBase;
+    bool cpuOnly = false;   // the graphics card failed once: the rest runs on the CPU
 };
 
 SpeechEngine::SpeechEngine(QObject *parent)
     : QObject(parent)
 {
     detect();
+    detectGpu();
 }
 
 SpeechEngine::~SpeechEngine()
@@ -198,6 +205,11 @@ QString SpeechEngine::toolsDir() const
     return dir;
 }
 
+QString SpeechEngine::gpuToolsDir() const
+{
+    return AppPaths::dataDir() + QStringLiteral("/tools/whisper-cuda");
+}
+
 QString SpeechEngine::modelsDir() const
 {
     const QString dir = AppPaths::dataDir() + QStringLiteral("/models");
@@ -217,6 +229,12 @@ bool SpeechEngine::modelReady(const QString &model) const
 
 void SpeechEngine::detect()
 {
+    m_gpuEnginePath.clear();
+    if (QDir(gpuToolsDir()).exists()) {
+        QDirIterator gpuIt(gpuToolsDir(), { engineFileName() }, QDir::Files, QDirIterator::Subdirectories);
+        if (gpuIt.hasNext())
+            m_gpuEnginePath = gpuIt.next();
+    }
     m_enginePath.clear();
     QDirIterator it(toolsDir(), { engineFileName() }, QDir::Files, QDirIterator::Subdirectories);
     if (it.hasNext())
@@ -233,6 +251,36 @@ void SpeechEngine::detect()
         }
     }
     emit stateChanged();
+}
+
+void SpeechEngine::detectGpu()
+{
+#ifdef Q_OS_WIN
+    // nvidia-smi comes with the NVIDIA driver; without it (other cards, no driver) there's no GPU to use.
+    auto *smi = new QProcess(this);
+    hideConsole(smi);
+    connect(smi, &QProcess::finished, this, [this, smi](int code) {
+        smi->deleteLater();
+        const QString line = QString::fromLocal8Bit(smi->readAllStandardOutput()).section(QChar('\n'), 0, 0).trimmed();
+        const QStringList parts = line.split(QStringLiteral(", "));
+        if (code != 0 || parts.size() < 3)
+            return;
+        m_gpu.name = parts.at(0).trimmed();
+        m_gpu.driver = parts.at(1).trimmed();
+        m_gpu.memoryMb = parts.at(2).trimmed().toInt();
+        m_gpu.supported = m_gpu.driver.section(QChar('.'), 0, 0).toInt() >= kGpuMinDriver;
+        emit stateChanged();
+    });
+    connect(smi, &QProcess::errorOccurred, smi, &QObject::deleteLater);
+    smi->start(QStringLiteral("nvidia-smi"), { QStringLiteral("--query-gpu=name,driver_version,memory.total"),
+                                               QStringLiteral("--format=csv,noheader,nounits") });
+#endif
+}
+
+void SpeechEngine::removeGpuEngine()
+{
+    QDir(gpuToolsDir()).removeRecursively();
+    detect();
 }
 
 void SpeechEngine::removeModel(const QString &model)
@@ -312,11 +360,27 @@ void SpeechEngine::downloadEngine()
     // Ready-made whisper.cpp packages on GitHub are for Windows only.
     emit notice(tr("Install whisper.cpp (the whisper-cli command) from your package manager"), QStringLiteral("close"));
 #else
+    fetchEngine({ QString::fromLatin1(kReleaseAsset) }, toolsDir(), QStringLiteral("whisper.cpp"));
+#endif
+}
+
+void SpeechEngine::downloadGpuEngine()
+{
+#ifdef Q_OS_WIN
+    QStringList assets;
+    for (const char *name : kGpuAssets)
+        assets << QString::fromLatin1(name);
+    fetchEngine(assets, gpuToolsDir(), QStringLiteral("whisper.cpp (CUDA)"));
+#endif
+}
+
+void SpeechEngine::fetchEngine(const QStringList &assets, const QString &dir, const QString &label)
+{
     if (m_downloading)
         return;
     m_downloading = true;
     m_progress = 0;
-    m_downloadLabel = QStringLiteral("whisper.cpp");
+    m_downloadLabel = label;
     emit stateChanged();
 
     // Recent releases: the package URL and its SHA-256 (the "digest" field, computed by GitHub).
@@ -325,14 +389,14 @@ void SpeechEngine::downloadEngine()
     request.setRawHeader("Accept", "application/vnd.github+json");
     QNetworkReply *reply = m_net.get(request);
     m_reply = reply;
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, assets, dir] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             finishDownloadError(tr("Couldn't get information about whisper.cpp: %1").arg(reply->errorString()));
             return;
         }
-        // Releases come newest first. Take the newest stable one that has the Windows package with
-        // a checksum; if there is none, the newest pre-release with it.
+        // Releases come newest first. Take the newest stable one that has the package with a checksum;
+        // if there is none, the newest pre-release with it.
         QString url, preUrl;
         QByteArray sha, preSha;
         for (const QJsonValue &r : QJsonDocument::fromJson(reply->readAll()).array()) {
@@ -345,7 +409,7 @@ void SpeechEngine::downloadEngine()
             for (const QJsonValue &v : release.value("assets").toArray()) {
                 const QJsonObject a = v.toObject();
                 const QString digest = a.value("digest").toString();
-                if (a.value("name").toString() != QLatin1String(kReleaseAsset) || !digest.startsWith(QLatin1String("sha256:")))
+                if (!assets.contains(a.value("name").toString()) || !digest.startsWith(QLatin1String("sha256:")))
                     continue;
                 (pre ? preUrl : url) = a.value("browser_download_url").toString();
                 (pre ? preSha : sha) = digest.mid(7).toLatin1();
@@ -361,11 +425,11 @@ void SpeechEngine::downloadEngine()
             finishDownloadError(tr("The whisper.cpp release has no package with a checksum"));
             return;
         }
-        const QString zip = AppPaths::dataDir() + QStringLiteral("/tools/whisper.zip");
-        fetchVerified(QUrl(url), zip, sha, [this, zip](bool) {
+        const QString zip = dir + QStringLiteral(".zip");
+        fetchVerified(QUrl(url), zip, sha, [this, zip, dir](bool) {
             // Unpacked with the tar program built into Windows 10/11 (bsdtar handles ZIP).
-            QDir(toolsDir()).removeRecursively();
-            const QString dir = toolsDir();
+            QDir(dir).removeRecursively();
+            QDir().mkpath(dir);
             auto *tar = new QProcess(this);
             hideConsole(tar);
             connect(tar, &QProcess::finished, this, [this, tar, zip](int code) {
@@ -386,7 +450,6 @@ void SpeechEngine::downloadEngine()
                                  QStringLiteral("-C"), QDir::toNativeSeparators(dir) });
         });
     });
-#endif
 }
 
 void SpeechEngine::downloadModel(const QString &model)
@@ -504,8 +567,16 @@ void SpeechEngine::startWhisper()
     }
     m_job->pcm.clear();
     m_job->pcm.squeeze();
+    runWhisper(wav, outBase);
+}
 
-    const int threads = std::clamp(QThread::idealThreadCount() - 1, 2, 12);
+void SpeechEngine::runWhisper(const QString &wav, const QString &outBase)
+{
+    // The CUDA build on the graphics card when there is one; a GPU failure (driver, memory) runs the
+    // same track again on the CPU.
+    const bool gpu = usesGpu() && !m_job->cpuOnly;
+    const QString program = gpu || m_enginePath.isEmpty() ? m_gpuEnginePath : m_enginePath;
+    const int threads = gpu ? 4 : std::clamp(QThread::idealThreadCount() - 1, 2, 12);
     QStringList args = {
         QStringLiteral("-m"), modelPath(m_job->model),
         QStringLiteral("-f"), wav,
@@ -518,24 +589,32 @@ void SpeechEngine::startWhisper()
     };
     if (!m_job->prompt.isEmpty())
         args << QStringLiteral("--prompt") << m_job->prompt;
+    if (!gpu && program == m_gpuEnginePath)
+        args << QStringLiteral("-ng");   // the CUDA build, kept off the graphics card
 
     auto *process = new QProcess(this);
     hideConsole(process);
     m_job->process = process;
-    connect(process, &QProcess::readyReadStandardError, this, [this, process] {
+    connect(process, &QProcess::readyReadStandardError, this, [this, process, gpu] {
         static const QRegularExpression re(QStringLiteral("progress\\s*=\\s*(\\d+)%"));
         auto it = re.globalMatch(QString::fromUtf8(process->readAllStandardError()));
         int last = -1;
         while (it.hasNext())
             last = it.next().captured(1).toInt();
         if (last >= 0)
-            emit progress(0.15 + 0.85 * last / 100.0, tr("Recognizing the singing"));
+            emit progress(0.15 + 0.85 * last / 100.0, gpu ? tr("Recognizing the singing (graphics card)")
+                                                          : tr("Recognizing the singing"));
     });
-    connect(process, &QProcess::finished, this, [this, process, outBase](int code, QProcess::ExitStatus status) {
+    connect(process, &QProcess::finished, this, [this, process, wav, outBase, gpu](int code, QProcess::ExitStatus status) {
         if (!m_job || m_job->process != process)
             return;
         m_job->process = nullptr;
         process->deleteLater();
+        if (gpu && (status != QProcess::NormalExit || code != 0)) {
+            m_job->cpuOnly = true;
+            runWhisper(wav, outBase);
+            return;
+        }
         if (status != QProcess::NormalExit || code != 0) {
             finishJob({}, tr("whisper.cpp ended with an error (code %1)").arg(code));
             return;
@@ -556,7 +635,7 @@ void SpeechEngine::startWhisper()
         }
         finishJob(words, words.isEmpty() ? tr("No words were recognized") : QString());
     });
-    process->start(m_enginePath, args);
+    process->start(program, args);
 }
 
 void SpeechEngine::finishJob(const QList<LyricsAligner::Word> &words, const QString &error)

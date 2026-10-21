@@ -163,7 +163,8 @@ Item {
             Layout.topMargin: 2
             visible: Lyrics.canTranscribe || (Lyrics.state === "missing" && Lyrics.recognizing)
             horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Test feature: Nokturn listens to the recording on this computer and writes down the words with their timing. Expect mistakes, especially over loud music. It takes a few minutes.")
+            text: qsTr("Test feature: Nokturn listens to the recording on this computer and writes down the words with their timing. Expect mistakes, especially over loud music.")
+                  + " " + (Lyrics.sttUsesGpu ? qsTr("On your graphics card it takes a few seconds.") : qsTr("It takes a few minutes."))
             color: Theme.warning
             font.pixelSize: 11
             wrapMode: Text.WordWrap

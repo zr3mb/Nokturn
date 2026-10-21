@@ -408,8 +408,9 @@ Item {
                         onToggled: c => Lyrics.autoAlign = c
                     }
                 }
+                // Shown with the hardware for it: recognizing lyrics (a button in the lyrics) needs them too.
                 SettingRow {
-                    visible: Lyrics.autoAlign
+                    visible: Lyrics.hardwareOk
                     icon: "tune"
                     title: qsTr("Speech recognition model")
                     description: qsTr("A larger model recognizes singing better but runs slower.") + " "
@@ -422,7 +423,7 @@ Item {
                     }
                 }
                 SettingRow {
-                    visible: Lyrics.autoAlign
+                    visible: Lyrics.hardwareOk
                     icon: Lyrics.sttReady ? "check" : "add"
                     title: Lyrics.sttReady ? qsTr("Speech recognition is ready") : qsTr("Download components")
                     description: Lyrics.sttDownloading
@@ -467,6 +468,33 @@ Item {
                             kind: "ghost"
                             text: qsTr("Remove the model")
                             onClicked: Lyrics.removeSttModel(Lyrics.sttModel)
+                        }
+                    }
+                }
+                // An NVIDIA card: recognition runs there, several times faster
+                SettingRow {
+                    visible: Lyrics.sttGpuName !== ""
+                    icon: "equalizer"
+                    title: qsTr("Graphics card acceleration")
+                    description: !Lyrics.sttGpuSupported
+                        ? qsTr("%1 could recognize the singing much faster, but it needs NVIDIA driver 551 or newer (yours: %2).").arg(Lyrics.sttGpuName).arg(Lyrics.sttGpuDriver)
+                        : Lyrics.sttGpuEngineReady
+                          ? qsTr("Speech recognition runs on %1: several times faster than on the CPU, and the largest model is quick too.").arg(Lyrics.sttGpuName)
+                          : qsTr("%1 can recognize the singing several times faster than the CPU. It needs the CUDA version of whisper.cpp (official release from GitHub, %2, verified with SHA-256).").arg(Lyrics.sttGpuName).arg(Lyrics.sttGpuEngineSize)
+                    Row {
+                        spacing: 8
+                        PillButton {
+                            visible: Lyrics.sttGpuSupported && !Lyrics.sttGpuEngineReady && !Lyrics.sttDownloading
+                            kind: "primary"
+                            icon: "add"
+                            text: qsTr("Download")
+                            onClicked: Lyrics.downloadSttGpuEngine()
+                        }
+                        PillButton {
+                            visible: Lyrics.sttGpuEngineReady && !Lyrics.sttDownloading
+                            kind: "ghost"
+                            text: qsTr("Remove")
+                            onClicked: Lyrics.removeSttGpuEngine()
                         }
                     }
                 }

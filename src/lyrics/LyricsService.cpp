@@ -96,7 +96,8 @@ LyricsService::LyricsService(QObject *parent)
     m_model = settings->value("lyrics/model", m_hardware.recommendedModel).toString();
     if (!SpeechEngine::modelNames().contains(m_model))
         m_model = m_hardware.recommendedModel;
-    m_autoAlign = m_hardware.sufficient && settings->value("lyrics/autoAlign", false).toBool();
+    // Checked against the hardware when it's used: the graphics card is only found a moment after start.
+    m_autoAlign = settings->value("lyrics/autoAlign", false).toBool();
 
     connect(&m_speech, &SpeechEngine::stateChanged, this, [this] {
         emit sttChanged();
@@ -134,7 +135,7 @@ LyricsService::LyricsService(QObject *parent)
 
 void LyricsService::setAutoAlign(bool on)
 {
-    on = on && m_hardware.sufficient;
+    on = on && hardwareOk();
     if (on == m_autoAlign)
         return;
     m_autoAlign = on;
@@ -160,13 +161,13 @@ void LyricsService::setSttModel(const QString &model)
 
 bool LyricsService::canAlign() const
 {
-    return m_hardware.sufficient && sttReady() && m_state == QLatin1String("ready") && !m_lyrics.isEmpty()
+    return hardwareOk() && sttReady() && m_state == QLatin1String("ready") && !m_lyrics.isEmpty()
            && !m_lyrics.synced && !aligning();
 }
 
 bool LyricsService::canTranscribe() const
 {
-    return m_hasTrack && m_hardware.sufficient && sttReady() && m_state == QLatin1String("missing") && !aligning()
+    return m_hasTrack && hardwareOk() && sttReady() && m_state == QLatin1String("missing") && !aligning()
            && m_track.source != QLatin1String("radio") && !m_track.demo;
 }
 

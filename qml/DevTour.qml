@@ -413,8 +413,19 @@ Item {
                     "| origin", Lyrics.origin)
     }
     readonly property var recognizeSteps: {
-        const steps = [
-            { name: "R1-add", run: () => { Nav.finishOnboarding(); Nav.queueOpen = true; Lyrics.sttModel = "base"
+        const steps = []
+        // --tour-gpu-download: first the CUDA build of whisper.cpp, through the app's own download
+        if (Qt.application.arguments.indexOf("--tour-gpu-download") >= 0) {
+            steps.push({ name: "G0-gpu", run: () => {
+                console.log("tour: gpu", Lyrics.sttGpuName, Lyrics.sttGpuDriver, "| supported", Lyrics.sttGpuSupported, "| engine", Lyrics.sttGpuEngineReady)
+                Lyrics.downloadSttGpuEngine()
+            } })
+            for (let i = 0; i < 90; ++i)
+                steps.push({ name: "G1-wait" + i, run: () => console.log("tour: gpu download", Lyrics.sttDownloading, Math.round(Lyrics.sttProgress * 100) + "%",
+                                                                         "| engine", Lyrics.sttGpuEngineReady, "| uses gpu", Lyrics.sttUsesGpu) })
+        }
+        steps.push(...[
+            { name: "R1-add", run: () => { Nav.finishOnboarding(); Nav.queueOpen = true; Lyrics.sttModel = "small"
                                            Library.addFolder("file:///" + root.recognizeFolder.replace(/\\/g, "/")) } },
             { name: "R2-wait", run: () => {} },
             { name: "R3-play", run: () => {
@@ -426,7 +437,7 @@ Item {
             } },
             { name: "R4-wait", run: () => root.recognizeLog() },
             { name: "R5-recognize", run: () => { root.recognizeLog(); Lyrics.transcribeNow() } }
-        ]
+        ])
         for (let i = 0; i < 40; ++i)
             steps.push({ name: "R6-wait" + i, run: () => root.recognizeLog() })
         steps.push({ name: "R7-lines", run: () => {

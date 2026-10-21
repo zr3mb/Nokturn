@@ -56,9 +56,16 @@ class LyricsService : public QObject
     Q_PROPERTY(bool sttDownloading READ sttDownloading NOTIFY sttChanged)
     Q_PROPERTY(qreal sttProgress READ sttProgress NOTIFY sttChanged)
     Q_PROPERTY(QString sttDownloadLabel READ sttDownloadLabel NOTIFY sttChanged)
-    Q_PROPERTY(bool hardwareOk READ hardwareOk CONSTANT)
-    Q_PROPERTY(QString hardwareSummary READ hardwareSummary CONSTANT)
-    Q_PROPERTY(QString recommendedModel READ recommendedModel CONSTANT)
+    Q_PROPERTY(bool hardwareOk READ hardwareOk NOTIFY sttChanged)
+    Q_PROPERTY(QString hardwareSummary READ hardwareSummary NOTIFY sttChanged)
+    Q_PROPERTY(QString recommendedModel READ recommendedModel NOTIFY sttChanged)
+    // An NVIDIA card recognition can run on ("" = none), and whether it does.
+    Q_PROPERTY(QString sttGpuName READ sttGpuName NOTIFY sttChanged)
+    Q_PROPERTY(QString sttGpuDriver READ sttGpuDriver NOTIFY sttChanged)
+    Q_PROPERTY(bool sttGpuSupported READ sttGpuSupported NOTIFY sttChanged)
+    Q_PROPERTY(bool sttGpuEngineReady READ sttGpuEngineReady NOTIFY sttChanged)
+    Q_PROPERTY(bool sttUsesGpu READ sttUsesGpu NOTIFY sttChanged)
+    Q_PROPERTY(QString sttGpuEngineSize READ sttGpuEngineSize CONSTANT)
 
 public:
     static LyricsService *instance();
@@ -79,7 +86,7 @@ public:
     bool canTranscribe() const;
     bool recognizing() const { return aligning() && m_recognize; }
 
-    bool autoAlign() const { return m_autoAlign; }
+    bool autoAlign() const { return m_autoAlign && hardwareOk(); }
     void setAutoAlign(bool on);
     QString sttModel() const { return m_model; }
     void setSttModel(const QString &model);
@@ -91,9 +98,22 @@ public:
     bool sttDownloading() const { return m_speech.downloading(); }
     qreal sttProgress() const { return m_speech.downloadProgress(); }
     QString sttDownloadLabel() const { return m_speech.downloadLabel(); }
-    bool hardwareOk() const { return m_hardware.sufficient; }
-    QString hardwareSummary() const { return m_hardware.summary; }
-    QString recommendedModel() const { return m_hardware.recommendedModel; }
+    // On the graphics card even a weaker CPU will do, and the largest model is quick enough.
+    bool hardwareOk() const { return m_hardware.sufficient || m_speech.gpu().supported; }
+    QString hardwareSummary() const
+    {
+        return m_hardware.summary + (m_speech.gpu().name.isEmpty() ? QString() : QStringLiteral(" · ") + m_speech.gpu().name);
+    }
+    QString recommendedModel() const
+    {
+        return m_speech.gpu().supported && m_speech.gpu().memoryMb >= 3000 ? QStringLiteral("medium") : m_hardware.recommendedModel;
+    }
+    QString sttGpuName() const { return m_speech.gpu().name; }
+    QString sttGpuDriver() const { return m_speech.gpu().driver; }
+    bool sttGpuSupported() const { return m_speech.gpu().supported; }
+    bool sttGpuEngineReady() const { return m_speech.gpuEngineReady(); }
+    bool sttUsesGpu() const { return m_speech.usesGpu(); }
+    QString sttGpuEngineSize() const { return SpeechEngine::gpuEngineSize(); }
 
     // Index of the line (in `lines`) being sung right now; -1 before the first line or without timestamps.
     Q_INVOKABLE int lineAt(double seconds) const;
@@ -105,6 +125,8 @@ public:
     Q_INVOKABLE void transcribeNow();
     Q_INVOKABLE void cancelAlign();
     Q_INVOKABLE void downloadSttEngine() { m_speech.downloadEngine(); }
+    Q_INVOKABLE void downloadSttGpuEngine() { m_speech.downloadGpuEngine(); }
+    Q_INVOKABLE void removeSttGpuEngine() { m_speech.removeGpuEngine(); }
     Q_INVOKABLE void redetectStt() { m_speech.detect(); }
     Q_INVOKABLE void downloadSttModel() { m_speech.downloadModel(m_model); }
     Q_INVOKABLE void cancelSttDownload() { m_speech.cancelDownload(); }

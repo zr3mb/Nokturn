@@ -39,7 +39,23 @@ public:
     static QStringList modelNames() { return { QStringLiteral("base"), QStringLiteral("small"), QStringLiteral("medium") }; }
     static QString modelSize(const QString &model);
 
-    bool engineReady() const { return !m_enginePath.isEmpty(); }
+    // An NVIDIA graphics card (from nvidia-smi): with the CUDA build of whisper.cpp recognition runs on it,
+    // several times faster. supported = a driver new enough for that build (CUDA 12.4: 551 or newer).
+    struct Gpu
+    {
+        QString name;
+        QString driver;
+        int memoryMb = 0;
+        bool supported = false;
+    };
+    const Gpu &gpu() const { return m_gpu; }
+    bool gpuEngineReady() const { return !m_gpuEnginePath.isEmpty(); }
+    bool usesGpu() const { return m_gpu.supported && gpuEngineReady(); }
+    static QString gpuEngineSize() { return QStringLiteral("653 MB"); }
+    void downloadGpuEngine();
+    void removeGpuEngine();
+
+    bool engineReady() const { return !m_enginePath.isEmpty() || usesGpu(); }
     // A ready-made whisper.cpp package exists only for Windows; on Linux it's installed from the repositories.
     static bool canDownloadEngine()
     {
@@ -81,9 +97,16 @@ private:
     void fetchVerified(const QUrl &url, const QString &target, const QByteArray &sha256Hex,
                        std::function<void(bool ok)> done);
     void startWhisper();
+    void runWhisper(const QString &wav, const QString &outBase);
     void finishJob(const QList<LyricsAligner::Word> &words, const QString &error);
+    void detectGpu();
+    QString gpuToolsDir() const;
+    // The newest release's package (the first of `assets` it has), verified and unpacked into `dir`.
+    void fetchEngine(const QStringList &assets, const QString &dir, const QString &label);
 
     QString m_enginePath;
+    QString m_gpuEnginePath;
+    Gpu m_gpu;
     QNetworkAccessManager m_net;
     QPointer<QNetworkReply> m_reply;
     bool m_downloading = false;
