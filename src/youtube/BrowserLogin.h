@@ -65,7 +65,7 @@ private:
     QString m_browser;
     QString m_profileDir;
     Site m_site = Site::YouTube;
-    bool m_sawSignIn = false;   // SoundCloud: the sign-in page was shown (the next page means signed in)
+    bool m_closePending = false;   // SoundCloud: signed in, the window closes in a moment
     Stage m_stage = Stage::Idle;
     QProcess m_process;
     QWebSocket m_socket;

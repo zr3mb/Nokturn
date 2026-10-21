@@ -402,6 +402,19 @@ Item {
         } },
         { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
     ]
+    // SoundCloud sign-in with a profile that's already signed in (--tour-sc-login): the window, the readout, the sync.
+    readonly property bool withScLogin: Qt.application.arguments.indexOf("--tour-sc-login") >= 0
+    readonly property var scLoginSteps: {
+        const log = () => console.log("tour: sc loggingIn", SoundCloud.loggingIn, "| status", SoundCloud.loginStatus, "| connected", SoundCloud.connected,
+                                      "| account", SoundCloud.accountName, "| syncing", SoundCloud.syncing, "| liked", SoundCloud.likedCount, "| playlists", SoundCloud.playlistCount)
+        const s = [{ name: "L1-login", run: () => { Nav.finishOnboarding(); Nav.navigate("sources"); SoundCloud.login() } }]
+        for (let i = 2; i <= 14; ++i)
+            s.push({ name: "L" + i + "-wait", run: log })
+        s.push({ name: "L15-sources", run: () => { log(); root.scrollPage(900) } })
+        s.push({ name: "L16-sidebar", run: () => { log(); Nav.navigate("playlist", { kind: "playlist", index: Library.playlists.findIndex(p => p.kind === "scliked") }) } })
+        s.push({ name: "L17-wait", run: log })
+        return s
+    }
     // SoundCloud: search, play a track (and seek in it), open a found playlist, the sources (--tour-soundcloud).
     readonly property bool withSoundCloud: Qt.application.arguments.indexOf("--tour-soundcloud") >= 0
     readonly property var soundcloudSteps: [
@@ -527,7 +540,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
@@ -586,6 +599,11 @@ Item {
 
     Connections {
         target: YouTube
+        enabled: root.dir !== ""
+        function onNotice(text, icon) { console.log("tour: notice:", text) }
+    }
+    Connections {
+        target: SoundCloud
         enabled: root.dir !== ""
         function onNotice(text, icon) { console.log("tour: notice:", text) }
     }

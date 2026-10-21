@@ -253,7 +253,7 @@ void BrowserLogin::start(const QString &profileDir)
     QFile::remove(profileDir + QStringLiteral("/DevToolsActivePort"));
 
     setStage(Stage::Interactive);
-    m_sawSignIn = false;
+    m_closePending = false;
     const QString url = m_site == Site::SoundCloud
                             ? QString::fromLatin1(kSoundCloudLoginUrl)
                             : QString::fromLatin1(kLoginUrl).replace(QStringLiteral("{lang}"), Language::instance()->effective());
@@ -286,17 +286,27 @@ void BrowserLogin::checkWindowTitle()
     // to music.youtube.com, and the window starts being called "YouTube Music".
     const WindowScan scan = scanWindows(m_process.processId());
     if (m_site == Site::SoundCloud) {
-        // The sign-in page's title speaks of signing in; once it's gone (the feed, the home page) the
-        // session is there. Sign-in popups (Google, Apple) are separate windows with their own titles.
+        // Signed in, SoundCloud lands on one of its own pages (the feed, Discover, the home page) — named by
+        // their titles. Pages on the way (Google / Apple sign-in, secure.soundcloud.com, a window still named
+        // after its URL) don't count. The window stays a moment longer, so the session cookie gets saved.
+        if (m_closePending)
+            return;
+        if (qEnvironmentVariableIsSet("NOKTURN_LOGIN_DEBUG"))
+            qInfo("login: window titles %s", qPrintable(scan.titles.join(QStringLiteral(" | "))));
         for (const QString &title : scan.titles) {
             const QString t = title.toLower();
-            if (!t.contains(QLatin1String("soundcloud")))
+            if (!t.contains(QLatin1String("soundcloud")) || t.contains(QLatin1String("sign")) || t.contains(QLatin1String("register"))
+                || t.contains(QLatin1String("log in")) || t.contains(QLatin1String("login")) || t.contains(QLatin1String(".com"))
+                || t.contains(QLatin1String("secure")) || t.contains(QLatin1String("connect")))
                 continue;
-            if (t.contains(QLatin1String("sign")) || t.contains(QLatin1String("register")) || t.contains(QLatin1String("log in"))
-                || t.contains(QLatin1String("login"))) {
-                m_sawSignIn = true;
-            } else if (m_sawSignIn) {
-                closeInteractiveWindow();
+            if (t.contains(QLatin1String("discover")) || t.contains(QLatin1String("feed")) || t.contains(QLatin1String("stream"))
+                || t.contains(QLatin1String("hear the world")) || t.contains(QLatin1String("library"))) {
+                m_closePending = true;
+                QTimer::singleShot(3000, this, [this] {
+                    m_closePending = false;
+                    if (m_stage == Stage::Interactive)
+                        closeInteractiveWindow();
+                });
                 return;
             }
         }

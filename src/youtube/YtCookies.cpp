@@ -145,7 +145,7 @@ QByteArray unprotectSecret(const QByteArray &data) { return unprotect(data); }
 QString YtCookies::value(const QString &name) const
 {
     for (const YtCookie &c : cookies)
-        if (c.name == name && c.domain.endsWith(QLatin1String("youtube.com")))
+        if (c.name == name)   // the set holds one site's cookies (fromCdp picks them by domain)
             return c.value;
     return {};
 }
