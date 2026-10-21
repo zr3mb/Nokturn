@@ -175,6 +175,10 @@ Panel {
                                 return "YouTube Music" + (modelData.count >= 0 ? " · " + qsTr("%n tracks", "", modelData.count) : "")
                             if (modelData.kind === "spplaylist" || modelData.kind === "spotifyliked")
                                 return "Spotify · " + qsTr("%n tracks", "", Library.playlistRows(index).length)
+                            if (modelData.kind === "scplaylist")
+                                return "SoundCloud" + (modelData.count >= 0 ? " · " + qsTr("%n tracks", "", modelData.count) : "")
+                            if (modelData.kind === "scliked")
+                                return "SoundCloud · " + qsTr("%n tracks", "", Library.playlistRows(index).length)
                             const n = Library.playlistRows(index).length
                             return qsTr("Playlist · %n tracks", "", n)
                         }

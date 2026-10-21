@@ -66,6 +66,7 @@ public:
     Q_INVOKABLE bool playlistLoading(int index) const;
     Q_INVOKABLE QVariantList artistSongRows(const QString &browseId) const;   // top songs from YouTube Music
     Q_INVOKABLE QVariantList collectionRows(const QString &playlistId);       // album / playlist opened from an artist
+    Q_INVOKABLE QVariantList soundCloudCollectionRows(const QString &playlistId);   // a SoundCloud playlist opened from search
 
     // Queue contexts: "playlist:<kind>", "yt:<playlist id>", "album:<key>", "artist:<name>", "library",
     // "ytartist:<browseId>" (top songs), "ytc:<playlist id>" (album / playlist from an artist page),
@@ -77,6 +78,7 @@ public:
     QVariantList rowsForContext(const QString &context);   // current rows (YouTube playlists may still be growing)
     Q_INVOKABLE QVariantList libraryRows() const;           // local + liked on YouTube Music
     Q_INVOKABLE QVariantList onlineResults() const;         // latest YouTube Music search results
+    Q_INVOKABLE QVariantList soundCloudResults() const;     // latest SoundCloud search results
     Q_INVOKABLE QVariantList recommendedRows() const;       // "Recommended for you" (Recommendations)
     // Genres from the tags, most tracks first: [{ key, name, count, colorA, colorB, seed, cover, mosaic }].
     Q_INVOKABLE QVariantList genres() const;

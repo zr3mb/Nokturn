@@ -198,15 +198,15 @@ QString YtCookies::toNetscape() const
     return out;
 }
 
-YtCookies YtCookies::fromCdp(const QJsonArray &cdpCookies)
+YtCookies YtCookies::fromCdp(const QJsonArray &cdpCookies, const QString &domain)
 {
     YtCookies result;
     for (const QJsonValue &v : cdpCookies) {
         const QJsonObject o = v.toObject();
         YtCookie c;
         c.domain = o.value("domain").toString();
-        if (!c.domain.endsWith(QLatin1String("youtube.com")))
-            continue;   // we only need the YouTube cookies
+        if (!c.domain.endsWith(domain))
+            continue;   // only the cookies of the site signed in to
         c.name = o.value("name").toString();
         c.value = o.value("value").toString();
         c.path = o.value("path").toString(QStringLiteral("/"));

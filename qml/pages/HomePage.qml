@@ -70,6 +70,10 @@ Item {
         readonly property bool isLocal: modelData.id === "local"
         readonly property string status: modelData.id === "youtube"
                                          ? (YouTube.connected ? "connected" : YouTube.loggingIn ? "connecting" : "disconnected")
+                                         : modelData.id === "spotify"
+                                         ? (Spotify.connected ? "connected" : Spotify.loggingIn ? "connecting" : "disconnected")
+                                         : modelData.id === "soundcloud"
+                                         ? (SoundCloud.connected ? "connected" : SoundCloud.loggingIn ? "connecting" : "available")
                                          : isLocal ? (Library.folders.length > 0 ? "connected" : "disconnected")
                                          : modelData.status
 
@@ -128,6 +132,8 @@ Item {
                              : qsTr("Add folder →"))
                           : mini.modelData.id === "youtube" && YouTube.connected
                             ? qsTr("%n liked", "", YouTube.likedCount)
+                          : mini.modelData.id === "soundcloud" && SoundCloud.connected
+                            ? qsTr("%n liked", "", SoundCloud.likedCount)
                           : mini.status === "connected" ? qsTr("Connected")
                           : mini.status === "disconnected" ? qsTr("Sign in →") : mini.status === "connecting" ? qsTr("Signing in…") : qsTr("Ready to use")
                     color: Theme.textDim
@@ -499,9 +505,12 @@ Item {
                     action: qsTr("Manage")
                     onActionClicked: Nav.navigate("sources")
                 }
-                RowLayout {
+                // Six sources: one row when there's room, two rows of three otherwise.
+                GridLayout {
                     Layout.fillWidth: true
-                    spacing: 14
+                    columns: width > 1150 ? 6 : 3
+                    rowSpacing: 14
+                    columnSpacing: 14
                     Repeater {
                         model: Library.sources
                         SourceMini {}

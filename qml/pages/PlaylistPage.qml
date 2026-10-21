@@ -16,6 +16,7 @@ Item {
         // Never true: the reads make the binding re-run when they change (a bare read is compiled away).
         // A collection's tracks are appended to the model, not rebuilt into it; genres fill in later.
         if (Library.tracks.revision < 0 || (a.kind === "ytcollection" && YouTube.resultsRevision < 0)
+            || (a.kind === "sccollection" && SoundCloud.resultsRevision < 0)
                 || (a.kind === "genre" && Library.genresRevision < 0))
             return {}
         if (a.kind === "album") {
@@ -40,6 +41,13 @@ Item {
                      cover: g.mosaic.length >= 4 ? "" : g.cover, mosaic: g.mosaic, icon: "", round: false,
                      rows: Library.tracksOfGenre(a.key) }
         }
+        if (a.kind === "sccollection") {
+            // A playlist found on SoundCloud — loaded from there, not in the library.
+            return { label: qsTr("PLAYLIST · SOUNDCLOUD"), title: a.title || "", meta: a.subtitle ? [a.subtitle] : [],
+                     colorA: "#d9a27e", colorB: "#5a3a28", seed: 0, cover: a.cover || "", icon: "",
+                     round: false, rows: Library.soundCloudCollectionRows(a.playlistId),
+                     loading: SoundCloud.collectionLoading(a.playlistId) }
+        }
         if (a.kind === "ytcollection") {
             // An album / playlist opened from an artist profile — loaded from YouTube Music, not in the library.
             return { label: a.label || qsTr("ALBUM"), title: a.title || "", meta: a.subtitle ? [a.subtitle] : [],
@@ -54,13 +62,17 @@ Item {
                      seed: 0, cover: "", icon: "music", round: false, rows: [], loading: false }
         const yt = p.kind === "ytplaylist"
         const sp = p.kind === "spplaylist" || p.kind === "spotifyliked"
+        const sc = p.kind === "scplaylist" || p.kind === "scliked"
         const meta = yt ? "YouTube Music"
                    : p.kind === "youtube" ? (YouTube.connected ? qsTr("Liked on your YouTube account") : qsTr("Sample tracks from YouTube Music"))
                    : p.kind === "spotifyliked" ? qsTr("Liked on your Spotify account")
+                   : p.kind === "scliked" ? qsTr("Liked on your SoundCloud account")
+                   : sc ? "SoundCloud"
                    : sp ? qsTr("Spotify — played from YouTube Music")
                    : p.kind === "user" ? (p.description || qsTr("Your playlist on this computer"))
                    : qsTr("Your playlist")
-        return { label: yt ? qsTr("PLAYLIST · YOUTUBE MUSIC") : sp ? qsTr("PLAYLIST · SPOTIFY") : qsTr("PLAYLIST"), title: p.name, meta: [meta],
+        return { label: yt ? qsTr("PLAYLIST · YOUTUBE MUSIC") : sp ? qsTr("PLAYLIST · SPOTIFY")
+                        : sc ? qsTr("PLAYLIST · SOUNDCLOUD") : qsTr("PLAYLIST"), title: p.name, meta: [meta],
                  colorA: p.colorA, colorB: p.colorB, seed: p.seed, cover: p.cover || "", icon: p.icon, round: false,
                  mosaic: p.mosaic || [], playlistIndex: index, customCover: p.customCover === true,
                  kind: p.kind, editable: Playlists.canEdit(index),
@@ -72,10 +84,12 @@ Item {
         if (a.kind === "album") return "album:" + a.key
         if (a.kind === "artist") return "artist:" + a.artist
         if (a.kind === "ytcollection") return "ytc:" + a.playlistId
+        if (a.kind === "sccollection") return "scc:" + a.playlistId
         if (a.kind === "genre") return "genre:" + a.key
         const p = Library.playlists[a.index || 0]
         if (!p) return ""
         return p.kind === "ytplaylist" ? "yt:" + p.ytId : p.kind === "spplaylist" ? "sp:" + p.spId
+             : p.kind === "scplaylist" ? "sc:" + p.scId
              : p.kind === "user" ? "user:" + p.userId : "playlist:" + p.kind
     }
 

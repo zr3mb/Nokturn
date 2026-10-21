@@ -7,14 +7,14 @@ Item {
     property var args: ({})
     property string query: ""
     property int filter: 0
-    readonly property var filterKeys: ["", "local", "youtube", "radio"]
+    readonly property var filterKeys: ["", "local", "youtube", "soundcloud", "radio"]
     readonly property bool searching: query.trim().length > 0 || filter > 0
     // What is found, in the order it's shown: your library (files, radio), then YouTube Music and Spotify
-    // (your own tracks there, then the YouTube Music catalog), then playlists.
+    // (your own tracks there, then the YouTube Music catalog), then SoundCloud, then playlists.
     readonly property var results: {
         if (Library.tracks.revision < 0)   // never: the read makes the binding re-run (a bare read is compiled away)
             return []
-        if (filter === 2)
+        if (filter === 2 || filter === 3)
             return []
         if (filter === 0)
             return Library.search(query, "local").concat(Library.search(query, "radio"))
@@ -34,10 +34,23 @@ Item {
     property int onlineShown: 40
     readonly property bool withSpotify: filter === 0 && Spotify.connected
 
+    // SoundCloud for "All" and "SoundCloud": your likes there, then its catalog (no account needed).
+    readonly property bool soundcloudEnabled: query.trim().length > 1 && (filter === 0 || filter === 3)
+    readonly property var soundcloud: {
+        if (Library.tracks.revision < 0 || SoundCloud.resultsRevision < 0)
+            return []
+        if (filter !== 0 && filter !== 3)
+            return []
+        const own = Library.search(query, "soundcloud")
+        const seen = new Set(own)
+        return own.concat((soundcloudEnabled ? Library.soundCloudResults() : []).filter(r => !seen.has(r)))
+    }
+    property int soundcloudShown: 20
+
     // Your playlists whose name fits ({ p, index } in Library.playlists), then public ones on YouTube Music.
     readonly property var ownPlaylists: {
         const q = query.trim().toLowerCase()
-        if (q.length === 0 || filter === 1 || filter === 3)
+        if (q.length === 0 || filter === 1 || filter === 4)
             return []
         const out = []
         Library.playlists.forEach((p, i) => {
@@ -58,6 +71,11 @@ Item {
 
     // Public playlists for the query (YouTube Music's own, then users'); they open like an artist's albums.
     readonly property var playlists: onlineEnabled ? YouTube.playlistResults : []
+    readonly property var soundcloudPlaylists: soundcloudEnabled ? SoundCloud.playlistResults : []
+    function openSoundCloud(p) {
+        Nav.navigate("playlist", { kind: "sccollection", playlistId: p.id, title: p.title, subtitle: p.subtitle,
+                                   cover: p.cover })
+    }
     function openPlaylist(p) {
         Nav.navigate("playlist", { kind: "ytcollection", playlistId: p.id, title: p.title, subtitle: p.subtitle,
                                    cover: p.cover, label: qsTr("PLAYLIST") })
@@ -66,8 +84,8 @@ Item {
 
     // Rows are built at once (Repeater), so long result lists show in parts.
     property int shown: 40
-    onQueryChanged: { shown = 40; onlineShown = 40; onlineTimer.restart(); rememberState() }
-    onFilterChanged: { shown = 40; onlineShown = 40; onlineTimer.restart(); rememberState() }
+    onQueryChanged: { shown = 40; onlineShown = 40; soundcloudShown = 20; onlineTimer.restart(); rememberState() }
+    onFilterChanged: { shown = 40; onlineShown = 40; soundcloudShown = 20; onlineTimer.restart(); rememberState() }
     function rememberState() {
         if (Nav.page === "search")
             Nav.remember({ query: query, filter: filter })
@@ -76,7 +94,12 @@ Item {
     Timer {
         id: onlineTimer
         interval: 450
-        onTriggered: if (page.onlineEnabled) YouTube.search(page.query)
+        onTriggered: {
+            if (page.onlineEnabled)
+                YouTube.search(page.query)
+            if (page.soundcloudEnabled)
+                SoundCloud.search(page.query)
+        }
     }
 
     // Moods to search for when the library has (almost) no genre tags.
@@ -210,9 +233,12 @@ Item {
         const own = ownPlaylists.map(o => ({ own: true, index: o.index, playlist: o.p, subtitle: qsTr("Your playlist") }))
         const pub = playlists.map((p, i) => ({ own: false, data: p, subtitle: p.subtitle || "",
                                                playlist: { name: p.title, cover: p.cover || "", seed: i, icon: "library" } }))
-        return own.concat(pub)
+        const sc = soundcloudPlaylists.map((p, i) => ({ own: false, sc: true, data: p, subtitle: "SoundCloud · " + p.subtitle + " · " + qsTr("%n tracks", "", p.count),
+                                                       playlist: { name: p.title, cover: p.cover || "", seed: i + 2, icon: "wavecloud" } }))
+        return own.concat(pub, sc)
     }
-    readonly property bool sideShown: page.width > 760 && page.searching && filter !== 1 && filter !== 3
+    readonly property bool sideShown: page.width > 760 && page.searching && filter !== 1 && filter !== 4
+    readonly property bool lookingUp: (onlineEnabled && YouTube.searching) || (soundcloudEnabled && SoundCloud.searching)
 
     Rectangle {
         id: sidePanel
@@ -236,10 +262,10 @@ Item {
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
             }
-            Spinner { visible: page.onlineEnabled && YouTube.searching; size: 16; color: Theme.textDim }
+            Spinner { visible: page.lookingUp; size: 16; color: Theme.textDim }
         }
         Text {
-            visible: page.foundPlaylists.length === 0 && !(page.onlineEnabled && YouTube.searching)
+            visible: page.foundPlaylists.length === 0 && !page.lookingUp
             anchors { left: parent.left; right: parent.right; top: sideTitle.bottom; leftMargin: 16; rightMargin: 16; topMargin: 10 }
             text: page.query.trim().length > 1 ? qsTr("No playlists for this search") : qsTr("Type at least two letters")
             color: Theme.textFaint
@@ -258,8 +284,10 @@ Item {
                 width: ListView.view.width
                 playlist: modelData.playlist
                 subtitle: modelData.subtitle
-                onClicked: modelData.own ? page.openOwn(modelData.index) : page.openPlaylist(modelData.data)
-                onPlayClicked: modelData.own ? page.playOwn(modelData.index) : page.openPlaylist(modelData.data)
+                onClicked: modelData.own ? page.openOwn(modelData.index)
+                           : modelData.sc ? page.openSoundCloud(modelData.data) : page.openPlaylist(modelData.data)
+                onPlayClicked: modelData.own ? page.playOwn(modelData.index)
+                               : modelData.sc ? page.openSoundCloud(modelData.data) : page.openPlaylist(modelData.data)
             }
         }
     }
@@ -296,7 +324,7 @@ Item {
                 }
 
                 SegmentedTabs {
-                    model: [qsTr("All"), qsTr("Local"), "YouTube Music", qsTr("Radio")]
+                    model: [qsTr("All"), qsTr("Local"), "YouTube Music", "SoundCloud", qsTr("Radio")]
                     currentIndex: page.filter
                     onActivated: i => page.filter = i
                 }
@@ -392,11 +420,51 @@ Item {
                 onClicked: page.onlineShown = page.online.length
             }
 
-            // Playlists: yours whose name fits, then public ones on YouTube Music
             RowLayout {
-                visible: !page.sideShown && (page.ownPlaylists.length > 0 || page.playlists.length > 0)
+                visible: page.soundcloud.length > 0 || (page.soundcloudEnabled && SoundCloud.searching)
                 Layout.fillWidth: true
                 Layout.topMargin: page.results.length > 0 || page.online.length > 0 ? 26 : 0
+                Layout.bottomMargin: 8
+                spacing: 10
+                Icon { name: "wavecloud"; size: 20; color: "#d9a27e" }
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("On SoundCloud")
+                    color: Theme.text
+                    font.family: Theme.fontDisplay
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                }
+                Spinner { visible: SoundCloud.searching; size: 18; color: Theme.textDim }
+            }
+
+            Repeater {
+                model: page.soundcloud.slice(0, page.soundcloudShown)
+                TrackRow {
+                    required property var modelData
+                    required property int index
+                    Layout.fillWidth: true
+                    trackIndex: modelData
+                    number: index + 1
+                    queue: page.soundcloud
+                    revealDelay: Math.min(index, 12) * 32
+                }
+            }
+
+            PillButton {
+                visible: page.soundcloud.length > page.soundcloudShown
+                Layout.topMargin: 6
+                kind: "ghost"
+                icon: "expandMore"
+                text: qsTr("Show all (%1)").arg(page.soundcloud.length)
+                onClicked: page.soundcloudShown = page.soundcloud.length
+            }
+
+            // Playlists: yours whose name fits, then public ones on YouTube Music and SoundCloud
+            RowLayout {
+                visible: !page.sideShown && page.foundPlaylists.length > 0
+                Layout.fillWidth: true
+                Layout.topMargin: page.results.length > 0 || page.online.length > 0 || page.soundcloud.length > 0 ? 26 : 0
                 Layout.bottomMargin: 8
                 spacing: 10
                 Icon { name: "library"; size: 20; color: "#cf9d9d" }
@@ -410,7 +478,7 @@ Item {
                 }
             }
             Flow {
-                visible: !page.sideShown && (page.ownPlaylists.length > 0 || page.playlists.length > 0)
+                visible: !page.sideShown && page.foundPlaylists.length > 0
                 Layout.fillWidth: true
                 spacing: 18
                 Repeater {
@@ -448,11 +516,27 @@ Item {
                         onPlayClicked: page.openPlaylist(modelData)
                     }
                 }
+                Repeater {
+                    model: page.soundcloudPlaylists
+                    AlbumCard {
+                        required property var modelData
+                        required property int index
+                        width: 168
+                        shadow: playlistShadow
+                        title: modelData.title
+                        subtitle: "SoundCloud · " + modelData.subtitle + " · " + qsTr("%n tracks", "", modelData.count)
+                        cover: modelData.cover
+                        seed: index + 2
+                        revealDelay: (page.ownPlaylists.length + page.playlists.length + index) * 30
+                        onClicked: page.openSoundCloud(modelData)
+                        onPlayClicked: page.openSoundCloud(modelData)
+                    }
+                }
             }
 
             ColumnLayout {
-                visible: page.results.length === 0 && page.online.length === 0 && page.playlists.length === 0
-                         && page.ownPlaylists.length === 0 && !YouTube.searching
+                visible: page.results.length === 0 && page.online.length === 0 && page.soundcloud.length === 0
+                         && page.foundPlaylists.length === 0 && !page.lookingUp
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: 50
                 spacing: 10

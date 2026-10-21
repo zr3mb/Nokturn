@@ -1,7 +1,7 @@
 import QtQuick
 import Nokturn
 
-// Track source badge: local file / YouTube Music / radio.
+// Track source badge: local file / YouTube Music / Spotify / SoundCloud / radio.
 Rectangle {
     id: root
     property string source: "local"
@@ -11,6 +11,7 @@ Rectangle {
         local:   { label: qsTr("Local"),       icon: "folder",     color: "#9fbfa8" },
         youtube: { label: "YouTube Music", icon: "playCircle", color: "#cf9d9d" },
         spotify: { label: "Spotify",       icon: "music",      color: "#8fc79a" },
+        soundcloud: { label: "SoundCloud", icon: "wavecloud",      color: "#d9a27e" },
         radio:   { label: qsTr("Radio"),       icon: "live",       color: "#cdb68e" },
         stream:  { label: qsTr("Stream"),      icon: "link",       color: "#93a8c3" }
     })[source] || { label: source, icon: "music", color: "#a19e98" }

@@ -402,6 +402,43 @@ Item {
         } },
         { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
     ]
+    // SoundCloud: search, play a track (and seek in it), open a found playlist, the sources (--tour-soundcloud).
+    readonly property bool withSoundCloud: Qt.application.arguments.indexOf("--tour-soundcloud") >= 0
+    readonly property var soundcloudSteps: [
+        { name: "C1-search", run: () => { Nav.finishOnboarding(); Nav.navigate("search", { query: "lofi hip hop", filter: 3 }) } },
+        { name: "C2-wait", run: () => {} },
+        { name: "C3-results", run: () => {
+            const r = Library.soundCloudResults()
+            console.log("tour: soundcloud tracks", r.length, "|", r.slice(0, 4).map(x => Library.tracks.get(x).title + " / " + Library.tracks.get(x).artist).join(" | "))
+            console.log("tour: soundcloud playlists", SoundCloud.playlistResults.length)
+            if (r.length) Player.playFrom(r, r[0], "search")
+        } },
+        { name: "C4-wait", run: () => {} },
+        { name: "C5-playing", run: () => { console.log("tour: playing", Player.title, "| pos", Player.position.toFixed(1), "| dur", Player.duration); Player.seek(60) } },
+        { name: "C6-wait", run: () => {} },
+        { name: "C7-seeked", run: () => {
+            console.log("tour: after seek pos", Player.position.toFixed(1), "playing", Player.playing)
+            const p = SoundCloud.playlistResults[0]
+            root.album = p ? { playlistId: p.id } : null
+            if (p) Nav.navigate("playlist", { kind: "sccollection", playlistId: p.id, title: p.title, subtitle: p.subtitle, cover: p.cover })
+        } },
+        { name: "C8-wait", run: () => {} },
+        { name: "C9-playlist", run: () => {
+            const r = root.album ? Library.soundCloudCollectionRows(root.album.playlistId) : []
+            console.log("tour: playlist rows", r.length)
+            if (r.length > 1) Player.playFrom(r, r[1], "scc:" + root.album.playlistId)
+        } },
+        { name: "C10-wait", run: () => {} },
+        { name: "C11-playing", run: () => { console.log("tour: playing", Player.title, "| pos", Player.position.toFixed(1)); Player.next() } },
+        { name: "C12-wait", run: () => {} },
+        { name: "C13-next", run: () => { console.log("tour: next", Player.title, "| pos", Player.position.toFixed(1)); Nav.navigate("search", { query: "daft punk" }) } },
+        { name: "C14-wait", run: () => {} },
+        { name: "C15-all", run: () => root.scrollPage(1400) },
+        { name: "C16-sources", run: () => { Player.pause(); Nav.navigate("sources") } },
+        { name: "C17-sc", run: () => root.scrollPage(900) },
+        { name: "C18-home", run: () => Nav.navigate("home") },
+        { name: "C19-bottom", run: () => root.scrollPage(4000) }
+    ]
     // Stats, "Recently played" and resuming a long recording (--tour-stats).
     // Lyrics recognized for a track without any (--tour-recognize <folder>: a folder with one recording
     // with words in it; the profile needs whisper and the "base" model).
@@ -490,7 +527,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

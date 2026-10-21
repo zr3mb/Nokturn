@@ -69,6 +69,7 @@ qt_add_qml_module(Nokturn
         src/Language.h          src/Language.cpp
         src/spotify/SpotifyService.h  src/spotify/SpotifyService.cpp
         src/spotify/SpotifyWebLogin.h src/spotify/SpotifyWebLogin.cpp
+        src/soundcloud/SoundCloudService.h src/soundcloud/SoundCloudService.cpp
     QML_FILES
         qml/Main.qml
         qml/Theme.qml
@@ -172,7 +173,7 @@ if(UNIX AND NOT APPLE)
     set_target_properties(Nokturn PROPERTIES OUTPUT_NAME nokturn)
 endif()
 
-target_include_directories(Nokturn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio ${CMAKE_CURRENT_SOURCE_DIR}/src/lyrics ${CMAKE_CURRENT_SOURCE_DIR}/src/platform ${CMAKE_CURRENT_SOURCE_DIR}/src/spotify)
+target_include_directories(Nokturn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio ${CMAKE_CURRENT_SOURCE_DIR}/src/lyrics ${CMAKE_CURRENT_SOURCE_DIR}/src/platform ${CMAKE_CURRENT_SOURCE_DIR}/src/spotify ${CMAKE_CURRENT_SOURCE_DIR}/src/soundcloud)
 target_link_libraries(Nokturn PRIVATE
     Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia Qt6::Concurrent Qt6::Network Qt6::WebSockets
     TagLib::tag

@@ -24,6 +24,7 @@ const char *kLoginUrl =
     "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&hl={lang}"
     "&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop"
     "%26hl%3D{lang}%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F";
+const char *kSoundCloudLoginUrl = "https://soundcloud.com/signin";
 
 #ifdef Q_OS_WIN
 QString appPath(const QString &exe)
@@ -188,6 +189,22 @@ void BrowserLogin::closeWindows(qint64 pid)
 
 QString BrowserLogin::status() const
 {
+    if (m_site == Site::SoundCloud) {
+        switch (m_stage) {
+        case Stage::Interactive:
+#ifdef Q_OS_WIN
+            return tr("Sign in in the window that opened. Once SoundCloud shows your feed, the window closes by itself.");
+#else
+            return tr("Sign in in the window that opened, and close it once SoundCloud shows your feed.");
+#endif
+        case Stage::Closing:
+        case Stage::Reading:
+            return tr("Reading the SoundCloud session…");
+        case Stage::Idle:
+            break;
+        }
+        return {};
+    }
     switch (m_stage) {
     case Stage::Interactive:
 #ifdef Q_OS_WIN
@@ -236,13 +253,17 @@ void BrowserLogin::start(const QString &profileDir)
     QFile::remove(profileDir + QStringLiteral("/DevToolsActivePort"));
 
     setStage(Stage::Interactive);
+    m_sawSignIn = false;
+    const QString url = m_site == Site::SoundCloud
+                            ? QString::fromLatin1(kSoundCloudLoginUrl)
+                            : QString::fromLatin1(kLoginUrl).replace(QStringLiteral("{lang}"), Language::instance()->effective());
     m_process.setProgram(m_browser);
     m_process.setArguments({
         QStringLiteral("--user-data-dir=") + QDir::toNativeSeparators(profileDir),
         QStringLiteral("--no-first-run"),
         QStringLiteral("--no-default-browser-check"),
         QStringLiteral("--window-size=520,760"),
-        QStringLiteral("--app=") + QString::fromLatin1(kLoginUrl).replace(QStringLiteral("{lang}"), Language::instance()->effective()),
+        QStringLiteral("--app=") + url,
     });
     m_process.start();
     m_titleTimer.start();
@@ -264,6 +285,23 @@ void BrowserLogin::checkWindowTitle()
     // The app window's title is the page title. After a successful sign-in Google redirects
     // to music.youtube.com, and the window starts being called "YouTube Music".
     const WindowScan scan = scanWindows(m_process.processId());
+    if (m_site == Site::SoundCloud) {
+        // The sign-in page's title speaks of signing in; once it's gone (the feed, the home page) the
+        // session is there. Sign-in popups (Google, Apple) are separate windows with their own titles.
+        for (const QString &title : scan.titles) {
+            const QString t = title.toLower();
+            if (!t.contains(QLatin1String("soundcloud")))
+                continue;
+            if (t.contains(QLatin1String("sign")) || t.contains(QLatin1String("register")) || t.contains(QLatin1String("log in"))
+                || t.contains(QLatin1String("login"))) {
+                m_sawSignIn = true;
+            } else if (m_sawSignIn) {
+                closeInteractiveWindow();
+                return;
+            }
+        }
+        return;
+    }
     for (const QString &title : scan.titles) {
         // Before the page provides a title, the window is named after the URL (e.g. "music.youtube.com_/").
         if (title.contains(QLatin1String("YouTube Music"), Qt::CaseInsensitive)
@@ -370,8 +408,10 @@ void BrowserLogin::onMessage(const QString &message)
     if (!msg.contains("id") || !msg.value("result").isObject())
         return;
 
-    const YtCookies cookies = YtCookies::fromCdp(msg.value("result").toObject().value("cookies").toArray());
-    if (cookies.isLoggedIn()) {
+    const YtCookies cookies = YtCookies::fromCdp(msg.value("result").toObject().value("cookies").toArray(),
+                                                 m_site == Site::SoundCloud ? QStringLiteral("soundcloud.com")
+                                                                            : QStringLiteral("youtube.com"));
+    if (signedIn(cookies)) {
         stopAll();
         emit succeeded(cookies);
         return;
@@ -381,7 +421,15 @@ void BrowserLogin::onMessage(const QString &message)
         m_retryTimer.start();
         return;
     }
-    fail(tr("No sign-in detected — sign in in the window until you see YouTube Music"));
+    fail(m_site == Site::SoundCloud ? tr("No sign-in detected — sign in in the window until SoundCloud shows your feed")
+                                    : tr("No sign-in detected — sign in in the window until you see YouTube Music"));
+}
+
+bool BrowserLogin::signedIn(const YtCookies &cookies) const
+{
+    if (m_site == Site::SoundCloud)
+        return !cookies.value(QStringLiteral("oauth_token")).isEmpty();
+    return cookies.isLoggedIn();
 }
 
 void BrowserLogin::fail(const QString &reason)

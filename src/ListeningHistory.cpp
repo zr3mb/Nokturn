@@ -2,6 +2,7 @@
 
 #include "AppPaths.h"
 #include "Library.h"
+#include "soundcloud/SoundCloudService.h"
 #include "youtube/YouTubeService.h"
 
 #include <QCoreApplication>
@@ -60,7 +61,8 @@ void ListeningHistory::notePlay(const Track &t, double secondsSoFar)
     m_events.append({ t.id, QDateTime::currentMSecsSinceEpoch(), secondsSoFar });
     if (m_events.size() > kMaxEvents)
         m_events.remove(0, m_events.size() - kMaxEvents);
-    const bool streaming = t.source == QLatin1String("youtube") && !m_tracks.contains(t.id);
+    const bool streaming = (t.source == QLatin1String("youtube") || t.source == QLatin1String("soundcloud"))
+                           && !m_tracks.contains(t.id);
     m_tracks.insert(t.id, t);
     if (streaming)
         keepStreamingTracks();
@@ -94,13 +96,16 @@ void ListeningHistory::keepStreamingTracks()
 {
     // YouTube Music tracks only live in the model while a search or a page shows them — the recent
     // ones are kept there like the recommendations, so "Recently played" can play them.
-    QList<Track> keep;
+    QList<Track> keep, soundcloud;
     for (const QString &id : recentIds(kKeptTracks)) {
         const auto it = m_tracks.constFind(id);
         if (it != m_tracks.cend() && it->source == QLatin1String("youtube"))
             keep << *it;
+        else if (it != m_tracks.cend() && it->source == QLatin1String("soundcloud"))
+            soundcloud << *it;
     }
     YouTubeService::instance()->setHistory(keep);
+    SoundCloudService::instance()->setHistory(soundcloud);
 }
 
 QVariantMap ListeningHistory::stats(const QString &period) const
@@ -245,7 +250,9 @@ void ListeningHistory::importPlays()
             t.title = p.value("title").toString();
             t.artist = p.value("artist").toString();
             t.duration = p.value("duration").toInt();
-            if (id.startsWith(QLatin1String("yt:"))) {
+            if (id.startsWith(QLatin1String("sc:"))) {
+                t.source = QStringLiteral("soundcloud");
+            } else if (id.startsWith(QLatin1String("yt:"))) {
                 t.source = QStringLiteral("youtube");
                 t.path = id.mid(3);
             }

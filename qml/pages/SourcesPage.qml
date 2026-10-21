@@ -626,6 +626,147 @@ Item {
                             }
                         }
                     }
+
+                    SourceCard {
+                        source: page.src("soundcloud")
+                        status: SoundCloud.loggingIn ? "connecting" : SoundCloud.connected ? "connected" : "available"
+                        detail: !SoundCloud.connected ? qsTr("Search works without an account")
+                                : SoundCloud.syncing ? qsTr("Syncing with your account…")
+                                : qsTr("%n liked tracks", "", SoundCloud.likedCount)
+                                  + " · " + qsTr("%n playlists", "", SoundCloud.playlistCount)
+                                  + (SoundCloud.lastSync !== "" ? " · " + SoundCloud.lastSync : "")
+
+                        // Signed out: search and play right away; signing in adds the likes and playlists
+                        ColumnLayout {
+                            id: soundcloudSignIn
+                            property bool manual: false
+                            visible: !SoundCloud.connected && !SoundCloud.loggingIn
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Hint {
+                                text: qsTr("SoundCloud tracks show up in Search and play straight from SoundCloud. Sign in to bring your liked tracks and playlists into the library.")
+                            }
+                            Hint {
+                                visible: !soundcloudSignIn.manual
+                                text: YouTube.browserName !== ""
+                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to SoundCloud there as usual; once your feed appears, the window closes by itself.").arg(YouTube.browserName)
+                                      : qsTr("Signing in needs Google Chrome, Microsoft Edge or Brave.")
+                            }
+                            Flow {
+                                visible: !soundcloudSignIn.manual
+                                Layout.fillWidth: true
+                                spacing: 10
+                                PillButton {
+                                    icon: "person"
+                                    text: qsTr("Sign in with the browser")
+                                    enabled: YouTube.browserName !== ""
+                                    onClicked: SoundCloud.login()
+                                }
+                                PillButton {
+                                    kind: "ghost"
+                                    icon: "key"
+                                    text: qsTr("Paste a token")
+                                    onClicked: soundcloudSignIn.manual = true
+                                }
+                            }
+                            Hint {
+                                visible: soundcloudSignIn.manual
+                                text: qsTr("In a browser signed in to soundcloud.com, open the developer tools (F12) → Application → Cookies and copy the value of oauth_token.")
+                            }
+                            InputField {
+                                id: soundcloudToken
+                                visible: soundcloudSignIn.manual
+                                Layout.fillWidth: true
+                                icon: "key"
+                                placeholderText: "oauth_token"
+                                echoMode: TextInput.Password
+                            }
+                            Flow {
+                                visible: soundcloudSignIn.manual
+                                Layout.fillWidth: true
+                                spacing: 10
+                                PillButton {
+                                    icon: "check"
+                                    text: qsTr("Sign in")
+                                    enabled: soundcloudToken.text.trim() !== ""
+                                    onClicked: {
+                                        SoundCloud.loginWithToken(soundcloudToken.text)
+                                        soundcloudToken.text = ""
+                                        soundcloudSignIn.manual = false
+                                    }
+                                }
+                                PillButton {
+                                    kind: "ghost"
+                                    text: qsTr("Back")
+                                    onClicked: soundcloudSignIn.manual = false
+                                }
+                            }
+                        }
+
+                        // Signing in
+                        RowLayout {
+                            visible: SoundCloud.loggingIn
+                            Layout.fillWidth: true
+                            spacing: 14
+                            Spinner { size: 22; color: Theme.warning }
+                            Hint { text: SoundCloud.loginStatus }
+                            PillButton {
+                                kind: "ghost"
+                                text: qsTr("Cancel")
+                                onClicked: SoundCloud.cancelLogin()
+                            }
+                        }
+
+                        // Signed in
+                        RowLayout {
+                            visible: SoundCloud.connected
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            ArtCover {
+                                Layout.preferredWidth: 44
+                                Layout.preferredHeight: 44
+                                radius: 22
+                                decorated: false
+                                colorA: "#d9a27e"
+                                colorB: "#5a3a28"
+                                source: SoundCloud.accountPhoto
+                                Icon {
+                                    visible: SoundCloud.accountPhoto === ""
+                                    anchors.centerIn: parent
+                                    name: "person"
+                                    size: 22
+                                    color: "#f4efe8"
+                                }
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: SoundCloud.accountName || qsTr("SoundCloud account")
+                                color: Theme.text
+                                font.pixelSize: 14
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+                            Spinner {
+                                visible: SoundCloud.syncing
+                                size: 18
+                                color: Theme.textDim
+                            }
+                            IconButton {
+                                visible: !SoundCloud.syncing
+                                icon: "refresh"
+                                iconSize: 18
+                                showDot: false
+                                onClicked: SoundCloud.refresh()
+                            }
+                            PillButton {
+                                kind: "ghost"
+                                text: qsTr("Sign out")
+                                onClicked: SoundCloud.logout()
+                            }
+                        }
+                    }
                 }
 
                 // ---- right column -------------------------------------------

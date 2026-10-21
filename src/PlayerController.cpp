@@ -9,6 +9,7 @@
 #include "audio/Equalizer.h"
 #include "lyrics/LyricsService.h"
 #include "platform/DiscordPresence.h"
+#include "soundcloud/SoundCloudService.h"
 #include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 
@@ -104,7 +105,7 @@ PlayerController::PlayerController(QObject *parent)
             return;
         m_decks[m_active].resolving.clear();
         emit bufferingChanged();
-        skipAfterError(tr("Couldn't play from YouTube: %1").arg(error));
+        skipAfterError(videoId.startsWith(QLatin1String("sc:")) ? error : tr("Couldn't play from YouTube: %1").arg(error));
     });
     // A Spotify track got a different YouTube Music match (chosen by the user or matched again):
     // the playing track switches to it right away, a prepared next track is dropped.
@@ -386,6 +387,8 @@ bool PlayerController::canPlay(int row, bool explain)
         }
         return false;
     }
+    if (t.source == QLatin1String("soundcloud"))
+        return true;   // SoundCloud's own streams — no yt-dlp needed
     if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify")) {
         if (!YouTubeService::instance()->engineReady()) {
             if (explain)
@@ -445,7 +448,7 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
     Deck &deck = m_decks[m_active];
     deck.trackId = id;
     const Track &t = m_tracks->at(row);
-    if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify")) {
+    if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify") || t.source == QLatin1String("soundcloud")) {
         m_autoplayAfterResolve = autoplay;
         Library::instance()->ensurePalette(row);
         startStream(m_active, t);
@@ -502,6 +505,8 @@ void PlayerController::prefetchTrack(int row)
     const Track &t = m_tracks->at(row);
     if (t.source == QLatin1String("youtube")) {
         YouTubeService::instance()->resolver()->prefetch(t.path);
+    } else if (t.source == QLatin1String("soundcloud")) {
+        YouTubeService::instance()->resolver()->prefetch(t.id);
     } else if (t.source == QLatin1String("spotify")) {
         SpotifyService::instance()->match(t.id, [](const QString &videoId) {
             if (!videoId.isEmpty())
@@ -514,6 +519,8 @@ QString PlayerController::streamIdOf(const Track &t) const
 {
     if (t.source == QLatin1String("youtube"))
         return t.path;
+    if (t.source == QLatin1String("soundcloud"))
+        return t.id;   // "sc:<id>" — StreamResolver hands it to SoundCloudService
     if (t.source == QLatin1String("spotify"))
         return SpotifyService::instance()->matchedVideoId(t.id);
     return {};
@@ -1173,7 +1180,7 @@ void PlayerController::preloadNext()
     m_plannedId = id;
 
     const Track &t = m_tracks->at(row);
-    if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify")) {
+    if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify") || t.source == QLatin1String("soundcloud")) {
         startStream(d, t);
     } else {
         deck.resolving.clear();

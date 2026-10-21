@@ -19,11 +19,17 @@ QString browserProfile() { return AppPaths::dataDir() + QStringLiteral("/browser
 
 QJsonObject toJson(const Track &t)
 {
-    return {
+    QJsonObject o {
         { "id", t.path }, { "title", t.title }, { "artist", t.artist }, { "artistId", t.artistId }, { "album", t.album },
         { "duration", t.duration }, { "cover", t.cover },
         { "colorA", t.colorA.name() }, { "colorB", t.colorB.name() }, { "seed", t.seed },
     };
+    if (!t.source.isEmpty() && t.source != QLatin1String("youtube")) {
+        o.insert("uid", t.id);
+        o.insert("source", t.source);
+        o.insert("quality", t.quality);
+    }
+    return o;
 }
 
 Track fromJson(const QJsonObject &o)
@@ -42,6 +48,11 @@ Track fromJson(const QJsonObject &o)
     t.seed = o.value("seed").toInt();
     t.source = QStringLiteral("youtube");
     t.quality = QCoreApplication::translate("YouTubeService", "YouTube Music · stream");
+    if (o.contains("uid")) {
+        t.id = o.value("uid").toString();
+        t.source = o.value("source").toString();
+        t.quality = o.value("quality").toString();
+    }
     return t;
 }
 

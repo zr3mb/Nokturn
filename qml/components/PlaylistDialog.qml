@@ -127,7 +127,7 @@ Popup {
                 Layout.fillWidth: true
                 text: root.youtube
                       ? qsTr("Saved on your YouTube Music account — you'll see it on your phone too. Spotify tracks go in as their YouTube Music version, local files are skipped.")
-                      : qsTr("Saved only in Nokturn on this computer. It can hold any track — local files, YouTube Music and Spotify.")
+                      : qsTr("Saved only in Nokturn on this computer. It can hold any track — local files, YouTube Music, Spotify and SoundCloud.")
                 color: Theme.textFaint
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap

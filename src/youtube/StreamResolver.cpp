@@ -158,6 +158,10 @@ void StreamResolver::resolve(const QString &videoId)
     }
     if (m_running.contains(videoId))
         return;   // already running — the result will come as a signal
+    if (isExternal(videoId)) {
+        runExternal(videoId);
+        return;
+    }
     if (!ready()) {
         emit failed(videoId, tr("The yt-dlp engine is missing"));
         return;
@@ -173,11 +177,44 @@ void StreamResolver::resolveAgain(const QString &videoId)
     m_cache.remove(videoId);
     if (m_running.contains(videoId))
         return;
+    if (isExternal(videoId)) {
+        runExternal(videoId);
+        return;
+    }
     if (!ready()) {
         emit failed(videoId, tr("The yt-dlp engine is missing"));
         return;
     }
     run(videoId, m_cookies.isLoggedIn());
+}
+
+void StreamResolver::setExternal(const QString &prefix, External resolve)
+{
+    m_externalPrefix = prefix;
+    m_external = std::move(resolve);
+}
+
+void StreamResolver::runExternal(const QString &id)
+{
+    if (m_externalRunning.contains(id))
+        return;
+    m_externalRunning.insert(id);
+    m_external(id, [this, id](const QUrl &url, const QString &error) {
+        m_externalRunning.remove(id);
+        if (!url.isValid()) {
+            emit failed(id, error);
+            return;
+        }
+        // Signed stream URLs say when they stop working ("expires" / "expire", seconds).
+        const QUrlQuery query(url);
+        qint64 expire = query.queryItemValue(QStringLiteral("expires")).toLongLong();
+        if (expire <= 0)
+            expire = query.queryItemValue(QStringLiteral("expire")).toLongLong();
+        const QDateTime expires = expire > 0 ? QDateTime::fromSecsSinceEpoch(expire, QTimeZone::UTC)
+                                             : QDateTime::currentDateTimeUtc().addSecs(1800);
+        m_cache.insert(id, { url, expires });
+        emit resolved(id, url);
+    });
 }
 
 void StreamResolver::run(const QString &videoId, bool withCookies)

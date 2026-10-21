@@ -6,6 +6,7 @@
 #include "ArtistGenres.h"
 #include "Language.h"
 #include "Playlists.h"
+#include "soundcloud/SoundCloudService.h"
 #include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 
@@ -136,6 +137,10 @@ Library::Library(QObject *parent)
             YouTubeService::instance()->setTrackLiked(id, liked);   // the heart also goes to the account
             return;
         }
+        if (track.source == QLatin1String("soundcloud") && SoundCloudService::instance()->connected()) {
+            SoundCloudService::instance()->setTrackLiked(id, liked);
+            return;
+        }
         if (liked)
             m_liked.insert(id);
         else
@@ -168,6 +173,9 @@ Library::Library(QObject *parent)
     connect(YouTubeService::instance(), &YouTubeService::accountChanged, this, &Library::rebuildModel);
     connect(SpotifyService::instance(), &SpotifyService::dataChanged, this, &Library::rebuildModel);
     connect(SpotifyService::instance(), &SpotifyService::accountChanged, this, &Library::rebuildModel);
+    connect(SoundCloudService::instance(), &SoundCloudService::dataChanged, this, &Library::rebuildModel);
+    connect(SoundCloudService::instance(), &SoundCloudService::accountChanged, this, &Library::rebuildModel);
+    connect(SoundCloudService::instance(), &SoundCloudService::tracksAdded, m_tracks, &TrackModel::appendTracks);
     // Source and playlist names, demo tracks — everything built here follows the interface language.
     connect(Language::instance(), &Language::changed, this, [this] {
         buildSources();
@@ -192,6 +200,9 @@ void Library::buildSources()
         QVariantMap { { "id", "spotify" }, { "name", "Spotify" },
                       { "description", tr("Your Spotify playlists and liked songs — played from YouTube Music.") },
                       { "icon", "music" }, { "status", "disconnected" }, { "color", QColor("#8fc79a") } },
+        QVariantMap { { "id", "soundcloud" }, { "name", "SoundCloud" },
+                      { "description", tr("Search and play anything on SoundCloud; sign in for your likes and playlists.") },
+                      { "icon", "wavecloud" }, { "status", "disconnected" }, { "color", QColor("#d9a27e") } },
         QVariantMap { { "id", "radio" }, { "name", tr("Internet radio") },
                       { "description", tr("Icecast / SHOUTcast streaming stations and saved favorites.") },
                       { "icon", "radio" }, { "status", "available" }, { "color", QColor("#cdb68e") } },
@@ -417,6 +428,7 @@ void Library::rebuildModel()
     QList<Track> all = m_local;
     all << yt->tracks();
     all << SpotifyService::instance()->tracks();
+    all << SoundCloudService::instance()->tracks();
     // Tracks kept in local playlists (search results, Spotify) that no source provides anymore.
     {
         QSet<QString> present;
@@ -481,6 +493,19 @@ void Library::rebuildPlaylists()
                 { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.value("id").toString()) } };
         }
     }
+    SoundCloudService *sc = SoundCloudService::instance();
+    if (sc->connected()) {
+        m_playlists << QVariantMap { { "name", tr("Liked on SoundCloud") }, { "kind", "scliked" }, { "icon", "heart" },
+                                     { "colorA", QColor("#d9a27e") }, { "colorB", QColor("#5a3a28") }, { "seed", 2 } };
+        for (const QVariant &v : sc->playlists()) {
+            const QVariantMap p = v.toMap();
+            const auto [a, b] = Scanner::fallbackPalette(p.value("id").toString());
+            m_playlists << QVariantMap {
+                { "name", p.value("title") }, { "kind", "scplaylist" }, { "scId", p.value("id") },
+                { "icon", "" }, { "cover", p.value("cover") }, { "count", p.value("count") },
+                { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.value("id").toString()) } };
+        }
+    }
     for (QVariant &v : m_playlists) {
         QVariantMap p = v.toMap();
         p.insert("sourceCover", p.value("cover").toString());
@@ -523,6 +548,8 @@ QString Library::coverKey(const QVariantMap &p)
         return QStringLiteral("yt:") + p.value("ytId").toString();
     if (kind == QLatin1String("spplaylist"))
         return QStringLiteral("sp:") + p.value("spId").toString();
+    if (kind == QLatin1String("scplaylist"))
+        return QStringLiteral("sc:") + p.value("scId").toString();
     if (kind == QLatin1String("user"))
         return QStringLiteral("user:") + p.value("userId").toString();
     return kind;
@@ -563,6 +590,10 @@ void Library::applyPlaylistCover(QVariantMap &p) const
         rows = rowsOfIds(SpotifyService::instance()->likedIds());
     else if (kind == QLatin1String("spplaylist"))
         rows = rowsOfIds(SpotifyService::instance()->playlistTrackIds(p.value("spId").toString()));
+    else if (kind == QLatin1String("scliked"))
+        rows = rowsOfIds(SoundCloudService::instance()->likedIds());
+    else if (kind == QLatin1String("scplaylist"))
+        rows = rowsOfIds(SoundCloudService::instance()->playlistTrackIds(p.value("scId").toString()));
     else if (kind == QLatin1String("user"))
         rows = rowsOfIds(Playlists::instance()->trackIds(p.value("userId").toString()));
 
@@ -667,7 +698,8 @@ void Library::ensurePalette(int row)
     if (!m_tracks->isValidRow(row))
         return;
     const Track &t = m_tracks->at(row);
-    if ((t.source != QLatin1String("youtube") && t.source != QLatin1String("spotify")) || t.demo
+    if ((t.source != QLatin1String("youtube") && t.source != QLatin1String("spotify") && t.source != QLatin1String("soundcloud"))
+        || t.demo
         || !t.cover.startsWith(QLatin1String("http"))
         || m_paletteDone.contains(t.id))
         return;
@@ -682,6 +714,7 @@ void Library::ensurePalette(int row)
             return;
         const auto [a, b] = Scanner::paletteFromImage(image);
         YouTubeService::instance()->setTrackColors(id, a, b);
+        SoundCloudService::instance()->setTrackColors(id, a, b);
         m_tracks->setColors(m_tracks->rowOf(id), a, b);
     });
 }
@@ -886,12 +919,21 @@ QVariantList Library::playlistRows(int index)
         return rowsOfIds(SpotifyService::instance()->likedIds());
     if (kind == QLatin1String("spplaylist"))
         return rowsOfIds(SpotifyService::instance()->playlistTrackIds(p.value("spId").toString()));
+    if (kind == QLatin1String("scliked"))
+        return rowsOfIds(SoundCloudService::instance()->likedIds());
+    if (kind == QLatin1String("scplaylist")) {
+        const QString id = p.value("scId").toString();
+        SoundCloudService::instance()->ensurePlaylist(id);
+        return rowsOfIds(SoundCloudService::instance()->playlistTrackIds(id));
+    }
     return {};
 }
 
 bool Library::playlistLoading(int index) const
 {
     const QVariantMap p = m_playlists.value(index).toMap();
+    if (p.value("kind") == QLatin1String("scplaylist"))
+        return SoundCloudService::instance()->playlistLoading(p.value("scId").toString());
     return p.value("kind") == QLatin1String("ytplaylist")
            && YouTubeService::instance()->playlistLoading(p.value("ytId").toString());
 }
@@ -908,6 +950,8 @@ QString Library::playlistContext(int index) const
         return QStringLiteral("yt:") + p.value("ytId").toString();
     if (kind == QLatin1String("spplaylist"))
         return QStringLiteral("sp:") + p.value("spId").toString();
+    if (kind == QLatin1String("scplaylist"))
+        return QStringLiteral("sc:") + p.value("scId").toString();
     if (kind == QLatin1String("user"))
         return QStringLiteral("user:") + p.value("userId").toString();
     return QStringLiteral("playlist:") + kind;
@@ -938,10 +982,19 @@ QVariantList Library::collectionRows(const QString &playlistId)
     return rowsOfIds(yt->collectionTrackIds(playlistId));
 }
 
+QVariantList Library::soundCloudCollectionRows(const QString &playlistId)
+{
+    SoundCloudService *sc = SoundCloudService::instance();
+    sc->ensureCollection(playlistId);
+    return rowsOfIds(sc->collectionTrackIds(playlistId));
+}
+
 QVariantList Library::rowsForContext(const QString &context)
 {
     if (context == QLatin1String("library"))
         return libraryRows();
+    if (context.startsWith(QLatin1String("scc:")))
+        return soundCloudCollectionRows(context.mid(4));
     if (context.startsWith(QLatin1String("ytartist:")))
         return artistSongRows(context.mid(9));
     if (context.startsWith(QLatin1String("ytc:")))
@@ -963,6 +1016,7 @@ QVariantList Library::libraryRows() const
     QVariantList out = localTracks();
     out << rowsOfIds(YouTubeService::instance()->likedIds());
     out << rowsOfIds(SpotifyService::instance()->likedIds());
+    out << rowsOfIds(SoundCloudService::instance()->likedIds());
     return out;
 }
 
@@ -978,6 +1032,11 @@ int Library::totalDuration(const QVariantList &rows) const
 QVariantList Library::onlineResults() const
 {
     return rowsOfIds(YouTubeService::instance()->searchIds());
+}
+
+QVariantList Library::soundCloudResults() const
+{
+    return rowsOfIds(SoundCloudService::instance()->searchIds());
 }
 
 QVariantList Library::recommendedRows() const

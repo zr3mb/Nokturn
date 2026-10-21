@@ -90,6 +90,7 @@ Window {
 
         function contextOf(p) {
             return p.kind === "ytplaylist" ? "yt:" + p.ytId : p.kind === "spplaylist" ? "sp:" + p.spId
+                 : p.kind === "scplaylist" ? "sc:" + p.scId
                  : p.kind === "user" ? "user:" + p.userId : "playlist:" + p.kind
         }
         function trackItem(row, action) {

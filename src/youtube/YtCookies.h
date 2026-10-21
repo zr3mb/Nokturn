@@ -38,7 +38,8 @@ public:
     QByteArray authorization(const QString &origin) const;   // SAPISIDHASH …
     QString toNetscape() const;                               // cookies.txt format for yt-dlp
 
-    static YtCookies fromCdp(const QJsonArray &cdpCookies);   // Storage.getCookies
+    static YtCookies fromCdp(const QJsonArray &cdpCookies,    // Storage.getCookies
+                             const QString &domain = QStringLiteral("youtube.com"));
     static YtCookies fromHeader(const QString &header);       // "a=b; c=d" pasted manually
 
     bool save(const QString &file) const;

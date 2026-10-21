@@ -376,7 +376,7 @@ void Playlists::videoTracks(const QVariantList &rows, std::function<void(const Q
                     state->finish();
             });
         } else {
-            ++state->skipped;   // local files, radio
+            ++state->skipped;   // local files, radio, SoundCloud
         }
     }
     if (state->pending == 0)

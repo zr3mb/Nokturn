@@ -18,15 +18,17 @@
 // 2. Readout: the same profile is started invisibly (headless) with the DevTools Protocol only
 //    to read the saved session through Storage.getCookies. Nothing signs in at that point.
 //
-// The user's regular browser profiles are not touched.
+// The user's regular browser profiles are not touched. SoundCloud signs in the same way (its own profile).
 class BrowserLogin : public QObject
 {
     Q_OBJECT
 
 public:
     enum class Stage { Idle, Interactive, Closing, Reading };
+    enum class Site { YouTube, SoundCloud };
 
     explicit BrowserLogin(QObject *parent = nullptr);
+    void setSite(Site site) { m_site = site; }
     ~BrowserLogin() override;
 
     static QString findBrowser(QString *displayName = nullptr);
@@ -58,8 +60,12 @@ private:
     void fail(const QString &reason);
     void stopAll();
 
+    bool signedIn(const YtCookies &cookies) const;
+
     QString m_browser;
     QString m_profileDir;
+    Site m_site = Site::YouTube;
+    bool m_sawSignIn = false;   // SoundCloud: the sign-in page was shown (the next page means signed in)
     Stage m_stage = Stage::Idle;
     QProcess m_process;
     QWebSocket m_socket;
