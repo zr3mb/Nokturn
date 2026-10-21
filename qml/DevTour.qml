@@ -405,13 +405,13 @@ Item {
     // Searching by title (--tour-search-title): what each source returns for a few known titles.
     readonly property bool withSearchTitle: Qt.application.arguments.indexOf("--tour-search-title") >= 0
     readonly property var searchTitleSteps: {
-        const titles = ["Get Lucky", "Blinding Lights", "Bohemian Rhapsody", "sanah szampan"]
+        const titles = (Qt.application.arguments[Qt.application.arguments.indexOf("--tour-search-title") + 1] || "Get Lucky;Blinding Lights").split(";")
         const s = []
         titles.forEach((q, i) => {
             s.push({ name: "Q" + i + "-search", run: () => { Nav.finishOnboarding(); Nav.navigate("search", { query: q }) } })
             s.push({ name: "Q" + i + "-wait", run: () => {} })
             s.push({ name: "Q" + i + "-results", run: () => {
-                const fmt = rows => rows.slice(0, 6).map(r => Library.tracks.get(r).title + " / " + Library.tracks.get(r).artist).join(" | ")
+                const fmt = rows => rows.slice(0, 10).map(r => Library.tracks.get(r).title + " / " + Library.tracks.get(r).artist).join(" | ")
                 console.log("tour: [" + q + "] YT:", fmt(Library.onlineResults()))
                 console.log("tour: [" + q + "] SC:", fmt(Library.soundCloudResults()))
             } })

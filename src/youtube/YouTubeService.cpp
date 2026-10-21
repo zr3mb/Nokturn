@@ -72,6 +72,40 @@ QStringList fromArray(const QJsonArray &arr)
     return out;
 }
 
+// Search text without case and diacritics ("Zayebały" = "zayebaly"), split into words.
+QString foldText(const QString &text)
+{
+    QString out;
+    for (const QChar c : text.toLower().normalized(QString::NormalizationForm_D)) {
+        if (c.category() == QChar::Mark_NonSpacing)
+            continue;
+        out += c == QChar(0x0142) ? QChar('l') : c.isLetterOrNumber() ? c : QChar(' ');
+    }
+    return out;
+}
+
+QStringList matchWords(const QString &query)
+{
+    return foldText(query).split(QChar(' '), Qt::SkipEmptyParts);
+}
+
+// How well a result fits what was typed: the words found in its title and artist, the title most.
+int matchScore(const Track &t, const QStringList &words)
+{
+    if (words.isEmpty())
+        return 0;
+    const QString title = foldText(t.title);
+    const QString artist = foldText(t.artist);
+    int points = 0, found = 0;
+    for (const QString &w : words) {
+        const int p = title.contains(w) ? 2 : artist.contains(w) ? 1 : 0;
+        points += p;
+        found += p > 0;
+    }
+    // All words there: it's what was looked for, ahead of results that only share a word.
+    return found == int(words.size()) ? 100 + points : points;
+}
+
 } // namespace
 
 QJsonObject YouTubeService::trackJson(const Track &t) { return toJson(t); }
@@ -492,6 +526,7 @@ void YouTubeService::search(const QString &query)
         });
     });
     m_searching = true;
+    m_searchQuery = q;
     emit searchingChanged();
     // The unfiltered search mixes its shelves (top result, covers, videos, episodes) in no useful order —
     // the "Songs" chip comes first (the official recordings, by relevance), then the "Videos" chip.
@@ -509,11 +544,23 @@ void YouTubeService::search(const QString &query)
             }
             storeTracks(songs, true);
             storeTracks(videos, true);
-            m_search.clear();
+            QList<Track> all;
+            QSet<QString> seen;
             for (const QList<Track> *list : { &songs, &videos })
                 for (const Track &t : *list)
-                    if (!m_search.contains(t.id))
-                        m_search << t.id;
+                    if (!seen.contains(t.id)) {
+                        seen.insert(t.id);
+                        all << t;
+                    }
+            // For niche tracks the "Songs" chip fills up with merely related songs while the track itself
+            // is only a video — whatever has the typed words in its title / artist goes first.
+            const QStringList words = matchWords(m_searchQuery);
+            std::stable_sort(all.begin(), all.end(), [&words](const Track &a, const Track &b) {
+                return matchScore(a, words) > matchScore(b, words);
+            });
+            m_search.clear();
+            for (const Track &t : std::as_const(all))
+                m_search << t.id;
             publishResults(m_search);
         }, QStringLiteral("videos"));
     }, QStringLiteral("songs"));

@@ -184,6 +184,7 @@ private:
     QHash<QString, QString> m_artistIdByName;     // lower-case name -> browseId ("" = not on YouTube Music)
     QHash<QString, QStringList> m_collections;    // playlistId -> track ids (albums, "all songs")
     QSet<QString> m_loadingCollections;
+    QString m_searchQuery;
     quint64 m_searchSerial = 0;
     bool m_searching = false;
     int m_pendingSync = 0;
