@@ -204,39 +204,62 @@ Item {
         }
     }
 
-    // Your playlists at hand while searching
+    // The playlists found, in a column beside the tracks (below them in a narrow window): yours whose
+    // name fits, then public ones on YouTube Music.
+    readonly property var foundPlaylists: {
+        const own = ownPlaylists.map(o => ({ own: true, index: o.index, playlist: o.p, subtitle: qsTr("Your playlist") }))
+        const pub = playlists.map((p, i) => ({ own: false, data: p, subtitle: p.subtitle || "",
+                                               playlist: { name: p.title, cover: p.cover || "", seed: i, icon: "library" } }))
+        return own.concat(pub)
+    }
+    readonly property bool sideShown: page.width > 760 && page.searching && filter !== 1 && filter !== 3
+
     Rectangle {
         id: sidePanel
-        visible: page.width > 760
+        visible: page.sideShown
         anchors { top: parent.top; bottom: parent.bottom; right: parent.right; topMargin: 34; bottomMargin: 34; rightMargin: 24 }
-        width: 220
+        width: 250
         radius: 16
         color: Theme.alpha(Theme.text, 0.035)
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.05)
 
-        Text {
+        RowLayout {
             id: sideTitle
-            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 16; rightMargin: 16; topMargin: 16 }
-            text: qsTr("Your playlists")
-            color: Theme.text
-            font.family: Theme.fontDisplay
-            font.pixelSize: 16
-            font.weight: Font.DemiBold
+            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 16; rightMargin: 14; topMargin: 16 }
+            spacing: 8
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Playlists")
+                color: Theme.text
+                font.family: Theme.fontDisplay
+                font.pixelSize: 16
+                font.weight: Font.DemiBold
+            }
+            Spinner { visible: page.onlineEnabled && YouTube.searching; size: 16; color: Theme.textDim }
+        }
+        Text {
+            visible: page.foundPlaylists.length === 0 && !(page.onlineEnabled && YouTube.searching)
+            anchors { left: parent.left; right: parent.right; top: sideTitle.bottom; leftMargin: 16; rightMargin: 16; topMargin: 10 }
+            text: page.query.trim().length > 1 ? qsTr("No playlists for this search") : qsTr("Type at least two letters")
+            color: Theme.textFaint
+            font.pixelSize: 13
+            wrapMode: Text.WordWrap
         }
         ListView {
             anchors { left: parent.left; right: parent.right; top: sideTitle.bottom; bottom: parent.bottom
                       leftMargin: 8; rightMargin: 8; topMargin: 10; bottomMargin: 8 }
             clip: true
+            spacing: 2
             boundsBehavior: Flickable.StopAtBounds
-            model: Library.playlists
+            model: page.foundPlaylists
             delegate: PlaylistRow {
                 required property var modelData
-                required property int index
                 width: ListView.view.width
-                playlist: modelData
-                onClicked: page.openOwn(index)
-                onPlayClicked: page.playOwn(index)
+                playlist: modelData.playlist
+                subtitle: modelData.subtitle
+                onClicked: modelData.own ? page.openOwn(modelData.index) : page.openPlaylist(modelData.data)
+                onPlayClicked: modelData.own ? page.playOwn(modelData.index) : page.openPlaylist(modelData.data)
             }
         }
     }
@@ -371,7 +394,7 @@ Item {
 
             // Playlists: yours whose name fits, then public ones on YouTube Music
             RowLayout {
-                visible: page.ownPlaylists.length > 0 || page.playlists.length > 0
+                visible: !page.sideShown && (page.ownPlaylists.length > 0 || page.playlists.length > 0)
                 Layout.fillWidth: true
                 Layout.topMargin: page.results.length > 0 || page.online.length > 0 ? 26 : 0
                 Layout.bottomMargin: 8
@@ -387,7 +410,7 @@ Item {
                 }
             }
             Flow {
-                visible: page.ownPlaylists.length > 0 || page.playlists.length > 0
+                visible: !page.sideShown && (page.ownPlaylists.length > 0 || page.playlists.length > 0)
                 Layout.fillWidth: true
                 spacing: 18
                 Repeater {

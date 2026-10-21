@@ -2,15 +2,16 @@ import QtQuick
 import Nokturn
 
 // A compact playlist row (small cover, name, Play on hover): the shortcuts on the home page and the
-// playlist panel next to the search. playlist: a Library.playlists entry (or one shaped like it).
+// playlists found by the search. playlist: a Library.playlists entry (or one shaped like it).
 Item {
     id: root
     property var playlist: ({})
+    property string subtitle: ""   // a second line (who made it, how many tracks); taller row
     signal clicked
     signal playClicked
 
     implicitWidth: 230
-    implicitHeight: 34
+    implicitHeight: subtitle !== "" ? 48 : 34
 
     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
     TapHandler { onTapped: root.clicked() }
@@ -25,9 +26,9 @@ Item {
         id: cover
         x: 4
         anchors.verticalCenter: parent.verticalCenter
-        width: 26
-        height: 26
-        radius: 7
+        width: root.subtitle !== "" ? 38 : 26
+        height: width
+        radius: root.subtitle !== "" ? 8 : 7
         decorated: false
         colorA: root.playlist.colorA || Theme.accent
         colorB: root.playlist.colorB || Theme.accent2
@@ -42,13 +43,25 @@ Item {
             color: "#f4efe8"
         }
     }
-    Text {
+    Column {
         anchors { left: cover.right; leftMargin: 12; right: play.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
-        text: root.playlist.name || ""
-        color: Theme.text
-        font.pixelSize: 13
-        font.weight: Font.Medium
-        elide: Text.ElideRight
+        spacing: 1
+        Text {
+            width: parent.width
+            text: root.playlist.name || ""
+            color: Theme.text
+            font.pixelSize: 13
+            font.weight: Font.Medium
+            elide: Text.ElideRight
+        }
+        Text {
+            width: parent.width
+            visible: root.subtitle !== ""
+            text: root.subtitle
+            color: Theme.textDim
+            font.pixelSize: 12
+            elide: Text.ElideRight
+        }
     }
     IconButton {
         id: play
