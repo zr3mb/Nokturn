@@ -493,21 +493,30 @@ void YouTubeService::search(const QString &query)
     });
     m_searching = true;
     emit searchingChanged();
-    m_api.search(q, [this, serial](const QList<Track> &tracks, const QString &error) {
+    // The unfiltered search mixes its shelves (top result, covers, videos, episodes) in no useful order —
+    // the "Songs" chip comes first (the official recordings, by relevance), then the "Videos" chip.
+    m_api.search(q, [this, serial, q](const QList<Track> &songs, const QString &error) {
         if (serial != m_searchSerial)
             return;   // a newer query has already arrived
-        m_searching = false;
-        emit searchingChanged();
-        if (!error.isEmpty()) {
-            emit notice(tr("YouTube Music search: %1").arg(error), QStringLiteral("close"));
-            return;
-        }
-        storeTracks(tracks, true);
-        m_search.clear();
-        for (const Track &t : tracks)
-            m_search << t.id;
-        publishResults(m_search);
-    });
+        m_api.search(q, [this, serial, songs, error](const QList<Track> &videos, const QString &videoError) {
+            if (serial != m_searchSerial)
+                return;
+            m_searching = false;
+            emit searchingChanged();
+            if (!error.isEmpty() && !videoError.isEmpty()) {
+                emit notice(tr("YouTube Music search: %1").arg(error), QStringLiteral("close"));
+                return;
+            }
+            storeTracks(songs, true);
+            storeTracks(videos, true);
+            m_search.clear();
+            for (const QList<Track> *list : { &songs, &videos })
+                for (const Track &t : *list)
+                    if (!m_search.contains(t.id))
+                        m_search << t.id;
+            publishResults(m_search);
+        }, QStringLiteral("videos"));
+    }, QStringLiteral("songs"));
 }
 
 void YouTubeService::setRecommended(const QList<Track> &tracks)

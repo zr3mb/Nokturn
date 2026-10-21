@@ -402,6 +402,22 @@ Item {
         } },
         { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
     ]
+    // Searching by title (--tour-search-title): what each source returns for a few known titles.
+    readonly property bool withSearchTitle: Qt.application.arguments.indexOf("--tour-search-title") >= 0
+    readonly property var searchTitleSteps: {
+        const titles = ["Get Lucky", "Blinding Lights", "Bohemian Rhapsody", "sanah szampan"]
+        const s = []
+        titles.forEach((q, i) => {
+            s.push({ name: "Q" + i + "-search", run: () => { Nav.finishOnboarding(); Nav.navigate("search", { query: q }) } })
+            s.push({ name: "Q" + i + "-wait", run: () => {} })
+            s.push({ name: "Q" + i + "-results", run: () => {
+                const fmt = rows => rows.slice(0, 6).map(r => Library.tracks.get(r).title + " / " + Library.tracks.get(r).artist).join(" | ")
+                console.log("tour: [" + q + "] YT:", fmt(Library.onlineResults()))
+                console.log("tour: [" + q + "] SC:", fmt(Library.soundCloudResults()))
+            } })
+        })
+        return s
+    }
     // The letter-by-letter highlight switch in the settings (--tour-karaoke).
     readonly property bool withKaraoke: Qt.application.arguments.indexOf("--tour-karaoke") >= 0
     readonly property var karaokeSteps: [
@@ -548,7 +564,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
