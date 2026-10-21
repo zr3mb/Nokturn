@@ -98,6 +98,7 @@ qt_add_qml_module(Nokturn
         qml/components/PillButton.qml
         qml/components/PlayButton.qml
         qml/components/PlayFab.qml
+        qml/components/PlaylistRow.qml
         qml/components/ProgressSlider.qml
         qml/components/QuickTile.qml
         qml/components/Reveal.qml

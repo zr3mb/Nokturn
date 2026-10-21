@@ -137,64 +137,6 @@ Item {
         }
     }
 
-    component ShortcutRow: Item {
-        id: shortcut
-        required property var modelData
-        width: 230
-        height: 34
-
-        HoverHandler { id: shortcutHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: page.openPick(shortcut.modelData.p, shortcut.modelData.index) }
-
-        Rectangle {
-            anchors.fill: parent
-            radius: 8
-            color: Theme.alpha(Theme.text, shortcutHover.hovered ? 0.06 : 0)
-            Behavior on color { ColorAnimation { duration: Theme.fast } }
-        }
-        ArtCover {
-            id: shortcutCover
-            x: 4
-            anchors.verticalCenter: parent.verticalCenter
-            width: 26
-            height: 26
-            radius: 7
-            decorated: false
-            colorA: shortcut.modelData.p.colorA
-            colorB: shortcut.modelData.p.colorB
-            seed: shortcut.modelData.p.seed
-            source: shortcut.modelData.p.cover || ""
-            mosaic: shortcut.modelData.p.mosaic || []
-            Icon {
-                anchors.centerIn: parent
-                visible: !shortcutCover.hasPicture
-                name: shortcut.modelData.p.icon || "music"
-                size: 15
-                color: "#f4efe8"
-            }
-        }
-        Text {
-            anchors { left: shortcutCover.right; leftMargin: 12; right: shortcutPlay.left; rightMargin: 6; verticalCenter: parent.verticalCenter }
-            text: shortcut.modelData.p.name
-            color: Theme.text
-            font.pixelSize: 13
-            font.weight: Font.Medium
-            elide: Text.ElideRight
-        }
-        IconButton {
-            id: shortcutPlay
-            anchors { right: parent.right; rightMargin: 2; verticalCenter: parent.verticalCenter }
-            implicitWidth: 30
-            implicitHeight: 30
-            icon: "play"
-            iconSize: 16
-            showDot: false
-            opacity: shortcutHover.hovered ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Theme.fast } }
-            onClicked: page.playPick(shortcut.modelData.p, shortcut.modelData.index)
-        }
-    }
-
     // The shadow shared by the album cards
     CardShadow {
         id: albumShadow
@@ -322,7 +264,13 @@ Item {
                     readonly property real cellW: (Layout.preferredWidth - columnSpacing * (columns - 1)) / columns
                     Repeater {
                         model: page.shortcuts
-                        ShortcutRow { width: shortcutList.cellW }
+                        PlaylistRow {
+                            required property var modelData
+                            width: shortcutList.cellW
+                            playlist: modelData.p
+                            onClicked: page.openPick(modelData.p, modelData.index)
+                            onPlayClicked: page.playPick(modelData.p, modelData.index)
+                        }
                     }
                 }
             }

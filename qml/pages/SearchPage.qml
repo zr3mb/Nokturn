@@ -9,9 +9,15 @@ Item {
     property int filter: 0
     readonly property var filterKeys: ["", "local", "youtube", "radio"]
     readonly property bool searching: query.trim().length > 0 || filter > 0
+    // What is found, in the order it's shown: your library (files, radio), then YouTube Music and Spotify
+    // (your own tracks there, then the YouTube Music catalog), then playlists.
     readonly property var results: {
         if (Library.tracks.revision < 0)   // never: the read makes the binding re-run (a bare read is compiled away)
             return []
+        if (filter === 2)
+            return []
+        if (filter === 0)
+            return Library.search(query, "local").concat(Library.search(query, "radio"))
         return Library.search(query, filterKeys[filter])
     }
     // Online search in the YouTube Music catalog for "All" and "YouTube Music"
@@ -19,7 +25,35 @@ Item {
     readonly property var online: {
         if (Library.tracks.revision < 0 || YouTube.resultsRevision < 0)
             return []
-        return onlineEnabled ? Library.onlineResults() : []
+        if (filter !== 0 && filter !== 2)
+            return []
+        const own = Library.search(query, "youtube").concat(filter === 0 ? Library.search(query, "spotify") : [])
+        const seen = new Set(own)
+        return own.concat((onlineEnabled ? Library.onlineResults() : []).filter(r => !seen.has(r)))
+    }
+    property int onlineShown: 40
+    readonly property bool withSpotify: filter === 0 && Spotify.connected
+
+    // Your playlists whose name fits ({ p, index } in Library.playlists), then public ones on YouTube Music.
+    readonly property var ownPlaylists: {
+        const q = query.trim().toLowerCase()
+        if (q.length === 0 || filter === 1 || filter === 3)
+            return []
+        const out = []
+        Library.playlists.forEach((p, i) => {
+            if ((p.name || "").toLowerCase().indexOf(q) >= 0)
+                out.push({ p: p, index: i })
+        })
+        return out
+    }
+    function openOwn(index) { Nav.navigate("playlist", { kind: "playlist", index: index }) }
+    function playOwn(index) {
+        const rows = Library.playlistRows(index)
+        if (rows.length === 0) {
+            Nav.toast(qsTr("This playlist is still empty"), "music")
+            return
+        }
+        Player.playFrom(rows, rows[0])
     }
 
     // Public playlists for the query (YouTube Music's own, then users'); they open like an artist's albums.
@@ -32,8 +66,8 @@ Item {
 
     // Rows are built at once (Repeater), so long result lists show in parts.
     property int shown: 40
-    onQueryChanged: { shown = 40; onlineTimer.restart(); rememberState() }
-    onFilterChanged: { shown = 40; onlineTimer.restart(); rememberState() }
+    onQueryChanged: { shown = 40; onlineShown = 40; onlineTimer.restart(); rememberState() }
+    onFilterChanged: { shown = 40; onlineShown = 40; onlineTimer.restart(); rememberState() }
     function rememberState() {
         if (Nav.page === "search")
             Nav.remember({ query: query, filter: filter })
@@ -170,8 +204,46 @@ Item {
         }
     }
 
+    // Your playlists at hand while searching
+    Rectangle {
+        id: sidePanel
+        visible: page.width > 760
+        anchors { top: parent.top; bottom: parent.bottom; right: parent.right; topMargin: 34; bottomMargin: 34; rightMargin: 24 }
+        width: 220
+        radius: 16
+        color: Theme.alpha(Theme.text, 0.035)
+        border.width: 1
+        border.color: Theme.alpha(Theme.text, 0.05)
+
+        Text {
+            id: sideTitle
+            anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 16; rightMargin: 16; topMargin: 16 }
+            text: qsTr("Your playlists")
+            color: Theme.text
+            font.family: Theme.fontDisplay
+            font.pixelSize: 16
+            font.weight: Font.DemiBold
+        }
+        ListView {
+            anchors { left: parent.left; right: parent.right; top: sideTitle.bottom; bottom: parent.bottom
+                      leftMargin: 8; rightMargin: 8; topMargin: 10; bottomMargin: 8 }
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            model: Library.playlists
+            delegate: PlaylistRow {
+                required property var modelData
+                required property int index
+                width: ListView.view.width
+                playlist: modelData
+                onClicked: page.openOwn(index)
+                onPlayClicked: page.playOwn(index)
+            }
+        }
+    }
+
     PageFlick {
-        anchors.fill: parent
+        anchors { left: parent.left; top: parent.top; bottom: parent.bottom
+                  right: sidePanel.visible ? sidePanel.left : parent.right }
 
         Reveal {
             Text {
@@ -227,7 +299,7 @@ Item {
             Text {
                 Layout.bottomMargin: 8
                 visible: page.results.length > 0
-                text: qsTr("In the library: %n results", "", page.results.length)
+                text: qsTr("In your library: %n results", "", page.results.length)
                       + (page.query.trim() ? " " + qsTr("for “%1”").arg(page.query.trim()) : "")
                 color: Theme.textDim
                 font.pixelSize: 14
@@ -257,55 +329,16 @@ Item {
                 onClicked: page.shown = page.results.length
             }
 
-            // Public playlists on YouTube Music
             RowLayout {
-                visible: page.onlineEnabled && page.playlists.length > 0
+                visible: page.online.length > 0 || (page.onlineEnabled && YouTube.searching)
                 Layout.fillWidth: true
                 Layout.topMargin: page.results.length > 0 ? 26 : 0
-                Layout.bottomMargin: 8
-                spacing: 10
-                Icon { name: "library"; size: 20; color: "#cf9d9d" }
-                Text {
-                    Layout.fillWidth: true
-                    text: qsTr("Playlists on YouTube Music")
-                    color: Theme.text
-                    font.family: Theme.fontDisplay
-                    font.pixelSize: 18
-                    font.weight: Font.DemiBold
-                }
-            }
-            Flow {
-                visible: page.onlineEnabled && page.playlists.length > 0
-                Layout.fillWidth: true
-                spacing: 18
-                Repeater {
-                    model: page.onlineEnabled ? page.playlists : []
-                    AlbumCard {
-                        required property var modelData
-                        required property int index
-                        width: 168
-                        shadow: playlistShadow
-                        title: modelData.title
-                        subtitle: modelData.subtitle
-                        cover: modelData.cover
-                        seed: index
-                        revealDelay: index * 30
-                        onClicked: page.openPlaylist(modelData)
-                        onPlayClicked: page.openPlaylist(modelData)
-                    }
-                }
-            }
-
-            RowLayout {
-                visible: page.onlineEnabled && (page.online.length > 0 || YouTube.searching)
-                Layout.fillWidth: true
-                Layout.topMargin: page.results.length > 0 || page.playlists.length > 0 ? 26 : 0
                 Layout.bottomMargin: 8
                 spacing: 10
                 Icon { name: "playCircle"; size: 20; color: "#cf9d9d" }
                 Text {
                     Layout.fillWidth: true
-                    text: qsTr("On YouTube Music")
+                    text: page.withSpotify ? qsTr("On YouTube Music and Spotify") : qsTr("On YouTube Music")
                     color: Theme.text
                     font.family: Theme.fontDisplay
                     font.pixelSize: 18
@@ -315,7 +348,7 @@ Item {
             }
 
             Repeater {
-                model: page.online
+                model: page.online.slice(0, page.onlineShown)
                 TrackRow {
                     required property var modelData
                     required property int index
@@ -327,8 +360,76 @@ Item {
                 }
             }
 
+            PillButton {
+                visible: page.online.length > page.onlineShown
+                Layout.topMargin: 6
+                kind: "ghost"
+                icon: "expandMore"
+                text: qsTr("Show all (%1)").arg(page.online.length)
+                onClicked: page.onlineShown = page.online.length
+            }
+
+            // Playlists: yours whose name fits, then public ones on YouTube Music
+            RowLayout {
+                visible: page.ownPlaylists.length > 0 || page.playlists.length > 0
+                Layout.fillWidth: true
+                Layout.topMargin: page.results.length > 0 || page.online.length > 0 ? 26 : 0
+                Layout.bottomMargin: 8
+                spacing: 10
+                Icon { name: "library"; size: 20; color: "#cf9d9d" }
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("Playlists")
+                    color: Theme.text
+                    font.family: Theme.fontDisplay
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                }
+            }
+            Flow {
+                visible: page.ownPlaylists.length > 0 || page.playlists.length > 0
+                Layout.fillWidth: true
+                spacing: 18
+                Repeater {
+                    model: page.ownPlaylists
+                    AlbumCard {
+                        required property var modelData
+                        required property int index
+                        width: 168
+                        shadow: playlistShadow
+                        title: modelData.p.name
+                        subtitle: qsTr("Your playlist")
+                        colorA: modelData.p.colorA
+                        colorB: modelData.p.colorB
+                        seed: modelData.p.seed
+                        cover: modelData.p.cover || ""
+                        mosaic: modelData.p.mosaic || []
+                        revealDelay: index * 30
+                        onClicked: page.openOwn(modelData.index)
+                        onPlayClicked: page.playOwn(modelData.index)
+                    }
+                }
+                Repeater {
+                    model: page.playlists
+                    AlbumCard {
+                        required property var modelData
+                        required property int index
+                        width: 168
+                        shadow: playlistShadow
+                        title: modelData.title
+                        subtitle: modelData.subtitle
+                        cover: modelData.cover
+                        seed: index
+                        revealDelay: (page.ownPlaylists.length + index) * 30
+                        onClicked: page.openPlaylist(modelData)
+                        onPlayClicked: page.openPlaylist(modelData)
+                    }
+                }
+            }
+
             ColumnLayout {
-                visible: page.results.length === 0 && page.online.length === 0 && page.playlists.length === 0 && !YouTube.searching
+                visible: page.results.length === 0 && page.online.length === 0 && page.playlists.length === 0
+                         && page.ownPlaylists.length === 0 && !YouTube.searching
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: 50
                 spacing: 10

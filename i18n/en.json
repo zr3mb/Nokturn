@@ -28,9 +28,9 @@
     "%n liked",
     "%n liked"
   ],
-  "In the library: %n results": [
-    "In the library: %n result",
-    "In the library: %n results"
+  "In your library: %n results": [
+    "In your library: %n result",
+    "In your library: %n results"
   ],
   "%n albums": [
     "%n album",

@@ -219,10 +219,10 @@
   "Rainy": "Deszczowo",
   "What do you want to listen to today?": "Czego chcesz dziś posłuchać?",
   "All": "Wszystko",
-  "In the library: %n results": [
-    "W bibliotece: %n wynik",
-    "W bibliotece: %n wyniki",
-    "W bibliotece: %n wyników"
+  "In your library: %n results": [
+    "W Twojej bibliotece: %n wynik",
+    "W Twojej bibliotece: %n wyniki",
+    "W Twojej bibliotece: %n wyników"
   ],
   "for “%1”": "dla „%1”",
   "On YouTube Music": "W YouTube Music",
@@ -409,6 +409,7 @@
   "Liked on your YouTube account": "Polubione na Twoim koncie YouTube",
   "Sample tracks from YouTube Music": "Przykładowe utwory z YouTube Music",
   "Your playlist": "Twoja playlista",
+  "Your playlists": "Twoje playlisty",
   "PLAYLIST · YOUTUBE MUSIC": "PLAYLISTA · YOUTUBE MUSIC",
   "Mixing on — tracks will flow smoothly": "Miksowanie włączone — utwory będą przechodzić płynnie",
   "Mixing off": "Miksowanie wyłączone",
@@ -750,7 +751,9 @@
   "Copy command": "Kopiuj polecenie",
   "Command copied": "Skopiowano polecenie",
   "Open the Nokturn menu over a game": "Otwórz menu Nokturna nad grą",
-  "Playlists on YouTube Music": "Playlisty na YouTube Music",
+  "On YouTube Music and Spotify": "W YouTube Music i Spotify",
+  "Your playlist": "Twoja playlista",
+  "Your playlists": "Twoje playlisty",
   "Stats": "Statystyki",
   "%1 h": "%1 godz.",
   "Your stats": "Twoje statystyki",

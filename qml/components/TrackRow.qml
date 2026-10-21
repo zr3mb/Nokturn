@@ -157,7 +157,7 @@ Item {
         }
 
         Text {
-            visible: root.showAlbum && !root.compact
+            visible: root.showAlbum && !root.compact && root.width > 680   // narrow rows keep the room for the title
             Layout.preferredWidth: root.width * 0.22
             text: root.t.album
             color: Theme.textDim
@@ -166,7 +166,7 @@ Item {
         }
 
         Item {
-            visible: !root.compact
+            visible: !root.compact && root.width > 560
             Layout.preferredWidth: 132
             Layout.fillHeight: true
             SourceBadge {
