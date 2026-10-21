@@ -163,6 +163,12 @@ bool LyricsService::canAlign() const
            && !m_lyrics.synced && !aligning();
 }
 
+bool LyricsService::canTranscribe() const
+{
+    return m_hasTrack && m_hardware.sufficient && sttReady() && m_state == QLatin1String("missing") && !aligning()
+           && m_track.source != QLatin1String("radio") && !m_track.demo;
+}
+
 // ---- track and fetching ---------------------------------------------------------
 
 void LyricsService::setTrack(const Track *track)
@@ -400,8 +406,19 @@ void LyricsService::maybeAutoAlign()
 
 void LyricsService::alignNow()
 {
-    if (!canAlign())
-        return;
+    if (canAlign())
+        runSpeech(false);
+}
+
+void LyricsService::transcribeNow()
+{
+    if (canTranscribe())
+        runSpeech(true);
+}
+
+void LyricsService::runSpeech(bool recognize)
+{
+    m_recognize = recognize;
     m_alignTried.insert(m_track.id, true);
     m_alignProgress = 0;
     m_alignStage = tr("Preparing");
@@ -422,6 +439,10 @@ void LyricsService::alignNow()
 
 void LyricsService::startAlign(const QUrl &audio)
 {
+    if (m_recognize) {
+        startRecognize(audio);
+        return;
+    }
     // The start of the lyrics as a hint for the model (vocabulary, spelling, language).
     QString prompt;
     for (const LyricLine &l : std::as_const(m_lyrics.lines)) {
@@ -455,6 +476,33 @@ void LyricsService::startAlign(const QUrl &audio)
         apply(aligned, true);
         emit notice(tr("Aligned the lyrics timing (%1% of words)").arg(qRound(r.coverage * 100)),
                     QStringLiteral("check"));
+    });
+    emit alignChanged();
+}
+
+void LyricsService::startRecognize(const QUrl &audio)
+{
+    // No lyrics to go by: the words and their times come from the recording alone (test feature).
+    const quint64 serial = m_serial;
+    const qint64 durationMs = m_track.duration > 0 ? qint64(m_track.duration) * 1000 : -1;
+    m_speech.transcribe(audio, m_model, QString(),
+                        [this, serial, durationMs](const QList<LyricsAligner::Word> &words, const QString &error) {
+        emit alignChanged();
+        if (serial != m_serial)
+            return;
+        if (!error.isEmpty()) {
+            emit notice(tr("Lyrics recognition: %1").arg(error), QStringLiteral("close"));
+            return;
+        }
+        Lyrics recognized = LyricsAligner::fromTranscription(words, durationMs);
+        if (recognized.wordCount() < 6) {
+            emit notice(tr("No singing was recognized in this track"), QStringLiteral("close"));
+            return;
+        }
+        recognized.source = tr("Recognized automatically (test feature), may contain mistakes");
+        apply(recognized, true);
+        setState(QStringLiteral("ready"));
+        emit notice(tr("Recognized the lyrics (test feature)"), QStringLiteral("check"));
     });
     emit alignChanged();
 }

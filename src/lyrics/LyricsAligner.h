@@ -31,4 +31,7 @@ double similarity(const QString &a, const QString &b);
 
 Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs = -1);
 
+// Lyrics made from the transcription alone (a track nobody has lyrics for): timed lines, origin "stt-text".
+Lyrics fromTranscription(const QList<Word> &words, qint64 durationMs = -1);
+
 } // namespace LyricsAligner

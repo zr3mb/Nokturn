@@ -403,6 +403,39 @@ Item {
         { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
     ]
     // Stats, "Recently played" and resuming a long recording (--tour-stats).
+    // Lyrics recognized for a track without any (--tour-recognize <folder>: a folder with one recording
+    // with words in it; the profile needs whisper and the "base" model).
+    readonly property bool withRecognize: Qt.application.arguments.indexOf("--tour-recognize") >= 0
+    readonly property string recognizeFolder: withRecognize ? Qt.application.arguments[Qt.application.arguments.indexOf("--tour-recognize") + 1] : ""
+    function recognizeLog() {
+        console.log("tour: lyrics", Lyrics.state, "| can recognize", Lyrics.canTranscribe, "| recognizing", Lyrics.recognizing,
+                    Math.round(Lyrics.alignProgress * 100) + "%", Lyrics.alignStage, "| lines", Lyrics.lines.length,
+                    "| origin", Lyrics.origin)
+    }
+    readonly property var recognizeSteps: {
+        const steps = [
+            { name: "R1-add", run: () => { Nav.finishOnboarding(); Nav.queueOpen = true; Lyrics.sttModel = "base"
+                                           Library.addFolder("file:///" + root.recognizeFolder.replace(/\\/g, "/")) } },
+            { name: "R2-wait", run: () => {} },
+            { name: "R3-play", run: () => {
+                const r = Library.localTracks()
+                console.log("tour: local tracks", r.length, r.length ? Library.tracks.get(r[0]).title : "")
+                if (r.length) Player.playFrom(r, r[0], "test")
+                Nav.panelTab = "lyrics"
+                Nav.immersive = true
+            } },
+            { name: "R4-wait", run: () => root.recognizeLog() },
+            { name: "R5-recognize", run: () => { root.recognizeLog(); Lyrics.transcribeNow() } }
+        ]
+        for (let i = 0; i < 40; ++i)
+            steps.push({ name: "R6-wait" + i, run: () => root.recognizeLog() })
+        steps.push({ name: "R7-lines", run: () => {
+            root.recognizeLog()
+            Lyrics.lines.forEach(l => console.log("tour: line", l.start.toFixed(1), "-", l.end.toFixed(1), "|", l.text))
+        } })
+        return steps
+    }
+
     readonly property bool withStats: Qt.application.arguments.indexOf("--tour-stats") >= 0
     property int longRow: -1
     property int shortRow: -1
@@ -446,7 +479,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

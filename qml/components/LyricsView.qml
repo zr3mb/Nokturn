@@ -88,13 +88,85 @@ Item {
         }
         PillButton {
             Layout.alignment: Qt.AlignHCenter
-            visible: Lyrics.state === "error" || Lyrics.state === "missing"
+            visible: (Lyrics.state === "error" || Lyrics.state === "missing") && !Lyrics.recognizing
             kind: "ghost"
             icon: "refresh"
             text: qsTr("Try again")
             fontSize: 13
             implicitHeight: 34
             onClicked: Lyrics.retry()
+        }
+
+        // No lyrics anywhere: recognize them from the recording (test feature)
+        PillButton {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 6
+            visible: Lyrics.canTranscribe
+            kind: "secondary"
+            icon: "lyrics"
+            text: qsTr("Recognize the lyrics (test)")
+            fontSize: 13
+            implicitHeight: 34
+            onClicked: Lyrics.transcribeNow()
+        }
+        PillButton {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 6
+            visible: Lyrics.state === "missing" && Lyrics.hardwareOk && !Lyrics.sttReady && !Lyrics.recognizing
+            kind: "ghost"
+            icon: "lyrics"
+            text: qsTr("Set up lyrics recognition (test)")
+            fontSize: 12
+            implicitHeight: 30
+            onClicked: Nav.navigate("settings")
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            visible: Lyrics.state === "missing" && Lyrics.recognizing
+            spacing: 6
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Spinner { size: 14; color: Theme.accent }
+                Text {
+                    Layout.fillWidth: true
+                    text: (Lyrics.alignStage || qsTr("Recognizing the singing")) + " · " + Math.round(Lyrics.alignProgress * 100) + "%"
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                }
+                IconButton {
+                    icon: "close"
+                    iconSize: 14
+                    implicitWidth: 26; implicitHeight: 26
+                    showDot: false
+                    onClicked: Lyrics.cancelAlign()
+                }
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                height: 3
+                radius: 1.5
+                color: Theme.alpha(Theme.text, 0.08)
+                Rectangle {
+                    width: parent.width * Lyrics.alignProgress
+                    height: parent.height
+                    radius: 1.5
+                    color: Theme.accent
+                    Behavior on width { NumberAnimation { duration: 300 } }
+                }
+            }
+        }
+        Text {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            visible: Lyrics.canTranscribe || (Lyrics.state === "missing" && Lyrics.recognizing)
+            horizontalAlignment: Text.AlignHCenter
+            text: qsTr("Test feature: Nokturn listens to the recording on this computer and writes down the words with their timing. Expect mistakes, especially over loud music. It takes a few minutes.")
+            color: Theme.warning
+            font.pixelSize: 11
+            wrapMode: Text.WordWrap
         }
     }
 
@@ -277,7 +349,8 @@ Item {
                     parts.push(qsTr("not synced"))
                 return parts.join(" · ")
             }
-            color: Theme.textFaint
+            // Recognized lyrics (test feature) stand out: they may be wrong.
+            color: Lyrics.origin === "stt-text" ? Theme.warning : Theme.textFaint
             font.pixelSize: 11
             wrapMode: Text.WordWrap
             horizontalAlignment: root.align

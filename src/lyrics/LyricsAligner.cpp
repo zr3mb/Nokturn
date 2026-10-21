@@ -282,4 +282,60 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
     return result;
 }
 
+Lyrics fromTranscription(const QList<Word> &words, qint64 durationMs)
+{
+    // Words -> lines: a new line after a pause, at the end of a phrase or when it gets long; an empty line
+    // (a verse break) after a long pause. What whisper writes for parts without singing ("[Music]",
+    // "(upbeat music)", "♪") goes, and so do the phrases it makes up over silence.
+    static const QStringList madeUp = { QStringLiteral("amara.org"), QStringLiteral("subtitles by"),
+                                        QStringLiteral("thanks for watching"), QStringLiteral("thank you for watching"),
+                                        QStringLiteral("napisy wykonane"), QStringLiteral("napisy stworzone") };
+    Lyrics out;
+    LyricLine line;
+    int count = 0, depth = 0;
+    qint64 lastEnd = -1;
+    QString previous;
+    auto flush = [&] {
+        if (count > 0) {
+            const QString lower = line.text.toLower();
+            const bool fake = std::any_of(madeUp.cbegin(), madeUp.cend(), [&](const QString &p) { return lower.contains(p); });
+            if (!fake)
+                out.lines << line;
+        }
+        line = {};
+        count = 0;
+    };
+    for (const Word &w : words) {
+        const QString text = w.text.trimmed();
+        const int opens = int(text.count(QChar('[')) + text.count(QChar('(')));
+        const int closes = int(text.count(QChar(']')) + text.count(QChar(')')));
+        const bool noise = depth > 0 || isNoise(text);
+        depth = std::max(0, depth + opens - closes);
+        if (text.isEmpty() || noise)
+            continue;
+        const qint64 gap = lastEnd < 0 ? 0 : w.start - lastEnd;
+        static const QString phraseEnd = QStringLiteral(".!?,;:…");
+        const bool endOfPhrase = !previous.isEmpty() && phraseEnd.contains(previous.back());
+        // A long pause always ends the line; a short one once it has a few words; very long lines are cut.
+        if (count > 0 && (gap > 700 || (count >= 3 && endOfPhrase) || (count >= 5 && gap > 220) || count >= 10))
+            flush();
+        if (count == 0 && gap > 4000 && !out.lines.isEmpty() && !out.lines.last().text.isEmpty())
+            out.lines << LyricLine {};
+        if (count == 0)
+            line.start = w.start;
+        line.text += (count > 0 ? QStringLiteral(" ") : QString()) + text;
+        line.end = w.end;
+        lastEnd = w.end;
+        previous = text;
+        ++count;
+    }
+    flush();
+    while (!out.lines.isEmpty() && out.lines.last().text.isEmpty())
+        out.lines.removeLast();
+    out.synced = !out.lines.isEmpty();
+    out.origin = QStringLiteral("stt-text");
+    out.fillEnds(durationMs);
+    return out;
+}
+
 } // namespace LyricsAligner

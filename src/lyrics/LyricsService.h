@@ -42,6 +42,9 @@ class LyricsService : public QObject
     Q_PROPERTY(qreal alignProgress READ alignProgress NOTIFY alignChanged)
     Q_PROPERTY(QString alignStage READ alignStage NOTIFY alignChanged)
     Q_PROPERTY(bool canAlign READ canAlign NOTIFY alignChanged)
+    // A track without lyrics: they can be recognized from the recording (test feature).
+    Q_PROPERTY(bool canTranscribe READ canTranscribe NOTIFY alignChanged)
+    Q_PROPERTY(bool recognizing READ recognizing NOTIFY alignChanged)
 
     Q_PROPERTY(bool autoAlign READ autoAlign WRITE setAutoAlign NOTIFY settingsChanged)
     Q_PROPERTY(QString sttModel READ sttModel WRITE setSttModel NOTIFY settingsChanged)
@@ -73,6 +76,8 @@ public:
     qreal alignProgress() const { return m_alignProgress; }
     QString alignStage() const { return m_alignStage; }
     bool canAlign() const;
+    bool canTranscribe() const;
+    bool recognizing() const { return aligning() && m_recognize; }
 
     bool autoAlign() const { return m_autoAlign; }
     void setAutoAlign(bool on);
@@ -97,6 +102,7 @@ public:
     Q_INVOKABLE void nudge(double seconds);   // shifts the timing of this track's lyrics
     Q_INVOKABLE void resetOffset();
     Q_INVOKABLE void alignNow();
+    Q_INVOKABLE void transcribeNow();
     Q_INVOKABLE void cancelAlign();
     Q_INVOKABLE void downloadSttEngine() { m_speech.downloadEngine(); }
     Q_INVOKABLE void redetectStt() { m_speech.detect(); }
@@ -126,7 +132,9 @@ private:
     void apply(const Lyrics &lyrics, bool store);
     void setState(const QString &state, const QString &error = {});
     void maybeAutoAlign();
+    void runSpeech(bool recognize);   // the track's audio (a YouTube stream is resolved first), then startAlign
     void startAlign(const QUrl &audio);
+    void startRecognize(const QUrl &audio);
 
     QString cachePath(const QString &trackId) const;
     QString offsetKey() const;
@@ -152,6 +160,7 @@ private:
     qreal m_alignProgress = 0;
     QString m_alignStage;
     QHash<QString, bool> m_alignTried;   // tracks for which recognition has already failed this session
+    bool m_recognize = false;            // the job writes the lyrics themselves, not just their timing
 
     bool m_autoAlign = false;
     QString m_model;
