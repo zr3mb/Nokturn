@@ -15,6 +15,8 @@ struct Token
     int indexInLine = 0;
     qint64 start = 0;     // transcription: word times
     qint64 end = 0;
+    int from = 0;         // LyricsAligner: the word's place in the line's text
+    int length = 0;
 };
 
 bool isNoise(const QString &raw)
@@ -95,13 +97,19 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
     std::vector<int> lineTokenCount(lyrics.lines.size(), 0);
     for (int li = 0; li < lyrics.lines.size(); ++li) {
         int k = 0;
-        for (const QString &w : lyrics.lines.at(li).text.split(QChar(' '), Qt::SkipEmptyParts)) {
-            const QString n = normalize(w);
+        const QString &text = lyrics.lines.at(li).text;
+        for (int i = 0; i < text.size();) {
+            while (i < text.size() && text.at(i) == QChar(' '))
+                ++i;
+            const int from = i;
+            while (i < text.size() && text.at(i) != QChar(' '))
+                ++i;
+            const QString n = normalize(text.mid(from, i - from));
             if (n.isEmpty())
                 continue;
             if (lineFirstToken[li] < 0)
                 lineFirstToken[li] = int(lyr.size());
-            lyr.push_back({ n, li, k++, 0, 0 });
+            lyr.push_back({ n, li, k++, 0, 0, from, i - from });
         }
         lineTokenCount[li] = k;
     }
@@ -120,7 +128,7 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
                 continue;
             const qint64 s = w.start + span * p / parts.size();
             const qint64 e = w.start + span * (p + 1) / parts.size();
-            tr.push_back({ n, -1, 0, s, e });
+            tr.push_back({ n, -1, 0, s, e, 0, 0 });
             durations.push_back(e - s);
         }
     }
@@ -194,6 +202,11 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
             break;
         }
     }
+
+    // The words that were heard keep their own times (the karaoke highlight); the rest is estimated.
+    for (int t = 0; t < n; ++t)
+        if (matchOf[t] >= 0)
+            result.lyrics.lines[lyr[t].line].words << LyricWord { tr[matchOf[t]].start, tr[matchOf[t]].end, lyr[t].from, lyr[t].length };
 
     // ---- line times ----
     struct Anchor { int line; int pos; qint64 start; qint64 lastEnd; };
@@ -278,6 +291,7 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
     }
 
     result.lyrics.synced = true;
+    result.lyrics.wordTimed = true;
     result.lyrics.origin = QStringLiteral("stt");
     return result;
 }
@@ -323,7 +337,10 @@ Lyrics fromTranscription(const QList<Word> &words, qint64 durationMs)
             out.lines << LyricLine {};
         if (count == 0)
             line.start = w.start;
-        line.text += (count > 0 ? QStringLiteral(" ") : QString()) + text;
+        if (count > 0)
+            line.text += QChar(' ');
+        line.words << LyricWord { w.start, std::max(w.end, w.start + 80), int(line.text.size()), int(text.size()) };
+        line.text += text;
         line.end = w.end;
         lastEnd = w.end;
         previous = text;
@@ -333,6 +350,7 @@ Lyrics fromTranscription(const QList<Word> &words, qint64 durationMs)
     while (!out.lines.isEmpty() && out.lines.last().text.isEmpty())
         out.lines.removeLast();
     out.synced = !out.lines.isEmpty();
+    out.wordTimed = true;
     out.origin = QStringLiteral("stt-text");
     out.fillEnds(durationMs);
     return out;

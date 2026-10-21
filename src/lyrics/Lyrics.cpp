@@ -29,9 +29,17 @@ QString Lyrics::plainText() const
 QJsonObject Lyrics::toJson() const
 {
     QJsonArray arr;
-    for (const LyricLine &l : lines)
-        arr.append(QJsonArray { double(l.start), double(l.end), l.text });
-    return { { "lines", arr }, { "synced", synced }, { "source", source }, { "origin", origin } };
+    for (const LyricLine &l : lines) {
+        QJsonArray line { double(l.start), double(l.end), l.text };
+        if (!l.words.isEmpty()) {
+            QJsonArray words;   // flat: start, end, from, length, ...
+            for (const LyricWord &w : l.words)
+                words << double(w.start) << double(w.end) << w.from << w.length;
+            line.append(words);
+        }
+        arr.append(line);
+    }
+    return { { "lines", arr }, { "synced", synced }, { "source", source }, { "origin", origin }, { "wordTimed", wordTimed } };
 }
 
 Lyrics Lyrics::fromJson(const QJsonObject &o)
@@ -39,8 +47,14 @@ Lyrics Lyrics::fromJson(const QJsonObject &o)
     Lyrics out;
     for (const QJsonValue &v : o.value("lines").toArray()) {
         const QJsonArray a = v.toArray();
-        out.lines << LyricLine { qint64(a.at(0).toDouble(-1)), qint64(a.at(1).toDouble(-1)), a.at(2).toString() };
+        LyricLine line { qint64(a.at(0).toDouble(-1)), qint64(a.at(1).toDouble(-1)), a.at(2).toString(), {} };
+        const QJsonArray words = a.at(3).toArray();
+        for (qsizetype i = 0; i + 3 < words.size(); i += 4)
+            line.words << LyricWord { qint64(words.at(i).toDouble(-1)), qint64(words.at(i + 1).toDouble(-1)),
+                                      words.at(i + 2).toInt(), words.at(i + 3).toInt() };
+        out.lines << line;
     }
+    out.wordTimed = o.value("wordTimed").toBool();
     out.synced = o.value("synced").toBool();
     out.source = o.value("source").toString();
     out.origin = o.value("origin").toString();
@@ -114,9 +128,62 @@ Lyrics Lyrics::fromLrc(const QString &text)
         // An empty line with a timestamp means an instrumental break in LRC.
         if (s.text.isEmpty() && (out.lines.isEmpty() || out.lines.last().text.isEmpty()))
             continue;
-        out.lines << LyricLine { s.text.isEmpty() ? -1 : s.at, -1, s.text };
+        out.lines << LyricLine { s.text.isEmpty() ? -1 : s.at, -1, s.text, {} };
     }
     out.fillEnds();
+    return out;
+}
+
+QList<LyricWord> LyricLine::timedWords() const
+{
+    // The words of the text, with the known times where they are.
+    QList<LyricWord> out;
+    for (int i = 0; i < text.size();) {
+        while (i < text.size() && text.at(i).isSpace())
+            ++i;
+        const int from = i;
+        while (i < text.size() && !text.at(i).isSpace())
+            ++i;
+        if (i > from)
+            out << LyricWord { -1, -1, from, i - from };
+    }
+    for (LyricWord &w : out)
+        for (const LyricWord &known : words)
+            if (known.from == w.from && known.start >= 0) {
+                w.start = known.start;
+                w.end = std::max(known.end, known.start + 80);
+            }
+    if (start < 0 || out.isEmpty())
+        return out;
+
+    // Unknown runs share the time between the known neighbours by letters. A line with no known words
+    // at all is sung at a typical pace (and not stretched over an instrumental break that follows).
+    constexpr qint64 kPerLetter = 75;
+    for (int i = 0; i < out.size();) {
+        if (out[i].start >= 0) {
+            ++i;
+            continue;
+        }
+        int j = i;
+        int letters = 0;
+        while (j < out.size() && out[j].start < 0)
+            letters += out[j++].length + 1;
+        const qint64 from = i > 0 ? out[i - 1].end : start;
+        qint64 to = j < out.size() ? out[j].start : -1;
+        if (to < 0) {
+            const qint64 sung = from + letters * kPerLetter + 250;
+            to = end > from ? std::min(end, std::max(sung, from + (end - from) * 6 / 10)) : sung;
+        }
+        to = std::max(to, from + 80 * (j - i));
+        qint64 at = from;
+        for (int k = i; k < j; ++k) {
+            const qint64 span = (to - from) * (out[k].length + 1) / std::max(1, letters);
+            out[k].start = at;
+            out[k].end = at + span;
+            at += span;
+        }
+        i = j;
+    }
     return out;
 }
 

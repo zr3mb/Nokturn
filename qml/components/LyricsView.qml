@@ -35,6 +35,25 @@ Item {
         scroll.restart()
     }
     onCurrentChanged: recenter()
+
+    // Karaoke: how many characters of a line are sung by `time` (letter by letter within each word).
+    function sungChars(line, time) {
+        const words = line.words || []
+        let n = 0
+        for (let i = 0; i < words.length; ++i) {
+            const w = words[i]
+            if (time < w[0])
+                break
+            n = time >= w[1] ? w[2] + w[3] : w[2] + Math.floor(w[3] * (time - w[0]) / Math.max(0.05, w[1] - w[0]))
+        }
+        return n
+    }
+    function escaped(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    }
+    function karaoke(text, n) {
+        return "<font color=\"" + String(Theme.text) + "\">" + escaped(text.slice(0, n)) + "</font>" + escaped(text.slice(n))
+    }
     onHeightChanged: recenter()
     Connections {
         target: Lyrics
@@ -194,6 +213,8 @@ Item {
             readonly property bool blank: modelData.text === ""
             readonly property bool isCurrent: index === root.current
             readonly property bool past: Lyrics.synced && root.current >= 0 && index < root.current
+            // The line being sung lights up letter by letter.
+            readonly property bool karaoke: line.isCurrent && root.currentActive && (modelData.words || []).length > 0
             width: ListView.view.width
             height: blank ? root.fontSize * 0.6 : label.implicitHeight + 6
 
@@ -202,7 +223,9 @@ Item {
                 width: parent.width
                 y: 3
                 visible: !line.blank
-                text: line.modelData.text
+                text: line.karaoke ? root.karaoke(line.modelData.text, root.sungChars(line.modelData, root.lyricsTime))
+                                   : line.modelData.text
+                textFormat: line.karaoke ? Text.StyledText : Text.PlainText
                 horizontalAlignment: root.align
                 wrapMode: Text.WordWrap
                 font.family: root.large ? Theme.fontDisplay : Theme.fontText
@@ -210,6 +233,7 @@ Item {
                 font.weight: Lyrics.synced ? Font.Bold : Font.Medium
                 lineHeight: 1.1
                 color: !Lyrics.synced ? Theme.text
+                     : line.karaoke ? Theme.alpha(Theme.text, 0.5)
                      : line.isCurrent && root.currentActive ? Theme.text
                      : Theme.alpha(Theme.text, line.past || line.isCurrent ? 0.42 : 0.3)
                 Behavior on color { ColorAnimation { duration: 260 } }
@@ -335,6 +359,16 @@ Item {
             fontSize: 12
             implicitHeight: 30
             onClicked: Lyrics.alignNow()
+        }
+        // Lines with times, words only estimated: speech recognition times each word (test feature).
+        PillButton {
+            visible: Lyrics.canTimeWords && !Lyrics.aligning
+            kind: "ghost"
+            icon: "clock"
+            text: qsTr("Time every word (test)")
+            fontSize: 11
+            implicitHeight: 26
+            onClicked: Lyrics.timeWordsNow()
         }
 
         Text {

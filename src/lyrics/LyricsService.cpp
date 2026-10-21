@@ -368,10 +368,16 @@ void LyricsService::apply(const Lyrics &lyrics, bool store)
     m_starts.clear();
     for (int i = 0; i < m_lyrics.lines.size(); ++i) {
         const LyricLine &l = m_lyrics.lines.at(i);
+        // Every word's time (heard or estimated) for the karaoke highlight: [start s, end s, from, length].
+        QVariantList words;
+        if (m_lyrics.synced && l.start >= 0)
+            for (const LyricWord &w : l.timedWords())
+                words << QVariant(QVariantList { w.start / 1000.0, w.end / 1000.0, w.from, w.length });
         m_lines << QVariantMap {
             { "text", l.text },
             { "start", l.start >= 0 ? l.start / 1000.0 : -1.0 },
             { "end", l.end >= 0 ? l.end / 1000.0 : -1.0 },
+            { "words", words },
         };
         if (m_lyrics.synced && l.start >= 0 && !l.text.isEmpty())
             m_starts.emplace_back(l.start, i);
@@ -402,25 +408,41 @@ int LyricsService::lineAt(double seconds) const
 
 void LyricsService::maybeAutoAlign()
 {
-    if (m_autoAlign && canAlign() && !m_alignTried.contains(m_track.id))
+    if (!m_autoAlign || m_alignTried.contains(m_track.id))
+        return;
+    if (canAlign())
         alignNow();
+    else if (canTimeWords())
+        timeWordsNow();
+}
+
+bool LyricsService::canTimeWords() const
+{
+    return m_hasTrack && hardwareOk() && sttReady() && m_state == QLatin1String("ready") && m_lyrics.synced
+           && !m_lyrics.wordTimed && !aligning();
+}
+
+void LyricsService::timeWordsNow()
+{
+    if (canTimeWords())
+        runSpeech(Words);
 }
 
 void LyricsService::alignNow()
 {
     if (canAlign())
-        runSpeech(false);
+        runSpeech(Align);
 }
 
 void LyricsService::transcribeNow()
 {
     if (canTranscribe())
-        runSpeech(true);
+        runSpeech(Recognize);
 }
 
-void LyricsService::runSpeech(bool recognize)
+void LyricsService::runSpeech(SpeechMode mode)
 {
-    m_recognize = recognize;
+    m_mode = mode;
     m_alignTried.insert(m_track.id, true);
     m_alignProgress = 0;
     m_alignStage = tr("Preparing");
@@ -453,8 +475,12 @@ void LyricsService::runSpeech(bool recognize)
 
 void LyricsService::startAlign(const QUrl &audio)
 {
-    if (m_recognize) {
+    if (m_mode == Recognize) {
         startRecognize(audio);
+        return;
+    }
+    if (m_mode == Words) {
+        startWordTiming(audio);
         return;
     }
     // The start of the lyrics as a hint for the model (vocabulary, spelling, language).
@@ -490,6 +516,67 @@ void LyricsService::startAlign(const QUrl &audio)
         apply(aligned, true);
         emit notice(tr("Aligned the lyrics timing (%1% of words)").arg(qRound(r.coverage * 100)),
                     QStringLiteral("check"));
+    });
+    emit alignChanged();
+}
+
+void LyricsService::startWordTiming(const QUrl &audio)
+{
+    // The lines keep their times; each word gets the time it was heard at, if that falls in its line.
+    QString prompt;
+    for (const LyricLine &l : std::as_const(m_lyrics.lines)) {
+        if (prompt.size() > 200)
+            break;
+        if (!l.text.isEmpty())
+            prompt += (prompt.isEmpty() ? QString() : QStringLiteral(" ")) + l.text;
+    }
+    const quint64 serial = m_serial;
+    const Lyrics base = m_lyrics;
+    const qint64 durationMs = m_track.duration > 0 ? qint64(m_track.duration) * 1000 : -1;
+    m_speech.transcribe(audio, m_model, prompt.left(220),
+                        [this, serial, base, durationMs](const QList<LyricsAligner::Word> &words, const QString &error) {
+        emit alignChanged();
+        if (serial != m_serial)
+            return;
+        if (!error.isEmpty()) {
+            emit notice(tr("Word timing: %1").arg(error), QStringLiteral("close"));
+            return;
+        }
+        Lyrics plain = base;
+        for (LyricLine &l : plain.lines) {
+            l.start = l.end = -1;
+            l.words.clear();
+        }
+        plain.synced = false;
+        const LyricsAligner::Result r = LyricsAligner::align(plain, words, durationMs);
+        Lyrics timed = base;
+        int lines = 0;
+        for (int i = 0; i < timed.lines.size() && i < r.lyrics.lines.size(); ++i) {
+            LyricLine &l = timed.lines[i];
+            if (l.start < 0)
+                continue;
+            const qint64 until = (l.end > l.start ? l.end : l.start + 8000) + 500;
+            QList<LyricWord> heard;
+            for (LyricWord w : r.lyrics.lines.at(i).words) {
+                if (w.start < l.start - 1000 || w.start > until)
+                    continue;
+                w.start = std::max(w.start, l.start);
+                w.end = std::max(w.end, w.start + 80);
+                heard << w;
+            }
+            if (!heard.isEmpty()) {
+                l.words = heard;
+                ++lines;
+            }
+        }
+        if (r.coverage < 0.25 || lines < 2) {
+            emit notice(tr("Couldn't time the words (%1% of them recognized)").arg(qRound(r.coverage * 100)),
+                        QStringLiteral("close"));
+            return;
+        }
+        timed.wordTimed = true;
+        apply(timed, true);
+        emit notice(tr("Timed every word (%1% of them heard)").arg(qRound(r.coverage * 100)), QStringLiteral("check"));
     });
     emit alignChanged();
 }
