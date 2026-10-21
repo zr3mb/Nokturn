@@ -834,5 +834,7 @@
   "Sign in in the window that opened. Once SoundCloud shows your feed, the window closes by itself.": "Zaloguj się w otwartym oknie. Gdy SoundCloud pokaże Twój feed, okno zamknie się samo.",
   "Sign in in the window that opened, and close it once SoundCloud shows your feed.": "Zaloguj się w otwartym oknie i zamknij je, gdy SoundCloud pokaże Twój feed.",
   "Reading the SoundCloud session…": "Odczytuję sesję SoundCloud…",
-  "No sign-in detected — sign in in the window until SoundCloud shows your feed": "Nie wykryto logowania — zaloguj się w oknie, aż SoundCloud pokaże Twój feed"
+  "No sign-in detected — sign in in the window until SoundCloud shows your feed": "Nie wykryto logowania — zaloguj się w oknie, aż SoundCloud pokaże Twój feed",
+  "Letter-by-letter highlight": "Podświetlanie litera po literze",
+  "The line being sung lights up letter by letter, karaoke style. Off: the whole line lights up at once, and words aren't timed.": "Śpiewana linijka zapala się litera po literze, jak w karaoke. Wyłączone: cała linijka podświetla się naraz, a słowa nie są synchronizowane."
 }

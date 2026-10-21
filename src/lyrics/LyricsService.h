@@ -50,6 +50,8 @@ class LyricsService : public QObject
     Q_PROPERTY(bool wordTimed READ wordTimed NOTIFY lyricsChanged)
 
     Q_PROPERTY(bool autoAlign READ autoAlign WRITE setAutoAlign NOTIFY settingsChanged)
+    // The current line lights up letter by letter (off: the whole line at once, no word timing).
+    Q_PROPERTY(bool karaoke READ karaoke WRITE setKaraoke NOTIFY settingsChanged)
     Q_PROPERTY(QString sttModel READ sttModel WRITE setSttModel NOTIFY settingsChanged)
     Q_PROPERTY(QStringList sttModels READ sttModels CONSTANT)
     Q_PROPERTY(bool sttEngineReady READ sttEngineReady NOTIFY sttChanged)
@@ -93,6 +95,8 @@ public:
 
     bool autoAlign() const { return m_autoAlign && hardwareOk(); }
     void setAutoAlign(bool on);
+    bool karaoke() const { return m_karaoke; }
+    void setKaraoke(bool on);
     QString sttModel() const { return m_model; }
     void setSttModel(const QString &model);
     QStringList sttModels() const { return SpeechEngine::modelNames(); }
@@ -194,5 +198,6 @@ private:
     SpeechMode m_mode = Align;
 
     bool m_autoAlign = false;
+    bool m_karaoke = true;
     QString m_model;
 };

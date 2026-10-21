@@ -98,6 +98,7 @@ LyricsService::LyricsService(QObject *parent)
         m_model = m_hardware.recommendedModel;
     // Checked against the hardware when it's used: the graphics card is only found a moment after start.
     m_autoAlign = settings->value("lyrics/autoAlign", false).toBool();
+    m_karaoke = settings->value("lyrics/karaoke", true).toBool();
 
     connect(&m_speech, &SpeechEngine::stateChanged, this, [this] {
         emit sttChanged();
@@ -144,6 +145,17 @@ void LyricsService::setAutoAlign(bool on)
         cancelAlign();
     emit settingsChanged();
     emit alignChanged();
+    maybeAutoAlign();
+}
+
+void LyricsService::setKaraoke(bool on)
+{
+    if (on == m_karaoke)
+        return;
+    m_karaoke = on;
+    AppPaths::settings()->setValue("lyrics/karaoke", on);
+    emit settingsChanged();
+    emit alignChanged();   // canTimeWords follows it
     maybeAutoAlign();
 }
 
@@ -418,7 +430,7 @@ void LyricsService::maybeAutoAlign()
 
 bool LyricsService::canTimeWords() const
 {
-    return m_hasTrack && hardwareOk() && sttReady() && m_state == QLatin1String("ready") && m_lyrics.synced
+    return m_karaoke && m_hasTrack && hardwareOk() && sttReady() && m_state == QLatin1String("ready") && m_lyrics.synced
            && !m_lyrics.wordTimed && !aligning();
 }
 

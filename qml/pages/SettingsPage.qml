@@ -396,6 +396,12 @@ Item {
                     description: qsTr("Lyrics of the playing track (synced when available) in the “Now playing” panel and in full-screen mode. For local files the track is looked up by artist and title; as a fallback, an .lrc file next to the track or lyrics stored in the tags are used.")
                 }
                 SettingRow {
+                    icon: "lyrics"
+                    title: qsTr("Letter-by-letter highlight")
+                    description: qsTr("The line being sung lights up letter by letter, karaoke style. Off: the whole line lights up at once, and words aren't timed.")
+                    Toggle { checked: Lyrics.karaoke; onToggled: c => Lyrics.karaoke = c }
+                }
+                SettingRow {
                     icon: "clock"
                     title: qsTr("Automatic timing (alpha)")
                     description: Lyrics.hardwareOk

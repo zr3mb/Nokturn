@@ -402,6 +402,14 @@ Item {
         } },
         { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
     ]
+    // The letter-by-letter highlight switch in the settings (--tour-karaoke).
+    readonly property bool withKaraoke: Qt.application.arguments.indexOf("--tour-karaoke") >= 0
+    readonly property var karaokeSteps: [
+        { name: "K1-settings", run: () => { Nav.finishOnboarding(); Nav.navigate("settings") } },
+        { name: "K2-lyrics", run: () => root.scrollPage(1500) },
+        { name: "K3-off", run: () => { Lyrics.karaoke = false; console.log("tour: karaoke", Lyrics.karaoke, "canTimeWords", Lyrics.canTimeWords) } },
+        { name: "K4-on", run: () => { Lyrics.karaoke = true; console.log("tour: karaoke", Lyrics.karaoke) } }
+    ]
     // SoundCloud sign-in with a profile that's already signed in (--tour-sc-login): the window, the readout, the sync.
     readonly property bool withScLogin: Qt.application.arguments.indexOf("--tour-sc-login") >= 0
     readonly property var scLoginSteps: {
@@ -540,7 +548,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

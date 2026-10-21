@@ -214,7 +214,7 @@ Item {
             readonly property bool isCurrent: index === root.current
             readonly property bool past: Lyrics.synced && root.current >= 0 && index < root.current
             // The line being sung lights up letter by letter.
-            readonly property bool karaoke: line.isCurrent && root.currentActive && (modelData.words || []).length > 0
+            readonly property bool karaoke: Lyrics.karaoke && line.isCurrent && root.currentActive && (modelData.words || []).length > 0
             width: ListView.view.width
             height: blank ? root.fontSize * 0.6 : label.implicitHeight + 6
 
