@@ -381,6 +381,148 @@ Item {
                                  + qsTr("Hold View + Menu to open the menu; d-pad or stick to move, A selects, B goes back, Y pauses, LB / RB skip tracks.")
                     Toggle { checked: GameOverlay.padEnabled; onToggled: c => GameOverlay.padEnabled = c }
                 }
+                SettingRow {
+                    icon: "lyrics"
+                    title: qsTr("In-game lyrics overlay")
+                    description: qsTr("Displays song lyrics directly over games while playing with click-through transparency. Won't intercept mouse or keyboard inputs.")
+                    Row {
+                        spacing: 12
+                        PillButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: GameOverlay.lyricsEnabled
+                            kind: "ghost"
+                            text: qsTr("Try it")
+                            onClicked: GameOverlay.showLyrics()
+                        }
+                        Toggle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            checked: GameOverlay.lyricsEnabled
+                            onToggled: c => GameOverlay.lyricsEnabled = c
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: GameOverlay.lyricsEnabled
+                    icon: "tune"
+                    title: qsTr("Lyrics display style")
+                    description: GameOverlay.lyricsMode === "sections"
+                        ? qsTr("Sections: shows verse stanzas in clear blocks, highlighting the active singing line.")
+                        : qsTr("Karaoke: active line prominent in the center with letter-by-letter timing and next-line preview.")
+                    SegmentedTabs {
+                        model: [qsTr("Karaoke"), qsTr("Sections")]
+                        currentIndex: GameOverlay.lyricsMode === "sections" ? 1 : 0
+                        onActivated: i => GameOverlay.lyricsMode = (i === 1 ? "sections" : "karaoke")
+                    }
+                }
+                SettingRow {
+                    visible: GameOverlay.lyricsEnabled
+                    icon: "eye"
+                    title: qsTr("Background dimming")
+                    description: qsTr("Slight screen darkening over the game to make lyrics easy to read: %1%.").arg(Math.round(GameOverlay.lyricsDimming * 100))
+                    Row {
+                        spacing: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        ProgressSlider {
+                            anchors.verticalCenter: parent.verticalCenter
+                            implicitWidth: 160
+                            value: GameOverlay.lyricsDimming / 0.80
+                            onMoved: v => GameOverlay.lyricsDimming = Math.round(v * 0.80 * 100) / 100
+                            labelFor: v => Math.round(v * 80) + "%"
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: Math.round(GameOverlay.lyricsDimming * 100) + "%"
+                            color: Theme.textDim
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                            width: 36
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: GameOverlay.lyricsEnabled
+                    icon: "menuOpen"
+                    title: qsTr("Screen position")
+                    description: qsTr("Where the lyrics HUD appears on your monitor.")
+                    SegmentedTabs {
+                        model: [qsTr("Bottom"), qsTr("Center"), qsTr("Top")]
+                        currentIndex: ["bottom", "center", "top"].indexOf(GameOverlay.lyricsPosition) >= 0
+                            ? ["bottom", "center", "top"].indexOf(GameOverlay.lyricsPosition) : 0
+                        onActivated: i => GameOverlay.lyricsPosition = ["bottom", "center", "top"][i]
+                    }
+                }
+                SettingRow {
+                    visible: GameOverlay.lyricsEnabled && GameOverlay.hotkeyMode === "native"
+                    icon: "key"
+                    title: qsTr("Lyrics shortcut")
+                    description: lyricsHotkeyField.recording ? qsTr("Press the new shortcut (with Ctrl or Alt, or an F key). Esc cancels.")
+                               : lyricsHotkeyField.rejected ? qsTr("That can't be a shortcut — add Ctrl or Alt, or use an F key.")
+                               : GameOverlay.lyricsHotkeyTaken ? qsTr("Another app already uses %1 — pick a different shortcut.").arg(GameOverlay.lyricsHotkey)
+                               : qsTr("Toggles the in-game lyrics overlay on and off while playing.")
+                    Row {
+                        spacing: 12
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: GameOverlay.lyricsHotkey !== "Ctrl+Shift+L" && !lyricsHotkeyField.recording
+                            text: qsTr("Reset")
+                            color: lyricsResetMouse.containsMouse ? Theme.text : Theme.accent
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                            MouseArea {
+                                id: lyricsResetMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: GameOverlay.resetLyricsHotkey()
+                            }
+                        }
+                        Rectangle {
+                            id: lyricsHotkeyField
+                            property bool recording: false
+                            property bool rejected: false
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.max(130, lyricsHotkeyText.implicitWidth + 28)
+                            height: 34
+                            radius: 9
+                            color: recording ? Theme.alpha(Theme.accent, 0.22) : Theme.alpha(Theme.text, lyricsKeyMouse.containsMouse ? 0.1 : 0.06)
+                            border.width: 1
+                            border.color: recording ? Theme.accent : GameOverlay.lyricsHotkeyTaken ? Theme.danger : Theme.alpha(Theme.text, 0.14)
+                            onActiveFocusChanged: if (!activeFocus) recording = false
+                            Text {
+                                id: lyricsHotkeyText
+                                anchors.centerIn: parent
+                                text: lyricsHotkeyField.recording ? qsTr("Press keys…") : GameOverlay.lyricsHotkey
+                                color: Theme.text
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                            }
+                            MouseArea {
+                                id: lyricsKeyMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    lyricsHotkeyField.rejected = false
+                                    lyricsHotkeyField.recording = true
+                                    lyricsHotkeyField.forceActiveFocus()
+                                }
+                            }
+                            Keys.onPressed: event => {
+                                if (!recording)
+                                    return
+                                event.accepted = true
+                                if (event.key === Qt.Key_Escape) {
+                                    recording = false
+                                    return
+                                }
+                                if ([Qt.Key_Control, Qt.Key_Shift, Qt.Key_Alt, Qt.Key_Meta, Qt.Key_AltGr].indexOf(event.key) >= 0)
+                                    return
+                                rejected = !GameOverlay.setLyricsHotkey(event.key, event.modifiers)
+                                recording = false
+                            }
+                        }
+                    }
+                }
             }
         }
 

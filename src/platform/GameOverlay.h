@@ -45,13 +45,22 @@ class GameOverlay : public QObject
     Q_PROPERTY(bool padConnected READ padConnected NOTIFY padConnectedChanged)
     Q_PROPERTY(QQuickItem *view READ view WRITE setView NOTIFY viewChanged)   // the open menu (DevTour)
 
+    // In-game lyrics overlay
+    Q_PROPERTY(bool lyricsOpen READ isLyricsOpen NOTIFY lyricsOpenChanged)
+    Q_PROPERTY(bool lyricsEnabled READ lyricsEnabled WRITE setLyricsEnabled NOTIFY settingsChanged)
+    Q_PROPERTY(double lyricsDimming READ lyricsDimming WRITE setLyricsDimming NOTIFY settingsChanged)
+    Q_PROPERTY(QString lyricsMode READ lyricsMode WRITE setLyricsMode NOTIFY settingsChanged)
+    Q_PROPERTY(QString lyricsPosition READ lyricsPosition WRITE setLyricsPosition NOTIFY settingsChanged)
+    Q_PROPERTY(QString lyricsHotkey READ lyricsHotkey NOTIFY settingsChanged)
+    Q_PROPERTY(bool lyricsHotkeyTaken READ lyricsHotkeyTaken NOTIFY settingsChanged)
+
 public:
     static GameOverlay *instance();
     static GameOverlay *create(QQmlEngine *, QJSEngine *);
     ~GameOverlay() override;
 
-    // "nokturn --overlay": hands the request to a running Nokturn; false when none is running.
-    static bool sendToRunning();
+    // "nokturn --overlay" / "--lyrics-overlay": hands the request to a running Nokturn; false when none is running.
+    static bool sendToRunning(const QString &command = QStringLiteral("overlay"));
 
     bool supported() const;
     bool isOpen() const { return m_open; }
@@ -69,16 +78,35 @@ public:
     QQuickItem *view() const { return m_view; }
     void setView(QQuickItem *view);
 
+    bool isLyricsOpen() const { return m_lyricsOpen; }
+    bool lyricsEnabled() const { return m_lyricsEnabled; }
+    void setLyricsEnabled(bool on);
+    double lyricsDimming() const { return m_lyricsDimming; }
+    void setLyricsDimming(double dimming);
+    QString lyricsMode() const { return m_lyricsMode; }
+    void setLyricsMode(const QString &mode);
+    QString lyricsPosition() const { return m_lyricsPosition; }
+    void setLyricsPosition(const QString &position);
+    QString lyricsHotkey() const;
+    bool lyricsHotkeyTaken() const { return m_lyricsHotkeyTaken; }
+
     Q_INVOKABLE void show();
     Q_INVOKABLE void hide();
     Q_INVOKABLE void toggle();
+    Q_INVOKABLE void showLyrics();
+    Q_INVOKABLE void hideLyrics();
+    Q_INVOKABLE void toggleLyrics();
     // Before the window is first shown: the layer-shell role on Wayland.
     Q_INVOKABLE void prepare(QWindow *window);
     // The overlay window takes the keyboard (the game had it). Called once the window is visible.
     Q_INVOKABLE void activate(QWindow *window);
+    // Click-through HUD overlay that does not take focus.
+    Q_INVOKABLE void activateLyrics(QWindow *window);
     // A key and modifiers from a QML key event; false if it can't be a global hotkey (Windows).
     Q_INVOKABLE bool setHotkey(int key, int modifiers);
     Q_INVOKABLE void resetHotkey();
+    Q_INVOKABLE bool setLyricsHotkey(int key, int modifiers);
+    Q_INVOKABLE void resetLyricsHotkey();
     Q_INVOKABLE void configureHotkey();
     Q_INVOKABLE void copyToClipboard(const QString &text);
     // Sends a pad action as if it came from the pad (DevTour).
@@ -86,6 +114,7 @@ public:
 
 signals:
     void openChanged();
+    void lyricsOpenChanged();
     void settingsChanged();
     void padConnectedChanged();
     void viewChanged();
@@ -102,6 +131,7 @@ private:
     void closePad();
     void findPadAsync();   // Linux
     void saveSettings();
+    void updateArea();
 
     bool m_open = false;
     bool m_enabled = true;
@@ -118,6 +148,17 @@ private:
     ShortcutPortal *m_portal = nullptr;   // Linux
     QString m_activationToken;            // from the portal: lets the window take the focus (Wayland)
     bool m_layerShell = false;
+
+    // Lyrics overlay
+    bool m_lyricsOpen = false;
+    bool m_lyricsEnabled = true;
+    double m_lyricsDimming = 0.20;
+    QString m_lyricsMode = QStringLiteral("karaoke");
+    QString m_lyricsPosition = QStringLiteral("bottom");
+    int m_lyricsKey = 0;
+    int m_lyricsModifiers = 0;
+    bool m_lyricsHotkeyTaken = false;
+    bool m_lyricsHotkeyRegistered = false;
 
     // Pad
     QTimer m_padTimer;

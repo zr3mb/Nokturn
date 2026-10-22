@@ -128,7 +128,10 @@ Window {
                     { kind: "action", icon: Player.repeatMode === 2 ? "repeatOne" : "repeat", title: qsTr("Repeat"),
                       subtitle: repeatNames[Player.repeatMode] || "", action: "repeat" },
                     { kind: "action", icon: Player.liked ? "heart" : "heartOutline", title: Player.liked ? qsTr("Liked") : qsTr("Like"),
-                      action: "like", disabled: !Player.hasTrack }
+                      action: "like", disabled: !Player.hasTrack },
+                    { kind: "action", icon: "lyrics", title: qsTr("In-game lyrics overlay"),
+                      subtitle: GameOverlay.lyricsOpen ? qsTr("Visible") : qsTr("Hidden"),
+                      action: "toggleLyricsOverlay" }
                 ]
             }
             if (key === "queue") {
@@ -185,6 +188,7 @@ Window {
             case "shuffle": Player.shuffle = !Player.shuffle; break
             case "repeat": Player.cycleRepeat(); break
             case "like": Player.toggleLiked(); break
+            case "toggleLyricsOverlay": GameOverlay.toggleLyrics(); break
             case "jump": Player.jumpTo(item.row); break
             case "open":
                 sub = { index: item.index, title: item.title, cover: item.cover,

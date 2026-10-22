@@ -44,6 +44,8 @@ namespace {
 
 constexpr int kDefaultKey = Qt::Key_M;
 constexpr int kDefaultModifiers = int(Qt::ControlModifier | Qt::ShiftModifier);
+constexpr int kDefaultLyricsKey = Qt::Key_L;
+constexpr int kDefaultLyricsModifiers = int(Qt::ControlModifier | Qt::ShiftModifier);
 
 // The pad's buttons, whatever the platform reports them as
 enum PadButton : unsigned {
@@ -68,6 +70,9 @@ QString serverName()
 std::atomic<UINT> g_hookVk { 0 };      // 0 = off
 std::atomic<UINT> g_hookMods { 0 };    // MOD_* bits
 std::atomic<bool> g_hookDown { false };
+std::atomic<UINT> g_lyricsVk { 0 };
+std::atomic<UINT> g_lyricsMods { 0 };
+std::atomic<bool> g_lyricsDown { false };
 std::atomic<bool> g_menuOpen { false };   // the menu takes the navigation keys (the game keeps the focus)
 DWORD g_hookThread = 0;
 
@@ -115,6 +120,26 @@ LRESULT CALLBACK keyboardHook(int code, WPARAM wParam, LPARAM lParam)
                 if (mods == g_hookMods.load()) {
                     if (!g_hookDown.exchange(true))   // not the auto-repeat
                         QMetaObject::invokeMethod(GameOverlay::instance(), &GameOverlay::toggle, Qt::QueuedConnection);
+                    return 1;
+                }
+            }
+        }
+        const UINT lvk = g_lyricsVk.load();
+        if (lvk && key->vkCode == lvk) {
+            const bool down = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
+            if (!down) {
+                if (g_lyricsDown.exchange(false))
+                    return 1;
+            } else {
+                auto held = [](int k) { return (GetAsyncKeyState(k) & 0x8000) != 0; };
+                UINT mods = 0;
+                if (held(VK_CONTROL)) mods |= MOD_CONTROL;
+                if (held(VK_SHIFT)) mods |= MOD_SHIFT;
+                if (held(VK_MENU)) mods |= MOD_ALT;
+                if (held(VK_LWIN) || held(VK_RWIN)) mods |= MOD_WIN;
+                if (mods == g_lyricsMods.load()) {
+                    if (!g_lyricsDown.exchange(true))
+                        QMetaObject::invokeMethod(GameOverlay::instance(), &GameOverlay::toggleLyrics, Qt::QueuedConnection);
                     return 1;
                 }
             }
@@ -287,6 +312,18 @@ GameOverlay::GameOverlay(QObject *parent)
         m_key = kDefaultKey;
         m_modifiers = kDefaultModifiers;
     }
+    m_lyricsEnabled = settings->value("overlay/lyricsEnabled", true).toBool();
+    m_lyricsDimming = settings->value("overlay/lyricsDimming", 0.20).toDouble();
+    m_lyricsMode = settings->value("overlay/lyricsMode", QStringLiteral("karaoke")).toString();
+    m_lyricsPosition = settings->value("overlay/lyricsPosition", QStringLiteral("bottom")).toString();
+    const QKeySequence lseq = QKeySequence::fromString(settings->value("overlay/lyricsHotkey").toString(), QKeySequence::PortableText);
+    if (!lseq.isEmpty()) {
+        m_lyricsKey = lseq[0].key();
+        m_lyricsModifiers = int(lseq[0].keyboardModifiers());
+    } else {
+        m_lyricsKey = kDefaultLyricsKey;
+        m_lyricsModifiers = kDefaultLyricsModifiers;
+    }
     m_clock.start();
     m_padTimer.setInterval(60);
     connect(&m_padTimer, &QTimer::timeout, this, &GameOverlay::pollPad);
@@ -321,13 +358,13 @@ bool GameOverlay::supported() const
 
 // ---- "nokturn --overlay" ----------------------------------------------------------
 
-bool GameOverlay::sendToRunning()
+bool GameOverlay::sendToRunning(const QString &command)
 {
     QLocalSocket socket;
     socket.connectToServer(serverName());
     if (!socket.waitForConnected(500))
         return false;
-    socket.write("overlay\n");
+    socket.write((command + QLatin1Char('\n')).toUtf8());
     socket.waitForBytesWritten(500);
     socket.disconnectFromServer();
     return true;
@@ -351,9 +388,13 @@ void GameOverlay::listen()
         while (QLocalSocket *socket = m_server->nextPendingConnection()) {
             connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
             connect(socket, &QLocalSocket::readyRead, this, [this, socket] {
-                while (socket->canReadLine())
-                    if (socket->readLine().trimmed() == "overlay")
+                while (socket->canReadLine()) {
+                    const QString cmd = QString::fromLatin1(socket->readLine().trimmed());
+                    if (cmd == QLatin1String("overlay"))
                         toggle();
+                    else if (cmd == QLatin1String("lyrics-overlay"))
+                        toggleLyrics();
+                }
             });
         }
     });
@@ -390,6 +431,15 @@ QString GameOverlay::hotkey() const
 #endif
 }
 
+QString GameOverlay::lyricsHotkey() const
+{
+#ifdef Q_OS_LINUX
+    return QString();
+#else
+    return QKeySequence(QKeyCombination(Qt::KeyboardModifiers(m_lyricsModifiers), Qt::Key(m_lyricsKey))).toString(QKeySequence::NativeText);
+#endif
+}
+
 bool GameOverlay::canConfigureHotkey() const
 {
 #ifdef Q_OS_LINUX
@@ -423,7 +473,7 @@ void GameOverlay::setEnabled(bool on)
     registerHotkey();
     if (m_enabled && m_padEnabled && supported())
         m_padTimer.start();
-    else
+    else if (!m_lyricsEnabled)
         m_padTimer.stop();
     saveSettings();
     emit settingsChanged();
@@ -438,6 +488,46 @@ void GameOverlay::setPadEnabled(bool on)
         m_padTimer.start();
     else
         m_padTimer.stop();
+    saveSettings();
+    emit settingsChanged();
+}
+
+void GameOverlay::setLyricsEnabled(bool on)
+{
+    if (on == m_lyricsEnabled)
+        return;
+    m_lyricsEnabled = on;
+    if (!on)
+        hideLyrics();
+    registerHotkey();
+    saveSettings();
+    emit settingsChanged();
+}
+
+void GameOverlay::setLyricsDimming(double dimming)
+{
+    dimming = std::clamp(dimming, 0.0, 0.80);
+    if (std::abs(dimming - m_lyricsDimming) < 0.001)
+        return;
+    m_lyricsDimming = dimming;
+    saveSettings();
+    emit settingsChanged();
+}
+
+void GameOverlay::setLyricsMode(const QString &mode)
+{
+    if (mode == m_lyricsMode)
+        return;
+    m_lyricsMode = mode;
+    saveSettings();
+    emit settingsChanged();
+}
+
+void GameOverlay::setLyricsPosition(const QString &position)
+{
+    if (position == m_lyricsPosition)
+        return;
+    m_lyricsPosition = position;
     saveSettings();
     emit settingsChanged();
 }
@@ -465,6 +555,29 @@ void GameOverlay::resetHotkey()
     setHotkey(kDefaultKey, kDefaultModifiers);
 }
 
+bool GameOverlay::setLyricsHotkey(int key, int modifiers)
+{
+    modifiers &= int(Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier);
+    if (!standalone(key) && !(modifiers & (Qt::ControlModifier | Qt::AltModifier)))
+        return false;
+#ifdef Q_OS_WIN
+    if (!virtualKey(key))
+        return false;
+#endif
+    unregisterHotkey();
+    m_lyricsKey = key;
+    m_lyricsModifiers = modifiers;
+    registerHotkey();
+    saveSettings();
+    emit settingsChanged();
+    return true;
+}
+
+void GameOverlay::resetLyricsHotkey()
+{
+    setLyricsHotkey(kDefaultLyricsKey, kDefaultLyricsModifiers);
+}
+
 void GameOverlay::saveSettings()
 {
     auto settings = AppPaths::settings();
@@ -472,24 +585,49 @@ void GameOverlay::saveSettings()
     settings->setValue("overlay/pad", m_padEnabled);
     settings->setValue("overlay/hotkey",
         QKeySequence(QKeyCombination(Qt::KeyboardModifiers(m_modifiers), Qt::Key(m_key))).toString(QKeySequence::PortableText));
+    settings->setValue("overlay/lyricsEnabled", m_lyricsEnabled);
+    settings->setValue("overlay/lyricsDimming", m_lyricsDimming);
+    settings->setValue("overlay/lyricsMode", m_lyricsMode);
+    settings->setValue("overlay/lyricsPosition", m_lyricsPosition);
+    settings->setValue("overlay/lyricsHotkey",
+        QKeySequence(QKeyCombination(Qt::KeyboardModifiers(m_lyricsModifiers), Qt::Key(m_lyricsKey))).toString(QKeySequence::PortableText));
 }
 
 void GameOverlay::registerHotkey()
 {
 #ifdef Q_OS_WIN
     m_hotkeyTaken = false;
-    if (!m_enabled)
-        return;
-    UINT mods = 0;
-    if (m_modifiers & Qt::ControlModifier) mods |= MOD_CONTROL;
-    if (m_modifiers & Qt::ShiftModifier) mods |= MOD_SHIFT;
-    if (m_modifiers & Qt::AltModifier) mods |= MOD_ALT;
-    if (m_modifiers & Qt::MetaModifier) mods |= MOD_WIN;
-    g_hookMods = mods;
-    g_hookVk = virtualKey(m_key);
-    if (!g_hookThread)
+    m_lyricsHotkeyTaken = false;
+    if (m_enabled) {
+        UINT mods = 0;
+        if (m_modifiers & Qt::ControlModifier) mods |= MOD_CONTROL;
+        if (m_modifiers & Qt::ShiftModifier) mods |= MOD_SHIFT;
+        if (m_modifiers & Qt::AltModifier) mods |= MOD_ALT;
+        if (m_modifiers & Qt::MetaModifier) mods |= MOD_WIN;
+        g_hookMods = mods;
+        g_hookVk = virtualKey(m_key);
+        m_hotkeyRegistered = true;
+    } else {
+        g_hookVk = 0;
+        m_hotkeyRegistered = false;
+    }
+
+    if (m_lyricsEnabled) {
+        UINT lmods = 0;
+        if (m_lyricsModifiers & Qt::ControlModifier) lmods |= MOD_CONTROL;
+        if (m_lyricsModifiers & Qt::ShiftModifier) lmods |= MOD_SHIFT;
+        if (m_lyricsModifiers & Qt::AltModifier) lmods |= MOD_ALT;
+        if (m_lyricsModifiers & Qt::MetaModifier) lmods |= MOD_WIN;
+        g_lyricsMods = lmods;
+        g_lyricsVk = virtualKey(m_lyricsKey);
+        m_lyricsHotkeyRegistered = true;
+    } else {
+        g_lyricsVk = 0;
+        m_lyricsHotkeyRegistered = false;
+    }
+
+    if ((m_enabled || m_lyricsEnabled) && !g_hookThread)
         CloseHandle(CreateThread(nullptr, 0, hookThread, nullptr, 0, &g_hookThread));
-    m_hotkeyRegistered = true;
 #elif defined(Q_OS_LINUX)
     // Once per run: the desktop keeps the binding (and may ask the user about it the first time).
     if (!m_enabled || m_portal || QGuiApplication::platformName() == QLatin1String("offscreen"))
@@ -507,24 +645,20 @@ void GameOverlay::registerHotkey()
 void GameOverlay::unregisterHotkey()
 {
 #ifdef Q_OS_WIN
-    g_hookVk = 0;   // the hook stays, ignoring every key
+    g_hookVk = 0;
+    g_lyricsVk = 0;
     m_hotkeyRegistered = false;
+    m_lyricsHotkeyRegistered = false;
 #endif
 }
 
 // ---- open / close -----------------------------------------------------------------
 
-void GameOverlay::show()
+void GameOverlay::updateArea()
 {
-    if (m_open || !m_enabled)
-        return;
     QScreen *screen = QGuiApplication::primaryScreen();
 #ifdef Q_OS_WIN
-    // The game is the window in front (not one of ours); the menu covers its monitor.
     HWND front = GetForegroundWindow();
-    DWORD pid = 0;
-    GetWindowThreadProcessId(front, &pid);
-    m_previous = front && pid != GetCurrentProcessId() ? quintptr(front) : 0;
     POINT center {};
     RECT rect {};
     if (front && GetWindowRect(front, &rect)) {
@@ -532,7 +666,6 @@ void GameOverlay::show()
     } else {
         GetCursorPos(&center);
     }
-    // Qt keeps a screen's top-left in native pixels and scales its size.
     for (QScreen *s : QGuiApplication::screens()) {
         const QRect g = s->geometry();
         const QRect native(g.topLeft(), g.size() * s->devicePixelRatio());
@@ -542,11 +675,23 @@ void GameOverlay::show()
         }
     }
 #else
-    // X11 knows the pointer; on Wayland a layer surface goes where the compositor puts it anyway.
     if (QScreen *s = QGuiApplication::screenAt(QCursor::pos()))
         screen = s;
 #endif
     m_area = screen ? screen->geometry() : QRect(0, 0, 1280, 720);
+}
+
+void GameOverlay::show()
+{
+    if (m_open || !m_enabled)
+        return;
+#ifdef Q_OS_WIN
+    HWND front = GetForegroundWindow();
+    DWORD pid = 0;
+    GetWindowThreadProcessId(front, &pid);
+    m_previous = front && pid != GetCurrentProcessId() ? quintptr(front) : 0;
+#endif
+    updateArea();
     m_open = true;
 #ifdef Q_OS_WIN
     g_menuOpen = true;
@@ -580,6 +725,28 @@ void GameOverlay::hide()
 void GameOverlay::toggle()
 {
     m_open ? hide() : show();
+}
+
+void GameOverlay::showLyrics()
+{
+    if (m_lyricsOpen || !m_lyricsEnabled)
+        return;
+    updateArea();
+    m_lyricsOpen = true;
+    emit lyricsOpenChanged();
+}
+
+void GameOverlay::hideLyrics()
+{
+    if (!m_lyricsOpen)
+        return;
+    m_lyricsOpen = false;
+    emit lyricsOpenChanged();
+}
+
+void GameOverlay::toggleLyrics()
+{
+    m_lyricsOpen ? hideLyrics() : showLyrics();
 }
 
 void GameOverlay::prepare(QWindow *window)
@@ -631,6 +798,22 @@ void GameOverlay::activate(QWindow *window)
     }
 #endif
     window->requestActivate();
+}
+
+void GameOverlay::activateLyrics(QWindow *window)
+{
+    if (!window)
+        return;
+#ifdef Q_OS_WIN
+    const HWND hwnd = reinterpret_cast<HWND>(window->winId());
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE,
+        GetWindowLongPtrW(hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_LAYERED);
+    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    return;
+#else
+    if (!m_layerShell)
+        window->show();
+#endif
 }
 
 void GameOverlay::setView(QQuickItem *view)

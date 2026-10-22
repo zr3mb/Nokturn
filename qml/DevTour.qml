@@ -402,6 +402,34 @@ Item {
         } },
         { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
     ]
+    // Seeking around a SoundCloud track several times (--tour-sc-seek): it must stay on the same track.
+    readonly property bool withScSeek: Qt.application.arguments.indexOf("--tour-sc-seek") >= 0
+    readonly property var scSeekSteps: {
+        const log = what => console.log("tour: " + what, "|", Player.title, "| pos", Player.position.toFixed(1), "/", Player.duration, "| playing", Player.playing, "| buffering", Player.buffering)
+        const s = [
+            { name: "Z1-search", run: () => { Nav.finishOnboarding(); Nav.navigate("search", { query: "sanah szampan", filter: 3 }) } },
+            { name: "Z2-wait", run: () => {} },
+            { name: "Z3-play", run: () => { const r = Library.soundCloudResults(); if (r.length) Player.playFrom(r, r[0], "search") } },
+            { name: "Z4-wait", run: () => log("start") }
+        ]
+        // Dragging the progress bar: a seek every 30 ms, from 20 s to 140 s.
+        s.push({ name: "Z4b-drag", run: () => {
+            log("before drag")
+            const timer = Qt.createQmlObject("import QtQuick; Timer { interval: 30; repeat: true }", root)
+            let t = 20
+            timer.triggered.connect(() => { Player.seek(t); t += 3; if (t > 140) { timer.stop(); timer.destroy() } })
+            timer.start()
+        } })
+        s.push({ name: "Z4c-dragged", run: () => log("after drag") })
+        s.push({ name: "Z4d-wait", run: () => log("after drag +2s") })
+        s.push({ name: "Z4e-end", run: () => { log("before seek 160"); Player.seek(160) } })
+        s.push({ name: "Z4f-end", run: () => log("after seek 160") })
+        ;[30, 90, 150, 20, 120, 60].forEach((t, i) => {
+            s.push({ name: "Z" + (5 + i * 2) + "-seek" + t, run: () => { log("before seek " + t); Player.seek(t) } })
+            s.push({ name: "Z" + (6 + i * 2) + "-after", run: () => log("after seek " + t) })
+        })
+        return s
+    }
     // Searching by title (--tour-search-title): what each source returns for a few known titles.
     readonly property bool withSearchTitle: Qt.application.arguments.indexOf("--tour-search-title") >= 0
     readonly property var searchTitleSteps: {
@@ -564,7 +592,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

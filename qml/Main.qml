@@ -266,6 +266,17 @@ ApplicationWindow {
         function onOpenChanged() { if (GameOverlay.open) gameOverlay.active = true }
     }
 
+    // In-game lyrics HUD overlay: made when first opened.
+    Loader {
+        id: lyricsOverlay
+        active: false
+        sourceComponent: LyricsOverlayWindow {}
+    }
+    Connections {
+        target: GameOverlay
+        function onLyricsOpenChanged() { if (GameOverlay.lyricsOpen) lyricsOverlay.active = true }
+    }
+
     FolderDialog {
         id: folderDialog
         title: qsTr("Choose a music folder")

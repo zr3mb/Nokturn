@@ -36,10 +36,13 @@ int main(int argc, char *argv[])
     QGuiApplication::setFont(font);
 #endif
 
-    // "nokturn --overlay" (bound to a shortcut in the desktop's settings): the running Nokturn opens
-    // or closes its in-game menu; with none running, this one starts and opens it.
+    // "nokturn --overlay" / "--lyrics-overlay": the running Nokturn opens or closes its overlay;
+    // with none running, this one starts and opens it.
     const bool overlayRequest = app.arguments().contains(QStringLiteral("--overlay"));
-    if (overlayRequest && GameOverlay::sendToRunning())
+    const bool lyricsOverlayRequest = app.arguments().contains(QStringLiteral("--lyrics-overlay"));
+    if (overlayRequest && GameOverlay::sendToRunning(QStringLiteral("overlay")))
+        return 0;
+    if (lyricsOverlayRequest && GameOverlay::sendToRunning(QStringLiteral("lyrics-overlay")))
         return 0;
 
     Language::instance()->apply();
@@ -52,6 +55,8 @@ int main(int argc, char *argv[])
     engine.loadFromModule("Nokturn", "Main");
     if (overlayRequest)
         QTimer::singleShot(1500, GameOverlay::instance(), &GameOverlay::show);
+    else if (lyricsOverlayRequest)
+        QTimer::singleShot(1500, GameOverlay::instance(), &GameOverlay::showLyrics);
 
     // After a GPU reset the scene graph rebuilds its textures from the images' memory copies, which
     // QSG_TRANSIENT_IMAGES dropped — so the images are loaded again (Theme.imageEpoch changes their URLs).

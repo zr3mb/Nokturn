@@ -140,6 +140,7 @@ qt_add_qml_module(Nokturn
         qml/pages/StatsPage.qml
 
         qml/overlay/OverlayWindow.qml
+        qml/overlay/LyricsOverlayWindow.qml
 
         qml/onboarding/Onboarding.qml
         qml/onboarding/LayoutPreview.qml

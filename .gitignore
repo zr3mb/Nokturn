@@ -1,5 +1,7 @@
 build/
 dist/
+build-wasm/
+brag-output/
 *.user
 *.AppImage
 installer/
