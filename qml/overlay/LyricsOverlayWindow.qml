@@ -270,7 +270,6 @@ Window {
                         elide: Text.ElideRight
                         style: Text.Outline
                         styleColor: "#90000000"
-                        Behavior on text { FadeTextAnimation {} }
                     }
 
                     // Main active singing line
@@ -330,7 +329,6 @@ Window {
                         elide: Text.ElideRight
                         style: Text.Outline
                         styleColor: "#90000000"
-                        Behavior on text { FadeTextAnimation {} }
                     }
                 }
 
@@ -390,9 +388,5 @@ Window {
                 }
             }
         }
-    }
-
-    component FadeTextAnimation: Transition {
-        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
     }
 }
