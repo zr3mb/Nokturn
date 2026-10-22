@@ -137,6 +137,48 @@ Window {
             return sections[sections.length - 1]
         }
 
+        // Active word for ADHD mode (single word currently being sung, whole word, no sweep)
+        readonly property string activeAdhdWord: {
+            if (!Player.hasTrack || Lyrics.lines.length === 0)
+                return ""
+            if (!Lyrics.synced)
+                return currentLine ? (currentLine.text || "") : (Lyrics.lines[0] ? Lyrics.lines[0].text : "")
+
+            const t = lyricsTime
+            const idx = Lyrics.lineAt(t)
+            if (idx < 0 || idx >= Lyrics.lines.length)
+                return ""
+
+            const line = Lyrics.lines[idx]
+            if (!line)
+                return ""
+
+            // If the line has already ended (with a grace window of 0.3s)
+            if (line.end >= 0 && t >= line.end + 0.3)
+                return ""
+
+            const words = line.words || []
+            if (words.length === 0)
+                return (line.end < 0 || t < line.end) ? (line.text || "") : ""
+
+            for (let i = 0; i < words.length; ++i) {
+                const w = words[i]
+                const wStart = w[0]
+                const nextStart = (i + 1 < words.length) ? words[i + 1][0] : (line.end >= 0 ? line.end : w[1] + 0.5)
+
+                // Word stays active while sung, connecting smoothly to next word
+                // if the gap is <= 0.35s. If pause is longer, clears after w[1] + 0.3s
+                const maxHold = Math.min(w[1] + 0.35, nextStart)
+                const wordEnd = Math.max(w[1], maxHold)
+
+                if (t >= wStart && t < wordEnd) {
+                    return (line.text || "").slice(w[2], w[2] + w[3])
+                }
+            }
+
+            return ""
+        }
+
         // Position HUD according to GameOverlay.lyricsPosition ("bottom", "center", "top")
         Item {
             id: hudBox
@@ -279,6 +321,31 @@ Window {
                             Behavior on font.pixelSize { NumberAnimation { duration: 180 } }
                             Behavior on color { ColorAnimation { duration: 180 } }
                         }
+                    }
+                }
+
+                // ==============================================================
+                // MODE 3: ADHD STYLE (single active word, pure text, no highlight effect)
+                // ==============================================================
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 8 * hud.s
+                    visible: Player.hasTrack && Lyrics.state === "ready" && GameOverlay.lyricsMode === "adhd"
+
+                    Text {
+                        id: adhdWordText
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                        readonly property string word: hud.activeAdhdWord
+                        text: word !== "" ? word : (Player.playing && Lyrics.synced ? "♪ ♪ ♪" : "")
+                        color: word !== "" ? Theme.text : Theme.alpha(Theme.text, 0.45)
+                        font.family: Theme.fontDisplay
+                        font.pixelSize: (word !== "" ? 46 : 28) * hud.s
+                        font.weight: Font.Bold
+                        fontSizeMode: Text.Fit
+                        minimumPixelSize: 22 * hud.s
+                        style: Text.Outline
+                        styleColor: "#f0000000"
                     }
                 }
             }

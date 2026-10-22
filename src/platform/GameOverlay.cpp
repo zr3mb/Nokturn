@@ -315,6 +315,8 @@ GameOverlay::GameOverlay(QObject *parent)
     m_lyricsEnabled = settings->value("overlay/lyricsEnabled", true).toBool();
     m_lyricsDimming = settings->value("overlay/lyricsDimming", 0.20).toDouble();
     m_lyricsMode = settings->value("overlay/lyricsMode", QStringLiteral("karaoke")).toString();
+    if (m_lyricsMode != QLatin1String("karaoke") && m_lyricsMode != QLatin1String("sections") && m_lyricsMode != QLatin1String("adhd"))
+        m_lyricsMode = QStringLiteral("karaoke");
     m_lyricsPosition = settings->value("overlay/lyricsPosition", QStringLiteral("bottom")).toString();
     const QKeySequence lseq = QKeySequence::fromString(settings->value("overlay/lyricsHotkey").toString(), QKeySequence::PortableText);
     if (!lseq.isEmpty()) {
@@ -516,9 +518,10 @@ void GameOverlay::setLyricsDimming(double dimming)
 
 void GameOverlay::setLyricsMode(const QString &mode)
 {
-    if (mode == m_lyricsMode)
+    const QString valid = (mode == QLatin1String("sections") || mode == QLatin1String("adhd")) ? mode : QStringLiteral("karaoke");
+    if (valid == m_lyricsMode)
         return;
-    m_lyricsMode = mode;
+    m_lyricsMode = valid;
     saveSettings();
     emit settingsChanged();
 }

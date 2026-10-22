@@ -405,13 +405,15 @@ Item {
                     visible: GameOverlay.lyricsEnabled
                     icon: "tune"
                     title: qsTr("Lyrics display style")
-                    description: GameOverlay.lyricsMode === "sections"
-                        ? qsTr("Sections: shows verse stanzas in clear blocks, highlighting the active singing line.")
-                        : qsTr("Karaoke: active line prominent in the center with letter-by-letter timing and next-line preview.")
+                    description: GameOverlay.lyricsMode === "adhd"
+                        ? qsTr("ADHD: shows only the single word currently being sung, for maximum focus without distractions.")
+                        : (GameOverlay.lyricsMode === "sections"
+                            ? qsTr("Sections: shows verse stanzas in clear blocks, highlighting the active singing line.")
+                            : qsTr("Karaoke: active line prominent in the center with letter-by-letter timing and next-line preview."))
                     SegmentedTabs {
-                        model: [qsTr("Karaoke"), qsTr("Sections")]
-                        currentIndex: GameOverlay.lyricsMode === "sections" ? 1 : 0
-                        onActivated: i => GameOverlay.lyricsMode = (i === 1 ? "sections" : "karaoke")
+                        model: [qsTr("Karaoke"), qsTr("Sections"), qsTr("ADHD")]
+                        currentIndex: GameOverlay.lyricsMode === "adhd" ? 2 : (GameOverlay.lyricsMode === "sections" ? 1 : 0)
+                        onActivated: i => GameOverlay.lyricsMode = (i === 2 ? "adhd" : (i === 1 ? "sections" : "karaoke"))
                     }
                 }
                 SettingRow {
