@@ -1,11 +1,10 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Layouts
-import QtQuick.Effects
 import Nokturn
 
-// In-game HUD lyrics overlay: displays lyrics over games while playing with click-through transparency
-// and configurable background dimming.
+// In-game HUD lyrics overlay: pure floating text directly over the dimmed game screen
+// with click-through transparency and configurable full-screen dimming.
 Window {
     id: win
 
@@ -46,7 +45,7 @@ Window {
         }
     }
 
-    // ---- Background dimming over the game (configurable opacity) ----
+    // ---- Entire screen slightly dimmed (customizable opacity) ----
     Rectangle {
         anchors.fill: parent
         color: "#000000"
@@ -54,7 +53,7 @@ Window {
         Behavior on opacity { NumberAnimation { duration: 200 } }
     }
 
-    // ---- HUD content container ----
+    // ---- Floating lyrics text only (no panels, no frames, no borders) ----
     Item {
         id: hud
         anchors.fill: parent
@@ -141,179 +140,99 @@ Window {
         // Position HUD according to GameOverlay.lyricsPosition ("bottom", "center", "top")
         Item {
             id: hudBox
-            width: Math.min(hud.width - 64 * hud.s, 960 * hud.s)
-            height: contentLayout.implicitHeight + 40 * hud.s
+            width: Math.min(hud.width - 64 * hud.s, 1100 * hud.s)
+            height: contentLayout.implicitHeight
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: GameOverlay.lyricsPosition === "top" ? parent.top : undefined
-            anchors.topMargin: GameOverlay.lyricsPosition === "top" ? 56 * hud.s : 0
+            anchors.topMargin: GameOverlay.lyricsPosition === "top" ? 64 * hud.s : 0
             anchors.bottom: GameOverlay.lyricsPosition === "bottom" ? parent.bottom : undefined
-            anchors.bottomMargin: GameOverlay.lyricsPosition === "bottom" ? 56 * hud.s : 0
+            anchors.bottomMargin: GameOverlay.lyricsPosition === "bottom" ? 64 * hud.s : 0
             anchors.verticalCenter: GameOverlay.lyricsPosition === "center" ? parent.verticalCenter : undefined
-
-            // Backdrop panel with rounded corners and subtle blur/glow for high contrast over any game visual
-            Rectangle {
-                anchors.fill: parent
-                radius: 18 * hud.s
-                color: "#c0101216"
-                border.width: 1
-                border.color: Theme.alpha(Theme.text, 0.12)
-
-                // Soft accent highlight line on top
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: parent.width * 0.4
-                    height: 2
-                    radius: 1
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0; color: "transparent" }
-                        GradientStop { position: 0.5; color: Theme.alpha(Theme.accent, 0.6) }
-                        GradientStop { position: 1; color: "transparent" }
-                    }
-                }
-            }
 
             ColumnLayout {
                 id: contentLayout
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.margins: 22 * hud.s
                 spacing: 12 * hud.s
-
-                // Mini header: Now playing pill
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: 8 * hud.s
-                    visible: Player.hasTrack
-
-                    Rectangle {
-                        width: 8 * hud.s
-                        height: 8 * hud.s
-                        radius: 4 * hud.s
-                        color: Player.playing ? Theme.accent : Theme.textDim
-                    }
-
-                    Text {
-                        text: (Player.title ? Player.title : qsTr("Unknown track")) + (Player.artist ? " — " + Player.artist : "")
-                        color: Theme.textDim
-                        font.family: Theme.fontDisplay
-                        font.pixelSize: 13 * hud.s
-                        font.weight: Font.Medium
-                        elide: Text.ElideRight
-                        style: Text.Outline
-                        styleColor: "#b0000000"
-                    }
-                }
 
                 // ---- State: No track playing ----
                 Text {
                     Layout.fillWidth: true
-                    Layout.topMargin: 8 * hud.s
-                    Layout.bottomMargin: 8 * hud.s
                     visible: !Player.hasTrack
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr("Play music in Nokturn to see lyrics")
                     color: Theme.textDim
                     font.family: Theme.fontDisplay
-                    font.pixelSize: 18 * hud.s
+                    font.pixelSize: 22 * hud.s
                     font.weight: Font.DemiBold
                     style: Text.Outline
-                    styleColor: "#b0000000"
+                    styleColor: "#e6000000"
                 }
 
                 // ---- State: Lyrics loading or missing ----
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: 6 * hud.s
-                    Layout.bottomMargin: 6 * hud.s
+                Text {
+                    Layout.fillWidth: true
                     visible: Player.hasTrack && Lyrics.state !== "ready"
-                    spacing: 10 * hud.s
-
-                    Spinner {
-                        size: 18 * hud.s
-                        color: Theme.accent
-                        visible: Lyrics.state === "loading"
-                    }
-                    Text {
-                        text: Lyrics.state === "loading" ? qsTr("Loading lyrics…")
-                            : Lyrics.state === "missing" ? qsTr("No lyrics found for this track")
-                            : qsTr("Lyrics unavailable")
-                        color: Theme.textDim
-                        font.family: Theme.fontDisplay
-                        font.pixelSize: 17 * hud.s
-                        font.weight: Font.DemiBold
-                        style: Text.Outline
-                        styleColor: "#b0000000"
-                    }
+                    horizontalAlignment: Text.AlignHCenter
+                    text: Lyrics.state === "loading" ? qsTr("Loading lyrics…")
+                        : Lyrics.state === "missing" ? qsTr("No lyrics found for this track")
+                        : qsTr("Lyrics unavailable")
+                    color: Theme.textDim
+                    font.family: Theme.fontDisplay
+                    font.pixelSize: 20 * hud.s
+                    font.weight: Font.DemiBold
+                    style: Text.Outline
+                    styleColor: "#e6000000"
                 }
 
                 // ==============================================================
-                // MODE 1: KARAOKE STYLE
+                // MODE 1: KARAOKE STYLE (pure text)
                 // ==============================================================
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 8 * hud.s
+                    spacing: 10 * hud.s
                     visible: Player.hasTrack && Lyrics.state === "ready" && GameOverlay.lyricsMode === "karaoke"
 
-                    // Previous line (dimmed context)
+                    // Previous line (dimmed preview)
                     Text {
                         Layout.fillWidth: true
                         horizontalAlignment: Text.AlignHCenter
                         visible: hud.current > 0 && hud.current - 1 < Lyrics.lines.length && Lyrics.lines[hud.current - 1].text !== ""
                         text: visible ? Lyrics.lines[hud.current - 1].text : ""
-                        color: Theme.alpha(Theme.text, 0.35)
-                        font.family: Theme.fontText
-                        font.pixelSize: 16 * hud.s
+                        color: Theme.alpha(Theme.text, 0.42)
+                        font.family: Theme.fontDisplay
+                        font.pixelSize: 20 * hud.s
                         font.weight: Font.Normal
-                        elide: Text.ElideRight
+                        wrapMode: Text.WordWrap
                         style: Text.Outline
-                        styleColor: "#90000000"
+                        styleColor: "#e6000000"
                     }
 
-                    // Main active singing line
-                    Item {
+                    // Main active singing line (pure text with outline)
+                    Text {
+                        id: mainLineText
                         Layout.fillWidth: true
-                        implicitHeight: mainLineText.implicitHeight + 10 * hud.s
-
-                        Text {
-                            id: mainLineText
-                            anchors.centerIn: parent
-                            width: Math.min(parent.width, implicitWidth)
-                            horizontalAlignment: Text.AlignHCenter
-                            readonly property bool hasWords: (hud.currentLine && hud.currentLine.words && hud.currentLine.words.length > 0)
-                            readonly property bool isKaraoke: Lyrics.karaoke && hud.currentActive && hasWords
-                            text: {
-                                if (!hud.currentLine)
-                                    return Lyrics.synced ? "♪ ♪ ♪" : (Lyrics.lines[0] ? Lyrics.lines[0].text : "")
-                                if (isKaraoke)
-                                    return hud.karaokeText(hud.currentLine.text, hud.sungChars(hud.currentLine, hud.lyricsTime))
-                                return hud.currentLine.text || "♪ ♪ ♪"
-                            }
-                            textFormat: isKaraoke ? Text.StyledText : Text.PlainText
-                            color: hud.currentActive ? Theme.text : Theme.alpha(Theme.text, 0.7)
-                            font.family: Theme.fontDisplay
-                            font.pixelSize: 26 * hud.s
-                            font.weight: Font.Bold
-                            wrapMode: Text.WordWrap
-                            style: Text.Outline
-                            styleColor: "#d0000000"
-                            scale: hud.currentActive ? 1.0 : 0.96
-                            Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+                        horizontalAlignment: Text.AlignHCenter
+                        readonly property bool hasWords: (hud.currentLine && hud.currentLine.words && hud.currentLine.words.length > 0)
+                        readonly property bool isKaraoke: Lyrics.karaoke && hud.currentActive && hasWords
+                        text: {
+                            if (!hud.currentLine)
+                                return Lyrics.synced ? "♪ ♪ ♪" : (Lyrics.lines[0] ? Lyrics.lines[0].text : "")
+                            if (isKaraoke)
+                                return hud.karaokeText(hud.currentLine.text, hud.sungChars(hud.currentLine, hud.lyricsTime))
+                            return hud.currentLine.text || "♪ ♪ ♪"
                         }
-
-                        // Glow indicator under current line
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            width: Math.min(mainLineText.width, 160 * hud.s)
-                            height: 3 * hud.s
-                            radius: 1.5 * hud.s
-                            color: Theme.accent
-                            opacity: hud.currentActive ? 0.9 : 0.25
-                            Behavior on opacity { NumberAnimation { duration: 220 } }
-                        }
+                        textFormat: isKaraoke ? Text.StyledText : Text.PlainText
+                        color: hud.currentActive ? Theme.text : Theme.alpha(Theme.text, 0.75)
+                        font.family: Theme.fontDisplay
+                        font.pixelSize: 32 * hud.s
+                        font.weight: Font.Bold
+                        wrapMode: Text.WordWrap
+                        style: Text.Outline
+                        styleColor: "#f0000000"
+                        scale: hud.currentActive ? 1.0 : 0.96
+                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                     }
 
                     // Upcoming next line (preview)
@@ -322,67 +241,43 @@ Window {
                         horizontalAlignment: Text.AlignHCenter
                         visible: hud.current >= 0 && hud.current + 1 < Lyrics.lines.length && Lyrics.lines[hud.current + 1].text !== ""
                         text: visible ? Lyrics.lines[hud.current + 1].text : ""
-                        color: Theme.alpha(Theme.text, 0.52)
-                        font.family: Theme.fontText
-                        font.pixelSize: 18 * hud.s
+                        color: Theme.alpha(Theme.text, 0.58)
+                        font.family: Theme.fontDisplay
+                        font.pixelSize: 22 * hud.s
                         font.weight: Font.Medium
-                        elide: Text.ElideRight
+                        wrapMode: Text.WordWrap
                         style: Text.Outline
-                        styleColor: "#90000000"
+                        styleColor: "#e6000000"
                     }
                 }
 
                 // ==============================================================
-                // MODE 2: SECTIONS (ZWROTKI / BLOKI)
+                // MODE 2: SECTIONS (pure text verses/stanzas)
                 // ==============================================================
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 6 * hud.s
+                    spacing: 8 * hud.s
                     visible: Player.hasTrack && Lyrics.state === "ready" && GameOverlay.lyricsMode === "sections"
 
                     Repeater {
                         model: hud.activeSection ? hud.activeSection.lines : []
 
-                        Item {
+                        Text {
                             required property var modelData
                             required property int index
                             Layout.fillWidth: true
-                            implicitHeight: sectionLineText.implicitHeight + 6 * hud.s
                             readonly property bool isCurrent: modelData.index === hud.current
-
-                            RowLayout {
-                                anchors.centerIn: parent
-                                width: Math.min(parent.width, implicitWidth)
-                                spacing: 10 * hud.s
-
-                                // Active line accent pill indicator
-                                Rectangle {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    width: 4 * hud.s
-                                    height: 18 * hud.s
-                                    radius: 2 * hud.s
-                                    color: Theme.accent
-                                    opacity: isCurrent ? 1 : 0
-                                    scale: isCurrent ? 1 : 0.4
-                                    Behavior on opacity { NumberAnimation { duration: 200 } }
-                                    Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                                }
-
-                                Text {
-                                    id: sectionLineText
-                                    text: modelData.line.text || ""
-                                    horizontalAlignment: Text.AlignLeft
-                                    color: isCurrent ? Theme.text : Theme.alpha(Theme.text, 0.55)
-                                    font.family: isCurrent ? Theme.fontDisplay : Theme.fontText
-                                    font.pixelSize: (isCurrent ? 22 : 18) * hud.s
-                                    font.weight: isCurrent ? Font.Bold : Font.Normal
-                                    wrapMode: Text.WordWrap
-                                    style: Text.Outline
-                                    styleColor: "#d0000000"
-                                    Behavior on font.pixelSize { NumberAnimation { duration: 200 } }
-                                    Behavior on color { ColorAnimation { duration: 200 } }
-                                }
-                            }
+                            text: modelData.line.text || ""
+                            horizontalAlignment: Text.AlignHCenter
+                            color: isCurrent ? (hud.currentActive ? Theme.text : Theme.alpha(Theme.text, 0.85)) : Theme.alpha(Theme.text, 0.50)
+                            font.family: Theme.fontDisplay
+                            font.pixelSize: (isCurrent ? 26 : 20) * hud.s
+                            font.weight: isCurrent ? Font.Bold : Font.Normal
+                            wrapMode: Text.WordWrap
+                            style: Text.Outline
+                            styleColor: "#f0000000"
+                            Behavior on font.pixelSize { NumberAnimation { duration: 180 } }
+                            Behavior on color { ColorAnimation { duration: 180 } }
                         }
                     }
                 }
