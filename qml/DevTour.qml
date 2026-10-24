@@ -422,6 +422,36 @@ Item {
             { name: "F7-shown", run: () => { log(); Player.pause() } }
         ]
     }
+    // Aligning plain lyrics with speech recognition (--tour-align "<query>"): the first YouTube result plays muted.
+    readonly property bool withAlign: Qt.application.arguments.indexOf("--tour-align") >= 0
+    readonly property string alignQuery: withAlign ? Qt.application.arguments[Qt.application.arguments.indexOf("--tour-align") + 1].replace(/_/g, " ") : ""
+    readonly property var alignSteps: {
+        const log = () => console.log("tour: align", Player.title, "| state", Lyrics.state, "| synced", Lyrics.synced, "| canAlign", Lyrics.canAlign,
+                                      "| aligning", Lyrics.aligning, Math.round(Lyrics.alignProgress * 100) + "%", Lyrics.alignStage,
+                                      "| lines", Lyrics.lines.length, "| model", Lyrics.sttModel, "| gpu", Lyrics.sttUsesGpu)
+        const s = [
+            { name: "A1-search", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("search", { query: root.alignQuery.split("@")[0], filter: 2 }) } },
+            { name: "A2-wait", run: () => {} },
+            { name: "A3-play", run: () => {
+                // "query@videoId" picks that exact result
+                const want = root.alignQuery.split("@")[1] || ""
+                const r = Library.onlineResults()
+                const pick = r.find(x => Library.tracks.get(x).path === want) || r[0]
+                console.log("tour: results", r.length, "| picked", pick ? Library.tracks.get(pick).path : "-")
+                if (pick) Player.playFrom(r, pick, "search")
+            } },
+            { name: "A4-wait", run: log },
+            { name: "A5-align", run: () => { log(); Nav.immersive = true; Lyrics.alignNow() } }
+        ]
+        for (let i = 0; i < 80; ++i)
+            s.push({ name: "A6-wait" + i, run: log })
+        s.push({ name: "A7-lines", run: () => {
+            log()
+            for (const l of Lyrics.lines)
+                console.log("tour: line", l.start.toFixed(1), l.end.toFixed(1), l.text)
+        } })
+        return s
+    }
     // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).
     readonly property bool withScSeekLiked: Qt.application.arguments.indexOf("--tour-sc-seek-liked") >= 0
     readonly property var scSeekLikedSteps: {
@@ -633,7 +663,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

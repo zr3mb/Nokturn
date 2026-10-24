@@ -123,6 +123,26 @@ bool writeWav(const QString &path, const QByteArray &pcm)
     return f.write(pcm) == pcm.size();
 }
 
+// whisper-cli on Windows reads its arguments in the ANSI code page, not UTF-8: a prompt with "ę" reaches
+// the model as stray bytes, which it then repeats, breaking the words (and the JSON) it writes. The prompt
+// goes without diacritics there — the aligner ignores them anyway.
+QString promptArgument(const QString &prompt)
+{
+#ifdef Q_OS_WIN
+    QString out;
+    out.reserve(prompt.size());
+    for (const QChar c : prompt.normalized(QString::NormalizationForm_KD)) {
+        if (c == QChar(0x0142) || c == QChar(0x0141))   // ł, Ł don't decompose
+            out += c == QChar(0x0142) ? QChar('l') : QChar('L');
+        else if (c.unicode() < 128)
+            out += c;
+    }
+    return out;
+#else
+    return prompt;
+#endif
+}
+
 } // namespace
 
 struct SpeechEngine::Job
@@ -588,7 +608,7 @@ void SpeechEngine::runWhisper(const QString &wav, const QString &outBase)
         QStringLiteral("-pp"),
     };
     if (!m_job->prompt.isEmpty())
-        args << QStringLiteral("--prompt") << m_job->prompt;
+        args << QStringLiteral("--prompt") << promptArgument(m_job->prompt);
     if (!gpu && program == m_gpuEnginePath)
         args << QStringLiteral("-ng");   // the CUDA build, kept off the graphics card
 
@@ -625,7 +645,10 @@ void SpeechEngine::runWhisper(const QString &wav, const QString &outBase)
             return;
         }
         QList<LyricsAligner::Word> words;
-        for (const QJsonValue &v : QJsonDocument::fromJson(f.readAll()).object().value("transcription").toArray()) {
+        // A word cut in the middle of a character is invalid UTF-8, which would make the whole file unreadable:
+        // through QString it becomes a replacement character instead.
+        const QJsonDocument doc = QJsonDocument::fromJson(QString::fromUtf8(f.readAll()).toUtf8());
+        for (const QJsonValue &v : doc.object().value("transcription").toArray()) {
             const QJsonObject seg = v.toObject();
             const QString text = seg.value("text").toString().trimmed();
             const QJsonObject offsets = seg.value("offsets").toObject();
