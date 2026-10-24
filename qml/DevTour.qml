@@ -422,12 +422,33 @@ Item {
             { name: "F7-shown", run: () => { log(); Player.pause() } }
         ]
     }
+    // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).
+    readonly property bool withScSeekLiked: Qt.application.arguments.indexOf("--tour-sc-seek-liked") >= 0
+    readonly property var scSeekLikedSteps: {
+        const log = what => console.log("tour: " + what, "|", Player.title, "| pos", Player.position.toFixed(1), "/", Player.duration, "| playing", Player.playing, "| buffering", Player.buffering)
+        const s = [
+            { name: "Y1-liked", run: () => { Nav.finishOnboarding(); Player.muted = true; console.log("tour: connected", SoundCloud.connected, "liked", SoundCloud.likedCount) } },
+            { name: "Y2-play", run: () => {
+                const i = Library.playlists.findIndex(p => p.kind === "scliked")
+                const r = i >= 0 ? Library.playlistRows(i) : []
+                console.log("tour: liked rows", r.length)
+                if (r.length) Player.playFrom(r, r[0], "playlist:scliked")
+            } },
+            { name: "Y3-wait", run: () => log("start") }
+        ]
+        for (let k = 0; k < 5; ++k) {
+            s.push({ name: "Y" + (4 + k * 3) + "-seek", run: () => { log("before seek to 60%"); Player.seek(0.6 * Player.duration) } })
+            s.push({ name: "Y" + (5 + k * 3) + "-after", run: () => log("after seek") })
+            s.push({ name: "Y" + (6 + k * 3) + "-next", run: () => { log("going next"); Player.next() } })
+        }
+        return s
+    }
     // Seeking around a SoundCloud track several times (--tour-sc-seek): it must stay on the same track.
     readonly property bool withScSeek: Qt.application.arguments.indexOf("--tour-sc-seek") >= 0
     readonly property var scSeekSteps: {
         const log = what => console.log("tour: " + what, "|", Player.title, "| pos", Player.position.toFixed(1), "/", Player.duration, "| playing", Player.playing, "| buffering", Player.buffering)
         const s = [
-            { name: "Z1-search", run: () => { Nav.finishOnboarding(); Nav.navigate("search", { query: "sanah szampan", filter: 3 }) } },
+            { name: "Z1-search", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("search", { query: "sanah szampan", filter: 3 }) } },
             { name: "Z2-wait", run: () => {} },
             { name: "Z3-play", run: () => { const r = Library.soundCloudResults(); if (r.length) Player.playFrom(r, r[0], "search") } },
             { name: "Z4-wait", run: () => log("start") }
@@ -612,7 +633,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

@@ -54,7 +54,7 @@ public:
     bool connected() const { return !m_token.isEmpty(); }
     QString accountName() const { return m_accountName; }
     QString accountPhoto() const { return m_accountPhoto; }
-    bool loggingIn() const { return m_login.running(); }
+    bool loggingIn() const { return m_login.running() && !m_renewing; }
     QString loginStatus() const { return m_login.status(); }
     bool syncing() const { return m_syncing; }
     QString lastSync() const;
@@ -115,6 +115,11 @@ private:
     explicit SoundCloudService(QObject *parent = nullptr);
 
     void withClientId(std::function<void(const QString &error)> next);
+    // The token lasts a day: before it runs out the session is renewed invisibly in the sign-in profile.
+    // Without a usable token, requests go without the account (search and playback keep working).
+    void withToken(std::function<void()> next);
+    bool tokenUsable() const;
+    void renewSession();
     void get(const QString &pathOrUrl, const QUrlQuery &query, JsonCallback callback, int attempt = 0);
     void send(const QByteArray &verb, const QString &path, std::function<void(const QString &error)> done);
     void getPages(const QString &path, QUrlQuery query, int limit, QJsonArray collected,
@@ -144,6 +149,11 @@ private:
     bool m_fetchingClientId = false;
 
     QString m_token;
+    bool m_renewing = false;
+    bool m_tokenSuspect = false;   // the API refused it — renew before using it again
+    bool m_tokenDead = false;      // renewing failed: no account until signing in again
+    qint64 m_lastRenew = 0;
+    QList<std::function<void()>> m_waitingForToken;
     qint64 m_userId = 0;
     QString m_accountName;
     QString m_accountPhoto;

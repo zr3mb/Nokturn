@@ -30,6 +30,17 @@ QString browserProfile() { return AppPaths::dataDir() + QStringLiteral("/browser
 
 QString numericId(const QString &trackId) { return trackId.mid(3); }   // "sc:123" -> "123"
 
+// The token is a JWT: its "exp" (seconds since the epoch), 0 when it can't be read.
+qint64 tokenExpiry(const QString &token)
+{
+    const QStringList parts = token.split(QChar('.'));
+    if (parts.size() < 2)
+        return 0;
+    const QByteArray payload = QByteArray::fromBase64(parts.at(1).toLatin1(),
+                                                      QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+    return QJsonDocument::fromJson(payload).object().value("exp").toVariant().toLongLong();
+}
+
 QString idOf(const QJsonValue &v)
 {
     const qint64 n = v.toVariant().toLongLong();
@@ -140,10 +151,30 @@ SoundCloudService::SoundCloudService(QObject *parent)
     connect(&m_login, &BrowserLogin::runningChanged, this, &SoundCloudService::loggingInChanged);
     connect(&m_login, &BrowserLogin::statusChanged, this, &SoundCloudService::loggingInChanged);
     connect(&m_login, &BrowserLogin::succeeded, this, [this](const YtCookies &cookies) {
-        useToken(cookies.value(QStringLiteral("oauth_token")), true);
+        const QString token = cookies.value(QStringLiteral("oauth_token"));
+        if (!m_renewing) {
+            useToken(token, true);
+            return;
+        }
+        m_renewing = false;
+        m_token = token;
+        m_tokenSuspect = m_tokenDead = false;
+        saveToken();
+        for (const auto &next : std::exchange(m_waitingForToken, {}))
+            next();
     });
     connect(&m_login, &BrowserLogin::failed, this, [this](const QString &reason) {
-        emit notice(reason, QStringLiteral("close"));
+        if (!m_renewing) {
+            emit notice(reason, QStringLiteral("close"));
+            return;
+        }
+        // Without a fresh session the account is left out; playback and search go on without it.
+        m_renewing = false;
+        m_tokenDead = true;
+        emit notice(tr("The SoundCloud sign-in has expired — sign in again in Sources (playback works without it)"),
+                    QStringLiteral("wavecloud"));
+        for (const auto &next : std::exchange(m_waitingForToken, {}))
+            next();
     });
 
     // "sc:" streams come from here, through the same resolver (cache, signals) as YouTube's.
@@ -208,11 +239,53 @@ void SoundCloudService::loginWithToken(const QString &token)
     useToken(t, true);
 }
 
+bool SoundCloudService::tokenUsable() const
+{
+    if (m_token.isEmpty() || m_tokenDead || m_tokenSuspect)
+        return false;
+    const qint64 expires = tokenExpiry(m_token);
+    return expires == 0 || expires > QDateTime::currentSecsSinceEpoch() + 60;
+}
+
+void SoundCloudService::withToken(std::function<void()> next)
+{
+    // Signed out, a good token, or given up on: go ahead (with the account or without it).
+    // A token renewed in the last 10 minutes that the API still refuses isn't renewed again right away.
+    const bool recentlyRenewed = QDateTime::currentSecsSinceEpoch() - m_lastRenew < 600;
+    if (m_token.isEmpty() || m_tokenDead || tokenUsable() || (recentlyRenewed && !m_renewing)) {
+        next();
+        return;
+    }
+    m_waitingForToken << std::move(next);
+    renewSession();
+}
+
+void SoundCloudService::renewSession()
+{
+    if (m_renewing)
+        return;
+    if (m_login.running()) {   // the sign-in window is open — its result will do
+        m_tokenDead = true;
+        for (const auto &next : std::exchange(m_waitingForToken, {}))
+            next();
+        return;
+    }
+    m_renewing = true;
+    m_lastRenew = QDateTime::currentSecsSinceEpoch();
+    const QString old = m_token;
+    m_login.refresh(browserProfile(), [old](const YtCookies &cookies) {
+        const QString token = cookies.value(QStringLiteral("oauth_token"));
+        const qint64 expires = tokenExpiry(token);
+        return !token.isEmpty() && (token != old || expires == 0) && (expires == 0 || expires > QDateTime::currentSecsSinceEpoch() + 60);
+    });
+}
+
 void SoundCloudService::useToken(const QString &token, bool fresh)
 {
     if (token.isEmpty())
         return;
     m_token = token;
+    m_tokenSuspect = m_tokenDead = false;
     saveToken();
     emit accountChanged();
     if (fresh)
@@ -224,6 +297,7 @@ void SoundCloudService::logout()
 {
     m_login.cancel();
     m_token.clear();
+    m_tokenSuspect = m_tokenDead = false;
     QFile::remove(tokenFile());
     QFile::remove(cacheFile());
     QDir(browserProfile()).removeRecursively();   // the session in the browser profile goes too
@@ -339,43 +413,52 @@ void SoundCloudService::get(const QString &pathOrUrl, const QUrlQuery &query, Js
             callback({}, error);
             return;
         }
-        QUrl url(pathOrUrl.startsWith(QLatin1String("http")) ? pathOrUrl : QString::fromLatin1(kApi) + pathOrUrl);
-        QUrlQuery q(url);
-        for (const auto &item : query.queryItems(QUrl::FullyDecoded))
-            q.addQueryItem(item.first, item.second);
-        q.removeAllQueryItems(QStringLiteral("client_id"));
-        q.addQueryItem(QStringLiteral("client_id"), m_clientId);
-        url.setQuery(q);
+        withToken([this, pathOrUrl, query, callback, attempt] {
+            QUrl url(pathOrUrl.startsWith(QLatin1String("http")) ? pathOrUrl : QString::fromLatin1(kApi) + pathOrUrl);
+            QUrlQuery q(url);
+            for (const auto &item : query.queryItems(QUrl::FullyDecoded))
+                q.addQueryItem(item.first, item.second);
+            q.removeAllQueryItems(QStringLiteral("client_id"));
+            q.addQueryItem(QStringLiteral("client_id"), m_clientId);
+            url.setQuery(q);
 
-        QNetworkRequest request(url);
-        request.setRawHeader("User-Agent", kUserAgent);
-        request.setRawHeader("Accept", "application/json");
-        if (!m_token.isEmpty())
-            request.setRawHeader("Authorization", "OAuth " + m_token.toUtf8());
-        QNetworkReply *reply = m_net.get(request);
-        connect(reply, &QNetworkReply::finished, this, [this, reply, pathOrUrl, query, callback, attempt] {
-            reply->deleteLater();
-            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            if ((status == 401 || status == 403) && attempt == 0) {
-                // The client_id changes now and then — read it from the site again and retry once.
-                m_clientId.clear();
-                get(pathOrUrl, query, callback, attempt + 1);
-                return;
-            }
-            if (status == 401 && !m_token.isEmpty()) {
-                callback({}, tr("the sign-in has expired — sign in to SoundCloud again"));
-                return;
-            }
-            if (status == 429) {
-                callback({}, tr("too many requests — try again in a moment"));
-                return;
-            }
-            if (reply->error() != QNetworkReply::NoError) {
-                callback({}, status == 404 ? tr("not found") : reply->errorString());
-                return;
-            }
-            const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-            callback(doc.isArray() ? QJsonValue(doc.array()) : QJsonValue(doc.object()), {});
+            QNetworkRequest request(url);
+            request.setRawHeader("User-Agent", kUserAgent);
+            request.setRawHeader("Accept", "application/json");
+            const bool authed = tokenUsable();
+            if (authed)
+                request.setRawHeader("Authorization", "OAuth " + m_token.toUtf8());
+            QNetworkReply *reply = m_net.get(request);
+            connect(reply, &QNetworkReply::finished, this, [this, reply, pathOrUrl, query, callback, attempt, authed] {
+                reply->deleteLater();
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (status == 401 && authed && attempt < 2) {
+                    // The account's token was refused: renew it (or go on without it) and try again.
+                    m_tokenSuspect = true;
+                    get(pathOrUrl, query, callback, attempt + 1);
+                    return;
+                }
+                if ((status == 401 || status == 403) && attempt == 0) {
+                    // The client_id changes now and then — read it from the site again and retry once.
+                    m_clientId.clear();
+                    get(pathOrUrl, query, callback, attempt + 1);
+                    return;
+                }
+                if (status == 401 && !m_token.isEmpty()) {
+                    callback({}, tr("the sign-in has expired — sign in to SoundCloud again"));
+                    return;
+                }
+                if (status == 429) {
+                    callback({}, tr("too many requests — try again in a moment"));
+                    return;
+                }
+                if (reply->error() != QNetworkReply::NoError) {
+                    callback({}, status == 404 ? tr("not found") : reply->errorString());
+                    return;
+                }
+                const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+                callback(doc.isArray() ? QJsonValue(doc.array()) : QJsonValue(doc.object()), {});
+            });
         });
     });
 }
@@ -387,15 +470,21 @@ void SoundCloudService::send(const QByteArray &verb, const QString &path, std::f
             done(error);
             return;
         }
-        QUrl url(QString::fromLatin1(kApi) + path);
-        url.setQuery(QUrlQuery { { QStringLiteral("client_id"), m_clientId } });
-        QNetworkRequest request(url);
-        request.setRawHeader("User-Agent", kUserAgent);
-        request.setRawHeader("Authorization", "OAuth " + m_token.toUtf8());
-        QNetworkReply *reply = m_net.sendCustomRequest(request, verb);
-        connect(reply, &QNetworkReply::finished, this, [reply, done] {
-            reply->deleteLater();
-            done(reply->error() == QNetworkReply::NoError ? QString() : reply->errorString());
+        withToken([this, verb, path, done] {
+            if (!tokenUsable()) {
+                done(tr("the sign-in has expired — sign in to SoundCloud again"));
+                return;
+            }
+            QUrl url(QString::fromLatin1(kApi) + path);
+            url.setQuery(QUrlQuery { { QStringLiteral("client_id"), m_clientId } });
+            QNetworkRequest request(url);
+            request.setRawHeader("User-Agent", kUserAgent);
+            request.setRawHeader("Authorization", "OAuth " + m_token.toUtf8());
+            QNetworkReply *reply = m_net.sendCustomRequest(request, verb);
+            connect(reply, &QNetworkReply::finished, this, [reply, done] {
+                reply->deleteLater();
+                done(reply->error() == QNetworkReply::NoError ? QString() : reply->errorString());
+            });
         });
     });
 }

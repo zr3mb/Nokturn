@@ -858,5 +858,8 @@
   "Center": "Środek",
   "Top": "Góra",
   "Lyrics shortcut": "Skrót nakładki z tekstem",
-  "Toggles the in-game lyrics overlay on and off while playing.": "Włącza i wyłącza nakładkę z tekstem podczas gry."
+  "Toggles the in-game lyrics overlay on and off while playing.": "Włącza i wyłącza nakładkę z tekstem podczas gry.",
+  "Couldn't renew the session": "Nie udało się odnowić sesji",
+  "The sign-in window is open": "Okno logowania jest otwarte",
+  "The SoundCloud sign-in has expired — sign in again in Sources (playback works without it)": "Logowanie do SoundCloud wygasło — zaloguj się ponownie w Źródłach (odtwarzanie działa i bez niego)"
 }

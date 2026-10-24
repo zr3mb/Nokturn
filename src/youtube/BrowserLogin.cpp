@@ -94,7 +94,13 @@ BrowserLogin::BrowserLogin(QObject *parent)
     m_retryTimer.setInterval(800);
     connect(&m_retryTimer, &QTimer::timeout, this, &BrowserLogin::requestCookies);
 
-    connect(&m_socket, &QWebSocket::connected, this, &BrowserLogin::requestCookies);
+    connect(&m_socket, &QWebSocket::connected, this, [this] {
+        // Renewing: the site needs a few seconds to load and refresh its session first.
+        if (m_refreshMode)
+            QTimer::singleShot(6000, this, &BrowserLogin::requestCookies);
+        else
+            requestCookies();
+    });
     connect(&m_socket, &QWebSocket::textMessageReceived, this, &BrowserLogin::onMessage);
     connect(&m_process, &QProcess::finished, this, &BrowserLogin::onProcessFinished);
 }
@@ -252,6 +258,7 @@ void BrowserLogin::start(const QString &profileDir)
     }
     QFile::remove(profileDir + QStringLiteral("/DevToolsActivePort"));
 
+    m_refreshMode = false;
     setStage(Stage::Interactive);
     m_closePending = false;
     const QString url = m_site == Site::SoundCloud
@@ -267,6 +274,27 @@ void BrowserLogin::start(const QString &profileDir)
     });
     m_process.start();
     m_titleTimer.start();
+}
+
+void BrowserLogin::refresh(const QString &profileDir, std::function<bool(const YtCookies &)> accept)
+{
+    if (running())
+        return;
+    m_browser = findBrowser();
+    if (m_browser.isEmpty()) {
+        emit failed(tr("Chrome, Edge or Brave was not found"));
+        return;
+    }
+    m_profileDir = profileDir;
+    const QString lock = profileDir + QStringLiteral("/lockfile");
+    if (QFile::exists(lock) && !QFile::remove(lock)) {
+        emit failed(tr("The sign-in window is open"));
+        return;
+    }
+    m_refreshMode = true;
+    m_accept = std::move(accept);
+    emit runningChanged();
+    startReading();
 }
 
 void BrowserLogin::cancel()
@@ -378,7 +406,7 @@ void BrowserLogin::startReading()
             QStringLiteral("--user-data-dir=") + QDir::toNativeSeparators(m_profileDir),
             QStringLiteral("--no-first-run"),
             QStringLiteral("--no-default-browser-check"),
-            QStringLiteral("about:blank"),
+            m_refreshMode ? QStringLiteral("https://soundcloud.com/discover") : QStringLiteral("about:blank"),
         });
         m_process.start();
         m_portTimer.start();
@@ -421,14 +449,18 @@ void BrowserLogin::onMessage(const QString &message)
     const YtCookies cookies = YtCookies::fromCdp(msg.value("result").toObject().value("cookies").toArray(),
                                                  m_site == Site::SoundCloud ? QStringLiteral("soundcloud.com")
                                                                             : QStringLiteral("youtube.com"));
-    if (signedIn(cookies)) {
+    if (signedIn(cookies) && (!m_refreshMode || !m_accept || m_accept(cookies))) {
         stopAll();
         emit succeeded(cookies);
         return;
     }
-    // The cookie store loads from disk with a delay — try a few more times.
-    if (++m_readAttempts < 4) {
+    // The cookie store loads from disk with a delay (and the site renews its session in a moment) — try again.
+    if (++m_readAttempts < (m_refreshMode ? 12 : 4)) {
         m_retryTimer.start();
+        return;
+    }
+    if (m_refreshMode) {
+        fail(tr("Couldn't renew the session"));
         return;
     }
     fail(m_site == Site::SoundCloud ? tr("No sign-in detected — sign in in the window until SoundCloud shows your feed")

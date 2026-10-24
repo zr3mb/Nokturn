@@ -7,6 +7,8 @@
 #include <QTimer>
 #include <QWebSocket>
 
+#include <functional>
+
 // Signing in to YouTube Music in a real browser — in two stages:
 //
 // 1. Interactive: the installed Chrome / Edge / Brave starts as a separate app window
@@ -40,6 +42,9 @@ public:
     bool running() const { return m_stage != Stage::Idle; }
     QString status() const;
     void start(const QString &profileDir);
+    // SoundCloud: no window — the signed-in profile opens the site invisibly (which renews its own session),
+    // then the cookies are read; done when `accept` likes them (a fresh token), within ~15 s.
+    void refresh(const QString &profileDir, std::function<bool(const YtCookies &)> accept);
     void cancel();
 
 signals:
@@ -66,6 +71,8 @@ private:
     QString m_profileDir;
     Site m_site = Site::YouTube;
     bool m_closePending = false;   // SoundCloud: signed in, the window closes in a moment
+    bool m_refreshMode = false;    // refresh(): only the invisible stage, on the site itself
+    std::function<bool(const YtCookies &)> m_accept;
     Stage m_stage = Stage::Idle;
     QProcess m_process;
     QWebSocket m_socket;
