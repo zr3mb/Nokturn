@@ -9,6 +9,7 @@
 #include <QElapsedTimer>
 #include <QList>
 #include <QMediaPlayer>
+#include <QNetworkAccessManager>
 #include <QObject>
 #include <QTimer>
 #include <QHash>
@@ -18,6 +19,8 @@
 
 #include <array>
 
+class QBuffer;
+class StreamFetch;
 class TrackModel;
 struct Track;
 
@@ -182,6 +185,9 @@ private:
         QAudioBufferOutput *buffers = nullptr;
         QString trackId;
         QString resolving;                      // videoId whose URL we're waiting for
+        StreamFetch *fetch = nullptr;           // a YouTube stream coming into memory
+        QBuffer *memory = nullptr;              // the stream it plays from
+        QBuffer *previousMemory = nullptr;      // kept a track longer — the player may still be closing it
     };
 
     struct MixConfig
@@ -222,6 +228,7 @@ private:
     void rememberPosition() const;
     void storeResume() const;
     void startStream(int deck, const Track &t);
+    void setStream(int deck, const QString &videoId, const QUrl &url);
     QString streamIdOf(const Track &t) const;
     bool retryStream(int deck);
     void prefetchTrack(int row);
@@ -234,6 +241,7 @@ private:
 
     TrackModel *m_tracks = nullptr;
     AudioEngine m_engine;               // the actual output: deck mixer + equalizer + QAudioSink
+    QNetworkAccessManager m_net;        // YouTube streams fetched into memory
     std::array<Deck, AudioEngine::kDecks> m_decks;
     int m_active = 0;
     SpectrumAnalyzer m_analyzer;

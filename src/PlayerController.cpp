@@ -11,6 +11,7 @@
 #include "platform/DiscordPresence.h"
 #include "soundcloud/SoundCloudService.h"
 #include "spotify/SpotifyService.h"
+#include "youtube/StreamFetch.h"
 #include "youtube/YouTubeService.h"
 
 #ifdef NOKTURN_MPRIS
@@ -21,6 +22,7 @@
 #endif
 
 #include <QAudioFormat>
+#include <QBuffer>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -28,6 +30,7 @@
 #include <QtMultimedia/qtaudio.h>
 
 #include <algorithm>
+#include <utility>
 
 namespace {
 
@@ -91,10 +94,7 @@ PlayerController::PlayerController(QObject *parent)
             Deck &deck = m_decks[d];
             if (deck.resolving != videoId)
                 continue;   // e.g. a prefetch result or the track has already changed
-            deck.resolving.clear();
-            deck.player->setSource(url);
-            if (d == m_active && m_autoplayAfterResolve)
-                deck.player->play();
+            setStream(d, videoId, url);
         }
         emit bufferingChanged();
     });
@@ -556,13 +556,52 @@ void PlayerController::startStream(int d, const Track &t)
     StreamResolver *resolver = YouTubeService::instance()->resolver();
     if (d != m_active) {
         if (const QUrl url = resolver->cachedUrl(videoId); url.isValid()) {
-            deck.resolving.clear();
-            deck.player->setSource(url);   // the prepared next track loads straight away
+            setStream(d, videoId, url);   // the prepared next track loads straight away
             return;
         }
     }
     deck.resolving = videoId;
     resolver->resolve(videoId);
+}
+
+void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
+{
+    // A YouTube stream comes into memory first (see StreamFetch) — the deck stays "resolving" meanwhile,
+    // so it shows as loading and play / seek wait for it. Other streams play from the URL.
+    Deck &deck = m_decks[d];
+    delete std::exchange(deck.fetch, nullptr);
+    if (!StreamFetch::suits(url)) {
+        deck.resolving.clear();
+        deck.player->setSource(url);
+        if (d == m_active && m_autoplayAfterResolve)
+            deck.player->play();
+        return;
+    }
+    const QString marker = QStringLiteral("fetch:") + videoId;
+    deck.resolving = marker;
+    deck.fetch = new StreamFetch(&m_net, url, this);
+    connect(deck.fetch, &StreamFetch::finished, this, [this, d, marker, url](bool ok) {
+        Deck &deck = m_decks[d];
+        StreamFetch *fetch = std::exchange(deck.fetch, nullptr);
+        fetch->deleteLater();
+        if (deck.resolving != marker)
+            return;   // the deck has moved on
+        deck.resolving.clear();
+        if (ok) {
+            delete deck.previousMemory;
+            deck.previousMemory = std::exchange(deck.memory, new QBuffer(this));
+            deck.memory->setData(fetch->takeData());
+            deck.memory->open(QIODevice::ReadOnly);
+            if (qEnvironmentVariableIsSet("NOKTURN_AUDIO_DEBUG"))
+                qInfo("audio: deck %d plays %s from memory (%.1f MB)", d, qPrintable(marker), deck.memory->size() / 1048576.0);
+            deck.player->setSourceDevice(deck.memory, url);
+        } else {
+            deck.player->setSource(url);   // couldn't fetch it — streamed as before
+        }
+        if (d == m_active && m_autoplayAfterResolve)
+            deck.player->play();
+        emit bufferingChanged();
+    });
 }
 
 bool PlayerController::retryStream(int d)

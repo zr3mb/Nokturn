@@ -452,6 +452,25 @@ Item {
         } })
         return s
     }
+    // Listening to a few tracks muted, with the lyrics open (--tour-listen "<q1>;<q2>", "_" = space):
+    // with NOKTURN_AUDIO_DEBUG the log shows whether the sound keeps up (buffer underruns).
+    readonly property bool withListen: Qt.application.arguments.indexOf("--tour-listen") >= 0
+    readonly property var listenSteps: {
+        if (!withListen)
+            return []
+        const queries = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-listen") + 1].replace(/_/g, " ").split(";")
+        const log = what => console.log("tour: " + what, "|", Player.title, "| pos", Player.position.toFixed(1), "/", Player.duration,
+                                        "| playing", Player.playing, "| buffering", Player.buffering, "| lyrics", Lyrics.state, Lyrics.synced)
+        const s = [{ name: "W0", run: () => { Nav.finishOnboarding(); Player.muted = true } }]
+        queries.forEach((q, k) => {
+            s.push({ name: "W" + k + "a-search", run: () => { Nav.immersive = false; Nav.navigate("search", { query: q, filter: 2 }) } })
+            s.push({ name: "W" + k + "b-wait", run: () => {} })
+            s.push({ name: "W" + k + "c-play", run: () => { const r = Library.onlineResults(); if (r.length) Player.playFrom(r, r[0], "search"); Nav.immersive = true } })
+            for (let i = 0; i < 24; ++i)
+                s.push({ name: "W" + k + "d-" + i, run: () => { log("listen"); if (i === 18) Player.seek(0.7 * Player.duration) } })
+        })
+        return s
+    }
     // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).
     readonly property bool withScSeekLiked: Qt.application.arguments.indexOf("--tour-sc-seek-liked") >= 0
     readonly property var scSeekLikedSteps: {
@@ -663,7 +682,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
@@ -748,7 +767,7 @@ Item {
         running: root.dir !== ""
         repeat: true
         onTriggered: {
-            if (root.step >= 0 && root.step < root.steps.length && !root.withPerf && !root.withSeek) {   // screenshots would skew the timings
+            if (root.step >= 0 && root.step < root.steps.length && !root.withPerf && !root.withSeek && !root.withListen) {   // screenshots would skew the timings
                 const name = root.steps[root.step].name
                 // An open dialog lives in the overlay, outside the shell — its content is grabbed instead.
                 let source = GameOverlay.open && GameOverlay.view ? GameOverlay.view.parent : root.target
