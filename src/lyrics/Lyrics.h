@@ -49,4 +49,8 @@ struct Lyrics
     static Lyrics fromLrc(const QString &text);
     // Fills in "end" from the start of the next line.
     void fillEnds(qint64 durationMs = -1);
+    // "Synced" lyrics whose lines all start at the same moment (YouTube sends some with no times at all)
+    // aren't really timed — they become plain lyrics.
+    bool hasRealTiming() const;
+    void dropFakeTiming();
 };

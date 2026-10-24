@@ -881,6 +881,8 @@ Lyrics YtMusicApi::parseTimedLyrics(const QJsonValue &root)
     out.synced = true;
     out.source = data.value("sourceMessage").toString();
     out.origin = QStringLiteral("youtube");
+    // Some tracks come in this "timed" form without any cue times — those are plain lyrics.
+    out.dropFakeTiming();
     out.fillEnds();
     return out;
 }

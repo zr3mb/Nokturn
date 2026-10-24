@@ -2,6 +2,7 @@
 
 #include <QJsonArray>
 #include <QRegularExpression>
+#include <QSet>
 
 #include <algorithm>
 
@@ -185,6 +186,32 @@ QList<LyricWord> LyricLine::timedWords() const
         i = j;
     }
     return out;
+}
+
+bool Lyrics::hasRealTiming() const
+{
+    QSet<qint64> starts;
+    int textLines = 0;
+    for (const LyricLine &l : lines) {
+        if (l.text.isEmpty())
+            continue;
+        ++textLines;
+        if (l.start >= 0)
+            starts.insert(l.start);
+    }
+    return starts.size() >= std::min(textLines, 3);
+}
+
+void Lyrics::dropFakeTiming()
+{
+    if (!synced || hasRealTiming())
+        return;
+    for (LyricLine &l : lines) {
+        l.start = l.end = -1;
+        l.words.clear();
+    }
+    synced = false;
+    wordTimed = false;
 }
 
 void Lyrics::fillEnds(qint64 durationMs)

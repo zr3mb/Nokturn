@@ -657,6 +657,10 @@ bool LyricsService::loadCached(const QString &trackId, Lyrics &out) const
     // Version 3 added LRCLIB: "missing" from before is checked again.
     if (o.value("v").toInt() < 3 && out.isEmpty())
         return false;
+    // YouTube lyrics stored as "synced" without real times (all lines at 0:00) are fetched again — they're
+    // plain lyrics, so LRCLIB gets a chance to give timed ones.
+    if (out.synced && !out.hasRealTiming())
+        return false;
     if (out.isEmpty()) {
         // Remembered missing lyrics — we check again after a few days.
         const qint64 at = qint64(o.value("fetched").toDouble());

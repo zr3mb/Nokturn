@@ -402,6 +402,26 @@ Item {
         } },
         { name: "S7-playing", run: () => console.log("tour: playing", Player.title, "-", Player.artist, "| up next", Player.upNext.length) }
     ]
+    // Lyrics YouTube sends "timed" but without times (--tour-fake-timing): they must come out plain or from LRCLIB.
+    readonly property bool withFakeTiming: Qt.application.arguments.indexOf("--tour-fake-timing") >= 0
+    readonly property var fakeTimingSteps: {
+        const log = () => console.log("tour: lyrics", Player.title, "/", Player.artist, "| state", Lyrics.state, "| synced", Lyrics.synced,
+                                      "| source", Lyrics.source, "| lines", Lyrics.lines.length,
+                                      "| starts", new Set(Lyrics.lines.filter(l => l.text).map(l => l.start)).size, "| canAlign", Lyrics.canAlign)
+        return [
+            { name: "F1-search", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("search", { query: "Pork Pores Porkinson Meloman", filter: 2 }) } },
+            { name: "F2-wait", run: () => {} },
+            { name: "F3-play", run: () => {
+                const r = Library.onlineResults().filter(x => Library.tracks.get(x).title === "Meloman")
+                console.log("tour: found", r.length)
+                if (r.length) Player.playFrom(r, r[0], "search")
+            } },
+            { name: "F4-wait", run: log },
+            { name: "F5-wait", run: log },
+            { name: "F6-lyrics", run: () => { log(); Nav.immersive = true } },
+            { name: "F7-shown", run: () => { log(); Player.pause() } }
+        ]
+    }
     // Seeking around a SoundCloud track several times (--tour-sc-seek): it must stay on the same track.
     readonly property bool withScSeek: Qt.application.arguments.indexOf("--tour-sc-seek") >= 0
     readonly property var scSeekSteps: {
@@ -592,7 +612,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
