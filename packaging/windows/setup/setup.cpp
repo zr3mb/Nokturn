@@ -963,6 +963,8 @@ bool runUninstall(const std::wstring &dir, bool removeData, Progress &p, std::ws
     DeleteFileW(startMenuShortcut().c_str());
     DeleteFileW(desktopShortcut().c_str());
     RegDeleteTreeW(HKEY_CURRENT_USER, ourKey().c_str());
+    if (!g_opt.test)
+        RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\nokturn");   // nokturn:// links (the app registers them)
     if (removeData && !g_opt.test) {
         for (REFKNOWNFOLDERID base : { FOLDERID_RoamingAppData, FOLDERID_LocalAppData }) {
             const std::wstring org = join(knownFolder(base), L"Nokturn");

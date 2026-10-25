@@ -9,6 +9,7 @@ Exec=nokturn %U
 Icon=nokturn
 Terminal=false
 Categories=AudioVideo;Audio;Player;Music;Qt;
+MimeType=x-scheme-handler/nokturn;
 Keywords=music;player;audio;youtube;lyrics;muzyka;odtwarzacz;
 StartupWMClass=nokturn
 SingleMainWindow=true

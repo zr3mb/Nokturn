@@ -391,11 +391,13 @@ void GameOverlay::listen()
             connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
             connect(socket, &QLocalSocket::readyRead, this, [this, socket] {
                 while (socket->canReadLine()) {
-                    const QString cmd = QString::fromLatin1(socket->readLine().trimmed());
+                    const QString cmd = QString::fromUtf8(socket->readLine().trimmed());
                     if (cmd == QLatin1String("overlay"))
                         toggle();
                     else if (cmd == QLatin1String("lyrics-overlay"))
                         toggleLyrics();
+                    else if (cmd.startsWith(QLatin1String("open ")))
+                        emit linkReceived(cmd.mid(5).left(2048));
                 }
             });
         }

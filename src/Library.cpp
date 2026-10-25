@@ -6,6 +6,7 @@
 #include "ArtistGenres.h"
 #include "Language.h"
 #include "Playlists.h"
+#include "online/OnlineService.h"
 #include "soundcloud/SoundCloudService.h"
 #include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
@@ -176,6 +177,12 @@ Library::Library(QObject *parent)
     connect(SoundCloudService::instance(), &SoundCloudService::dataChanged, this, &Library::rebuildModel);
     connect(SoundCloudService::instance(), &SoundCloudService::accountChanged, this, &Library::rebuildModel);
     connect(SoundCloudService::instance(), &SoundCloudService::tracksAdded, m_tracks, &TrackModel::appendTracks);
+    // Shared playlists, a listening room's queue, opened links: their tracks join the model as they come.
+    connect(OnlineService::instance(), &OnlineService::tracksAdded, m_tracks, &TrackModel::appendTracks);
+    connect(OnlineService::instance(), &OnlineService::playlistsChanged, this, [this] {
+        rebuildPlaylists();
+        emit playlistsChanged();
+    });
     // Source and playlist names, demo tracks — everything built here follows the interface language.
     connect(Language::instance(), &Language::changed, this, [this] {
         buildSources();
@@ -434,9 +441,16 @@ void Library::rebuildModel()
         QSet<QString> present;
         for (const Track &t : std::as_const(all))
             present.insert(t.id);
-        for (const Track &t : Playlists::instance()->tracks())
-            if (!present.contains(t.id))
-                all << t;
+        auto keep = [&](const QList<Track> &tracks) {
+            for (const Track &t : tracks) {
+                if (!present.contains(t.id)) {
+                    present.insert(t.id);
+                    all << t;
+                }
+            }
+        };
+        keep(Playlists::instance()->tracks());
+        keep(OnlineService::instance()->tracks());   // shared playlists, a listening room, opened links
     }
     for (const Track &t : demoTracks()) {
         // Sample YouTube tracks disappear once the account is connected.
@@ -469,6 +483,14 @@ void Library::rebuildPlaylists()
         const auto [a, b] = Scanner::fallbackPalette(p.id);
         m_playlists << QVariantMap {
             { "name", p.name }, { "kind", "user" }, { "userId", p.id }, { "description", p.description },
+            { "icon", "" }, { "cover", QString() }, { "count", p.trackIds.size() },
+            { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.id) } };
+    }
+    for (const OnlineService::SharedPlaylist &p : OnlineService::instance()->playlists()) {
+        const auto [a, b] = Scanner::fallbackPalette(p.id);
+        m_playlists << QVariantMap {
+            { "name", p.name }, { "kind", "shared" }, { "sharedId", p.id }, { "description", p.description },
+            { "owner", p.ownerName }, { "members", p.memberNames.size() },
             { "icon", "" }, { "cover", QString() }, { "count", p.trackIds.size() },
             { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.id) } };
     }
@@ -552,6 +574,8 @@ QString Library::coverKey(const QVariantMap &p)
         return QStringLiteral("sc:") + p.value("scId").toString();
     if (kind == QLatin1String("user"))
         return QStringLiteral("user:") + p.value("userId").toString();
+    if (kind == QLatin1String("shared"))
+        return QStringLiteral("shared:") + p.value("sharedId").toString();
     return kind;
 }
 
@@ -596,6 +620,8 @@ void Library::applyPlaylistCover(QVariantMap &p) const
         rows = rowsOfIds(SoundCloudService::instance()->playlistTrackIds(p.value("scId").toString()));
     else if (kind == QLatin1String("user"))
         rows = rowsOfIds(Playlists::instance()->trackIds(p.value("userId").toString()));
+    else if (kind == QLatin1String("shared"))
+        rows = rowsOfIds(OnlineService::instance()->playlistTrackIds(p.value("sharedId").toString()));
 
     QStringList covers;
     QSet<QString> seen;
@@ -915,6 +941,8 @@ QVariantList Library::playlistRows(int index)
     }
     if (kind == QLatin1String("user"))
         return rowsOfIds(Playlists::instance()->trackIds(p.value("userId").toString()));
+    if (kind == QLatin1String("shared"))
+        return rowsOfIds(OnlineService::instance()->playlistTrackIds(p.value("sharedId").toString()));
     if (kind == QLatin1String("spotifyliked"))
         return rowsOfIds(SpotifyService::instance()->likedIds());
     if (kind == QLatin1String("spplaylist"))
@@ -954,6 +982,8 @@ QString Library::playlistContext(int index) const
         return QStringLiteral("sc:") + p.value("scId").toString();
     if (kind == QLatin1String("user"))
         return QStringLiteral("user:") + p.value("userId").toString();
+    if (kind == QLatin1String("shared"))
+        return QStringLiteral("shared:") + p.value("sharedId").toString();
     return QStringLiteral("playlist:") + kind;
 }
 

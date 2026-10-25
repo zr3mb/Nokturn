@@ -1,0 +1,1319 @@
+#include "OnlineService.h"
+
+#include "AppPaths.h"
+#include "Library.h"
+#include "LibraryScanner.h"
+#include "PlayerController.h"
+#include "spotify/SpotifyService.h"
+#include "youtube/YouTubeService.h"
+#include "youtube/YtCookies.h"
+#include "youtube/YtMusicApi.h"
+
+#include <QClipboard>
+#include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QGuiApplication>
+#include <QJSEngine>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QNetworkReply>
+#include <QProcess>
+#include <QRandomGenerator>
+#include <QRegularExpression>
+#include <QSaveFile>
+#include <QSet>
+#include <QSettings>
+#include <QStandardPaths>
+
+#include <algorithm>
+#include <memory>
+#include <optional>
+#include <vector>
+
+namespace {
+
+constexpr int kRoomBatch = 100;   // tracks per room message (the server's limit)
+
+QString cacheFile() { return AppPaths::dataDir() + QStringLiteral("/shared-playlists.json"); }
+
+qint64 nowMs() { return QDateTime::currentMSecsSinceEpoch(); }
+
+// NOKTURN_ONLINE_DEBUG=1: room states, what the player is told and what it reports.
+bool debug()
+{
+    static const bool on = qEnvironmentVariableIsSet("NOKTURN_ONLINE_DEBUG");
+    return on;
+}
+
+QString defaultName()
+{
+    QString name = qEnvironmentVariable("USERNAME");
+    if (name.isEmpty())
+        name = qEnvironmentVariable("USER");
+    return name.isEmpty() ? QStringLiteral("Listener") : name.left(40);
+}
+
+// "nokturn://r/ABC123" / "https://host/r/ABC123" -> { "r", "ABC123" }
+std::optional<std::pair<QString, QString>> parseLink(const QString &text, const QString &server)
+{
+    const QString trimmed = text.trimmed();
+    const QUrl url(trimmed);
+    static const QRegularExpression code(QStringLiteral("^[A-Za-z0-9]{4,20}$"));
+    QString kind, value;
+    if (url.scheme() == QLatin1String("nokturn")) {
+        kind = url.host();
+        value = url.path().mid(1).section(QLatin1Char('/'), 0, 0);
+    } else if (url.scheme().startsWith(QLatin1String("http"))) {
+        if (url.host().compare(QUrl(server).host(), Qt::CaseInsensitive) != 0)
+            return std::nullopt;
+        const QStringList parts = url.path().split(QLatin1Char('/'), Qt::SkipEmptyParts);
+        if (parts.size() < 2)
+            return std::nullopt;
+        kind = parts.at(0);
+        value = parts.at(1);
+    } else if (code.match(trimmed).hasMatch() && trimmed.size() == 6) {
+        kind = QStringLiteral("r");   // a room code typed by hand
+        value = trimmed;
+    } else {
+        return std::nullopt;
+    }
+    if ((kind != QLatin1String("t") && kind != QLatin1String("r") && kind != QLatin1String("p"))
+        || !code.match(value).hasMatch())
+        return std::nullopt;
+    return std::make_pair(kind, value);
+}
+
+} // namespace
+
+OnlineService *OnlineService::instance()
+{
+    static OnlineService *inst = new OnlineService;
+    return inst;
+}
+
+OnlineService *OnlineService::create(QQmlEngine *, QJSEngine *)
+{
+    OnlineService *s = instance();
+    QJSEngine::setObjectOwnership(s, QJSEngine::CppOwnership);
+    return s;
+}
+
+OnlineService::OnlineService(QObject *parent)
+    : QObject(parent)
+{
+    m_monotonic.start();
+    auto settings = AppPaths::settings();
+    m_server = qEnvironmentVariable("NOKTURN_SERVER");
+    if (m_server.isEmpty())
+        m_server = settings->value("online/server", QString::fromLatin1(kDefaultServer)).toString();
+    m_server = m_server.trimmed();
+    while (m_server.endsWith(QLatin1Char('/')))
+        m_server.chop(1);
+    m_name = settings->value("online/name", defaultName()).toString();
+    loadAccount();
+    loadPlaylists();
+
+    m_reconnect.setSingleShot(true);
+    connect(&m_reconnect, &QTimer::timeout, this, &OnlineService::connectSocket);
+    m_pingTimer.setInterval(15'000);
+    connect(&m_pingTimer, &QTimer::timeout, this, &OnlineService::ping);
+    // While in a room the player is checked against the room's clock every few seconds.
+    m_syncTimer.setInterval(2'500);
+    connect(&m_syncTimer, &QTimer::timeout, this, &OnlineService::syncPlayer);
+
+    connect(&m_ws, &QWebSocket::connected, this, [this] {
+        m_connected = true;
+        m_backoff = 2;
+        m_bestRtt = -1;
+        emit connectionChanged();
+        ping();
+        m_pingTimer.start();
+        if (!m_roomCode.isEmpty())
+            send({ { "type", "room.join" }, { "code", m_roomCode } });   // back after a dropped connection
+        const QList<QJsonObject> waiting = std::exchange(m_outbox, {});
+        for (const QJsonObject &m : waiting)
+            send(m);
+        // Changes made while we were away.
+        if (!m_playlists.isEmpty())
+            refreshPlaylists();
+    });
+    connect(&m_ws, &QWebSocket::disconnected, this, [this] {
+        const bool was = m_connected;
+        m_connected = false;
+        m_pingTimer.stop();
+        if (was)
+            emit connectionChanged();
+        if (wantSocket()) {
+            m_reconnect.start(m_backoff * 1000);
+            m_backoff = std::min(60, m_backoff * 2);
+        }
+    });
+    connect(&m_ws, &QWebSocket::textMessageReceived, this, &OnlineService::onSocketMessage);
+
+    // Shared playlists may have changed while Nokturn was closed.
+    if (registered() && !m_playlists.isEmpty())
+        QTimer::singleShot(4'000, this, &OnlineService::connectSocket);
+    QTimer::singleShot(0, this, &OnlineService::registerUrlScheme);
+}
+
+void OnlineService::attach(PlayerController *player)
+{
+    m_player = player;
+}
+
+// ---- settings ---------------------------------------------------------------------
+
+void OnlineService::setServerUrl(const QString &url)
+{
+    QString clean = url.trimmed();
+    while (clean.endsWith(QLatin1Char('/')))
+        clean.chop(1);
+    if (clean.isEmpty())
+        clean = QString::fromLatin1(kDefaultServer);
+    if (clean == m_server)
+        return;
+    if (inRoom() || joiningRoom())
+        leaveRoom();
+    m_ws.close();
+    m_server = clean;
+    AppPaths::settings()->setValue("online/server", clean == QLatin1String(kDefaultServer) ? QVariant() : QVariant(clean));
+    // Accounts and playlists belong to a server.
+    loadAccount();
+    m_playlists.clear();
+    savePlaylists();
+    emit playlistsChanged();
+    emit settingsChanged();
+    emit accountChanged();
+}
+
+void OnlineService::setDisplayName(const QString &name)
+{
+    const QString clean = name.simplified().left(40);
+    if (clean.isEmpty() || clean == m_name)
+        return;
+    m_name = clean;
+    AppPaths::settings()->setValue("online/name", clean);
+    emit settingsChanged();
+    if (registered()) {
+        request("PATCH", QStringLiteral("/me"), { { "name", clean } }, [this](const QJsonObject &, const QString &error) {
+            if (!error.isEmpty())
+                emit notice(tr("Couldn't change the name: %1").arg(error), QStringLiteral("close"));
+        });
+    }
+}
+
+// ---- account and requests ---------------------------------------------------------
+
+QString OnlineService::tokenFile() const
+{
+    // One account per server.
+    const QByteArray key = QCryptographicHash::hash(m_server.toUtf8(), QCryptographicHash::Sha1).toHex().left(10);
+    return AppPaths::dataDir() + QStringLiteral("/online-") + QString::fromLatin1(key) + QStringLiteral(".token");
+}
+
+void OnlineService::loadAccount()
+{
+    m_token.clear();
+    m_userId.clear();
+    QFile f(tokenFile());
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject o = QJsonDocument::fromJson(unprotectSecret(f.readAll())).object();
+    m_token = o.value("token").toString();
+    m_userId = o.value("id").toString();
+}
+
+void OnlineService::ensureAccount(std::function<void(bool ok)> then)
+{
+    if (registered()) {
+        then(true);
+        return;
+    }
+    m_waitingForAccount << std::move(then);
+    if (m_registering)
+        return;
+    m_registering = true;
+    request("POST", QStringLiteral("/register"), { { "name", m_name } }, [this](const QJsonObject &reply, const QString &error) {
+        m_registering = false;
+        const QString token = reply.value("token").toString();
+        const bool ok = error.isEmpty() && !token.isEmpty();
+        if (ok) {
+            m_token = token;
+            m_userId = reply.value("user").toObject().value("id").toString();
+            QSaveFile f(tokenFile());
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(protectSecret(QJsonDocument(QJsonObject { { "token", m_token }, { "id", m_userId } }).toJson(QJsonDocument::Compact)));
+                f.commit();
+            }
+            emit accountChanged();
+        } else {
+            emit notice(tr("Can't reach the Nokturn server: %1").arg(error), QStringLiteral("close"));
+        }
+        const auto waiting = std::exchange(m_waitingForAccount, {});
+        for (const auto &cb : waiting)
+            cb(ok);
+    });
+}
+
+void OnlineService::forgetAccount()
+{
+    if (inRoom() || joiningRoom())
+        leaveRoom();
+    auto drop = [this] {
+        m_ws.close();
+        QFile::remove(tokenFile());
+        m_token.clear();
+        m_userId.clear();
+        m_playlists.clear();
+        savePlaylists();
+        emit playlistsChanged();
+        emit accountChanged();
+    };
+    if (!registered())
+        return;
+    request("DELETE", QStringLiteral("/me"), {}, [this, drop](const QJsonObject &, const QString &error) {
+        if (!error.isEmpty()) {
+            emit notice(tr("Couldn't delete the account: %1").arg(error), QStringLiteral("close"));
+            return;
+        }
+        drop();
+        emit notice(tr("Online account deleted"), QStringLiteral("check"));
+    });
+}
+
+void OnlineService::request(const QByteArray &method, const QString &path, const QJsonObject &body, JsonCallback done)
+{
+    QNetworkRequest req(QUrl(m_server + QStringLiteral("/api/v1") + path));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Nokturn/" NOKTURN_VERSION));
+    req.setTransferTimeout(15'000);
+    if (!m_token.isEmpty())
+        req.setRawHeader("Authorization", "Bearer " + m_token.toUtf8());
+    const QByteArray data = (method == "GET" || method == "DELETE") && body.isEmpty()
+                                ? QByteArray() : QJsonDocument(body).toJson(QJsonDocument::Compact);
+    QNetworkReply *reply = m_net.sendCustomRequest(req, method, data);
+    beginBusy();
+    connect(reply, &QNetworkReply::finished, this, [this, reply, done = std::move(done)] {
+        reply->deleteLater();
+        endBusy();
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QJsonObject o = QJsonDocument::fromJson(reply->readAll()).object();
+        if (status == 401 && !m_token.isEmpty()) {
+            // The server forgot us (a new database): the next action makes a new account.
+            QFile::remove(tokenFile());
+            m_token.clear();
+            m_userId.clear();
+            emit accountChanged();
+        }
+        QString error;
+        if (reply->error() != QNetworkReply::NoError || status >= 400) {
+            error = o.value("message").toString();
+            if (error.isEmpty())
+                error = reply->errorString();
+        }
+        done(o, error);
+    });
+}
+
+void OnlineService::beginBusy()
+{
+    if (++m_busy == 1)
+        emit busyChanged();
+}
+
+void OnlineService::endBusy()
+{
+    if (--m_busy == 0)
+        emit busyChanged();
+}
+
+// ---- WebSocket ------------------------------------------------------------------
+
+bool OnlineService::wantSocket() const
+{
+    return registered() && (!m_roomCode.isEmpty() || !m_outbox.isEmpty() || !m_playlists.isEmpty());
+}
+
+void OnlineService::connectSocket()
+{
+    if (!registered() || m_ws.state() != QAbstractSocket::UnconnectedState)
+        return;
+    QUrl url(m_server + QStringLiteral("/api/v1/ws"));
+    url.setScheme(url.scheme() == QLatin1String("http") ? QStringLiteral("ws") : QStringLiteral("wss"));
+    QNetworkRequest req(url);
+    req.setRawHeader("Authorization", "Bearer " + m_token.toUtf8());
+    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Nokturn/" NOKTURN_VERSION));
+    m_ws.open(req);
+}
+
+void OnlineService::send(const QJsonObject &message)
+{
+    if (!m_connected) {
+        m_outbox << message;
+        ensureAccount([this](bool ok) {
+            if (ok)
+                connectSocket();
+            else
+                m_outbox.clear();
+        });
+        return;
+    }
+    m_ws.sendTextMessage(QString::fromUtf8(QJsonDocument(message).toJson(QJsonDocument::Compact)));
+}
+
+void OnlineService::ping()
+{
+    if (m_connected)
+        send({ { "type", "ping" }, { "t", double(m_monotonic.elapsed()) } });
+}
+
+void OnlineService::onSocketMessage(const QString &text)
+{
+    const QJsonObject m = QJsonDocument::fromJson(text.toUtf8()).object();
+    const QString type = m.value("type").toString();
+    if (type == QLatin1String("hello")) {
+        m_userId = m.value("user").toObject().value("id").toString();
+    } else if (type == QLatin1String("pong")) {
+        // The clock offset from the round trip with the smallest delay (the most exact one).
+        const qint64 rtt = m_monotonic.elapsed() - qint64(m.value("t").toDouble());
+        if (rtt >= 0 && (m_bestRtt < 0 || rtt <= m_bestRtt * 1.5)) {
+            m_bestRtt = m_bestRtt < 0 ? rtt : std::min(m_bestRtt, rtt);
+            m_clockOffset = qint64(m.value("serverTime").toDouble()) + rtt / 2 - nowMs();
+        }
+    } else if (type == QLatin1String("room")) {
+        applyRoom(m.value("room").toObject(), qint64(m.value("serverTime").toDouble()));
+    } else if (type == QLatin1String("room.left")) {
+        if (m.value("code").toString() == m_roomCode)
+            clearRoom(m.value("reason") == QLatin1String("kicked") ? tr("The host removed you from the room") : QString());
+    } else if (type == QLatin1String("playlist")) {
+        const QString id = m.value("id").toString();
+        const SharedPlaylist *p = findPlaylist(id);
+        if (!p || p->version != m.value("version").toInt())
+            fetchPlaylist(id);
+    } else if (type == QLatin1String("playlist.removed")) {
+        const QString id = m.value("id").toString();
+        for (int i = 0; i < m_playlists.size(); ++i) {
+            if (m_playlists.at(i).id != id)
+                continue;
+            const QString name = m_playlists.at(i).name;
+            m_playlists.removeAt(i);
+            savePlaylists();
+            emit playlistsChanged();
+            emit notice(tr("%1 is no longer shared with you").arg(name), QStringLiteral("close"));
+            break;
+        }
+    } else if (type == QLatin1String("error")) {
+        const QString request = m.value("request").toString();
+        emit notice(roomErrorText(m.value("error").toString(), m.value("message").toString()), QStringLiteral("close"));
+        // A room that's gone (also after a dropped connection, when the server restarted meanwhile).
+        if (request == QLatin1String("room.join") || (request == QLatin1String("room.create") && m_roomState.isEmpty()))
+            clearRoom();
+    }
+}
+
+QString OnlineService::roomErrorText(const QString &code, const QString &fallback) const
+{
+    if (code == QLatin1String("host_only"))
+        return tr("Only the host controls this room");
+    if (code == QLatin1String("no_room"))
+        return tr("This room doesn't exist anymore");
+    if (code == QLatin1String("bad_track"))
+        return tr("Only YouTube Music and SoundCloud tracks can be shared");
+    if (code == QLatin1String("queue_full"))
+        return tr("The room's queue is full");
+    if (code == QLatin1String("rate_limited"))
+        return tr("Too many requests — try again in a moment");
+    return fallback;
+}
+
+// ---- tracks ---------------------------------------------------------------------
+
+QJsonObject OnlineService::trackJson(const Track &t)
+{
+    return { { "id", t.id }, { "source", t.source }, { "path", t.path }, { "title", t.title },
+             { "artist", t.artist }, { "artistId", t.artistId }, { "album", t.album },
+             { "duration", t.duration }, { "cover", t.cover.startsWith(QLatin1String("http")) ? t.cover : QString() } };
+}
+
+QJsonArray OnlineService::tracksJson(const QList<Track> &tracks) const
+{
+    QJsonArray out;
+    for (const Track &t : tracks)
+        out.append(trackJson(t));
+    return out;
+}
+
+Track OnlineService::storeTrack(const QJsonObject &o)
+{
+    const QString id = o.value("id").toString();
+    if (id.isEmpty())
+        return {};
+    if (const auto it = m_tracks.constFind(id); it != m_tracks.cend())
+        return *it;
+    Track t;
+    t.id = id;
+    t.path = o.value("path").toString();
+    t.source = o.value("source").toString();
+    t.title = o.value("title").toString();
+    t.artist = o.value("artist").toString();
+    t.artistId = o.value("artistId").toString();
+    t.album = o.value("album").toString();
+    t.duration = o.value("duration").toInt();
+    t.cover = o.value("cover").toString();
+    t.quality = t.source == QLatin1String("soundcloud") ? QStringLiteral("SoundCloud") : QStringLiteral("YouTube Music");
+    t.transient = true;
+    const QString key = TrackModel::albumKey(t);
+    const auto [a, b] = Scanner::fallbackPalette(key);
+    t.colorA = a;
+    t.colorB = b;
+    t.seed = Scanner::stableSeed(key);
+    m_tracks.insert(id, t);
+    // The track model may already have it (liked, in the library) — only new ones are appended.
+    if (Library::instance()->tracks()->rowOf(id) < 0)
+        emit tracksAdded({ t });
+    return t;
+}
+
+void OnlineService::portableTracks(const QVariantList &rows, TracksCallback done)
+{
+    // Only YouTube Music and SoundCloud tracks can be played by everyone: Spotify tracks go as
+    // their YouTube Music match, local files as the YouTube Music track that fits their tags.
+    struct State
+    {
+        std::vector<std::optional<Track>> entries;
+        int pending = 0;
+        int skipped = 0;
+        TracksCallback done;
+        void finish()
+        {
+            QList<Track> out;
+            for (const auto &e : entries)
+                if (e)
+                    out << *e;
+            done(out, skipped);
+        }
+    };
+    auto state = std::make_shared<State>();
+    state->done = std::move(done);
+    const TrackModel *model = Library::instance()->tracks();
+    for (const QVariant &v : rows) {
+        if (!model->isValidRow(v.toInt()))
+            continue;
+        const Track t = model->at(v.toInt());
+        if (t.demo) {
+            ++state->skipped;
+            continue;
+        }
+        const size_t slot = state->entries.size();
+        state->entries.emplace_back();
+        auto asYouTube = [t](const QString &videoId, const Track *found) {
+            Track yt = found ? *found : t;
+            yt.id = QStringLiteral("yt:") + videoId;
+            yt.path = videoId;
+            yt.source = QStringLiteral("youtube");
+            if (!found && !t.cover.startsWith(QLatin1String("http")))
+                yt.cover.clear();
+            return yt;
+        };
+        if (t.source == QLatin1String("youtube") || t.source == QLatin1String("soundcloud")) {
+            state->entries[slot] = t;
+        } else if (t.source == QLatin1String("spotify")) {
+            ++state->pending;
+            SpotifyService::instance()->match(t.id, [state, slot, asYouTube](const QString &videoId) {
+                if (videoId.isEmpty())
+                    ++state->skipped;
+                else
+                    state->entries[slot] = asYouTube(videoId, nullptr);
+                if (--state->pending == 0)
+                    state->finish();
+            });
+        } else if (t.source == QLatin1String("local") && !t.title.isEmpty()) {
+            ++state->pending;
+            YouTubeService::instance()->api()->search(t.artist + QLatin1Char(' ') + t.title,
+                                                      [state, slot, t, asYouTube](const QList<Track> &results, const QString &error) {
+                const int match = error.isEmpty() ? YtMusicApi::bestMatch(t, results) : -1;
+                if (match < 0)
+                    ++state->skipped;
+                else
+                    state->entries[slot] = asYouTube(results.at(match).path, &results.at(match));
+                if (--state->pending == 0)
+                    state->finish();
+            });
+        } else {
+            ++state->skipped;
+        }
+    }
+    if (state->pending == 0)
+        state->finish();
+}
+
+// ---- links ----------------------------------------------------------------------
+
+bool OnlineService::isLink(const QString &text)
+{
+    return parseLink(text, instance()->m_server).has_value();
+}
+
+bool OnlineService::openLink(const QString &link)
+{
+    const auto parsed = parseLink(link, m_server);
+    if (!parsed)
+        return false;
+    const auto &[kind, value] = *parsed;
+    emit activateRequested();
+    if (kind == QLatin1String("t"))
+        openShare(value);
+    else if (kind == QLatin1String("r"))
+        joinRoom(value);
+    else
+        joinPlaylist(value);
+    return true;
+}
+
+void OnlineService::copyToClipboard(const QString &text, const QString &message)
+{
+    if (QClipboard *clipboard = QGuiApplication::clipboard())
+        clipboard->setText(text);
+    emit notice(message, QStringLiteral("link"));
+}
+
+void OnlineService::shareTrack(int row)
+{
+    portableTracks({ row }, [this](const QList<Track> &tracks, int) {
+        if (tracks.isEmpty()) {
+            emit notice(tr("No YouTube Music version of this track was found to share"), QStringLiteral("close"));
+            return;
+        }
+        const Track t = tracks.first();
+        ensureAccount([this, t](bool ok) {
+            if (!ok)
+                return;
+            request("POST", QStringLiteral("/shares"), { { "track", trackJson(t) } },
+                    [this, t](const QJsonObject &reply, const QString &error) {
+                if (!error.isEmpty()) {
+                    emit notice(tr("Couldn't make the link: %1").arg(error), QStringLiteral("close"));
+                    return;
+                }
+                copyToClipboard(reply.value("url").toString(), tr("Link to %1 copied").arg(t.title));
+            });
+        });
+    });
+}
+
+void OnlineService::shareCurrent()
+{
+    if (m_player && m_player->hasTrack())
+        shareTrack(m_player->currentIndex());
+}
+
+void OnlineService::openShare(const QString &code)
+{
+    request("GET", QStringLiteral("/shares/") + code, {}, [this](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty()) {
+            emit notice(tr("Couldn't open the link: %1").arg(error), QStringLiteral("close"));
+            return;
+        }
+        const Track t = storeTrack(reply.value("track").toObject());
+        if (t.id.isEmpty())
+            return;
+        const int row = Library::instance()->tracks()->rowOf(t.id);
+        if (row < 0 || !m_player)
+            return;
+        const QString by = reply.value("by").toString();
+        if (inRoom()) {
+            addToRoom({ row });
+            return;
+        }
+        m_player->playFrom({ row }, row, QStringLiteral("share"));
+        emit notice(by.isEmpty() ? tr("Playing %1").arg(t.title) : tr("%1 shared %2").arg(by, t.title),
+                    QStringLiteral("link"));
+    });
+}
+
+// ---- listening rooms --------------------------------------------------------------
+
+void OnlineService::createRoom(const QString &name, const QString &mode)
+{
+    if (inRoom() || joiningRoom())
+        leaveRoom();
+    m_creatingRoom = true;
+    emit roomChanged();
+    ensureAccount([this, name, mode](bool ok) {
+        if (!ok) {
+            m_creatingRoom = false;
+            emit roomChanged();
+            return;
+        }
+        send({ { "type", "room.create" }, { "name", name.trimmed() },
+               { "mode", mode == QLatin1String("host") ? "host" : "open" } });
+    });
+}
+
+void OnlineService::joinRoom(const QString &codeOrLink)
+{
+    QString code = codeOrLink.trimmed();
+    if (const auto parsed = parseLink(code, m_server); parsed && parsed->first == QLatin1String("r"))
+        code = parsed->second;
+    code = code.toUpper();
+    static const QRegularExpression valid(QStringLiteral("^[A-Z0-9]{6}$"));
+    if (!valid.match(code).hasMatch()) {
+        emit notice(tr("That isn't a room link or code"), QStringLiteral("close"));
+        return;
+    }
+    if (code == m_roomCode && inRoom()) {
+        emit roomOpened();
+        return;
+    }
+    if (inRoom() || joiningRoom())
+        leaveRoom();
+    m_roomCode = code;
+    emit roomChanged();
+    emit roomOpened();
+    ensureAccount([this, code](bool ok) {
+        if (!ok) {
+            clearRoom();
+            return;
+        }
+        if (m_connected)
+            send({ { "type", "room.join" }, { "code", code } });
+        else
+            connectSocket();   // joins on connect
+    });
+}
+
+void OnlineService::leaveRoom()
+{
+    if (m_roomCode.isEmpty() && !m_creatingRoom)
+        return;
+    if (m_connected)
+        send({ { "type", "room.leave" } });
+    clearRoom();
+}
+
+void OnlineService::clearRoom(const QString &message)
+{
+    const bool was = !m_roomCode.isEmpty() || m_creatingRoom;
+    m_creatingRoom = false;
+    m_roomCode.clear();
+    // Room messages still waiting for the connection don't belong anywhere now.
+    m_outbox.erase(std::remove_if(m_outbox.begin(), m_outbox.end(),
+                                  [](const QJsonObject &m) { return m.value("type").toString().startsWith(QLatin1String("room.")); }),
+                   m_outbox.end());
+    m_roomState = {};
+    m_roomItems.clear();
+    m_roomCurrent = -1;
+    m_roomView.clear();
+    m_syncTimer.stop();
+    if (m_player)
+        m_player->setRoomLink({});
+    if (!message.isEmpty())
+        emit notice(message, QStringLiteral("close"));
+    if (was)
+        emit roomChanged();
+    if (!wantSocket())
+        m_ws.close();
+}
+
+void OnlineService::roomSend(const QString &type, QJsonObject message)
+{
+    if (!inRoom())
+        return;
+    message.insert("type", type);
+    send(message);
+}
+
+void OnlineService::addToRoom(const QVariantList &rows, bool next)
+{
+    if (!inRoom())
+        return;
+    if (!canControl()) {
+        emit notice(tr("Only the host controls this room"), QStringLiteral("close"));
+        return;
+    }
+    portableTracks(rows.mid(0, kRoomBatch), [this, next](const QList<Track> &tracks, int skipped) {
+        if (tracks.isEmpty()) {
+            emit notice(tr("No YouTube Music version of this track was found to share"), QStringLiteral("close"));
+            return;
+        }
+        roomSend(QStringLiteral("room.add"), { { "tracks", tracksJson(tracks) }, { "next", next } });
+        const QString text = tracks.size() == 1 ? tr("Added %1 to the room").arg(tracks.first().title)
+                                                : tr("Added %n tracks to the room", "", int(tracks.size()));
+        emit notice(skipped > 0 ? text + QStringLiteral(" — ") + tr("%n without a YouTube Music version skipped", "", skipped) : text,
+                    QStringLiteral("queue"));
+    });
+}
+
+void OnlineService::removeFromRoom(const QString &itemId) { roomSend(QStringLiteral("room.remove"), { { "itemId", itemId } }); }
+void OnlineService::playInRoom(const QString &itemId) { roomSend(QStringLiteral("room.play"), { { "itemId", itemId } }); }
+void OnlineService::setRoomMode(const QString &mode) { roomSend(QStringLiteral("room.mode"), { { "mode", mode } }); }
+void OnlineService::makeHost(const QString &userId) { roomSend(QStringLiteral("room.host"), { { "userId", userId } }); }
+void OnlineService::kick(const QString &userId) { roomSend(QStringLiteral("room.kick"), { { "userId", userId } }); }
+
+void OnlineService::renameRoom(const QString &name)
+{
+    if (!name.trimmed().isEmpty())
+        roomSend(QStringLiteral("room.rename"), { { "name", name.trimmed() } });
+}
+
+void OnlineService::copyRoomLink()
+{
+    if (inRoom())
+        copyToClipboard(m_roomView.value("url").toString(), tr("Invite link copied — anyone with it can join"));
+}
+
+bool OnlineService::canControl() const
+{
+    return m_roomState.value("mode").toString() == QLatin1String("open")
+           || m_roomState.value("hostId").toString() == m_userId;
+}
+
+double OnlineService::roomPosition() const
+{
+    const double position = m_roomState.value("position").toDouble();
+    if (!m_roomState.value("playing").toBool())
+        return position;
+    const qint64 serverNow = nowMs() + m_clockOffset;
+    return position + std::max<qint64>(0, serverNow - qint64(m_roomState.value("since").toDouble())) / 1000.0;
+}
+
+void OnlineService::applyRoom(const QJsonObject &state, qint64 serverTime)
+{
+    const QString code = state.value("code").toString();
+    if (code.isEmpty())
+        return;
+    // Only the room we're joining or in — not a late message from one we've left.
+    if (code != m_roomCode && !(m_creatingRoom && m_roomCode.isEmpty()))
+        return;
+    m_creatingRoom = false;
+    const bool entered = m_roomState.isEmpty();
+    // Before the first pong the server's clock in the message is the best guess.
+    if (m_bestRtt < 0 && serverTime > 0)
+        m_clockOffset = serverTime - nowMs();
+    m_roomCode = code;
+    m_roomState = state;
+    m_roomItems.clear();
+    for (const QJsonValue &v : state.value("queue").toArray()) {
+        const QJsonObject o = v.toObject();
+        const Track t = storeTrack(o.value("track").toObject());
+        m_roomItems << RoomItem { o.value("itemId").toString(), t.id, o.value("addedByName").toString() };
+    }
+    m_roomCurrent = state.value("current").toInt(-1);
+    if (debug())
+        qInfo("online: room %s rev %d: %lld tracks, current %d, %s at %.1f s, %lld members, host %s, clock offset %lld ms",
+              qPrintable(code), state.value("revision").toInt(), qint64(m_roomItems.size()), m_roomCurrent,
+              state.value("playing").toBool() ? "playing" : "paused", roomPosition(),
+              qint64(state.value("members").toArray().size()),
+              state.value("hostId").toString() == m_userId ? "me" : "someone else", m_clockOffset);
+    if (entered && m_player) {
+        m_player->setRoomLink({
+            [this](const QString &action, const QVariant &arg) { return interceptPlayer(action, arg); },
+            [this](const QString &trackId) { playerMovedOn(trackId); },
+        });
+        m_syncTimer.start();
+        if (!YouTubeService::instance()->engineReady())
+            emit notice(tr("Download the playback engine (yt-dlp) in Sources → YouTube Music to hear the room"),
+                        QStringLiteral("playCircle"));
+    }
+    buildRoomView();
+    syncPlayer();
+    emit roomChanged();
+    if (entered)
+        emit roomOpened();
+}
+
+void OnlineService::buildRoomView()
+{
+    const QString hostId = m_roomState.value("hostId").toString();
+    QVariantList members;
+    for (const QJsonValue &v : m_roomState.value("members").toArray()) {
+        const QJsonObject m = v.toObject();
+        const QString id = m.value("id").toString();
+        members << QVariantMap { { "id", id }, { "name", m.value("name").toString() },
+                                 { "online", m.value("online").toBool() }, { "host", id == hostId },
+                                 { "me", id == m_userId } };
+    }
+    const bool finished = m_roomState.value("finished").toBool();
+    const TrackModel *model = Library::instance()->tracks();
+    QVariantList queue;
+    for (int i = 0; i < m_roomItems.size(); ++i) {
+        const RoomItem &item = m_roomItems.at(i);
+        queue << QVariantMap { { "itemId", item.itemId }, { "row", model->rowOf(item.trackId) },
+                               { "addedBy", item.addedBy }, { "current", i == m_roomCurrent && !finished },
+                               { "played", i < m_roomCurrent || (i == m_roomCurrent && finished) } };
+    }
+    m_roomView = {
+        { "code", m_roomCode },
+        { "name", m_roomState.value("name").toString() },
+        { "mode", m_roomState.value("mode").toString() },
+        { "url", m_server + QStringLiteral("/r/") + m_roomCode },
+        { "isHost", hostId == m_userId },
+        { "canControl", canControl() },
+        { "playing", m_roomState.value("playing").toBool() },
+        { "finished", finished },
+        { "members", members },
+        { "queue", queue },
+        { "currentRow", m_roomCurrent >= 0 && m_roomCurrent < m_roomItems.size() && !finished
+                            ? model->rowOf(m_roomItems.at(m_roomCurrent).trackId) : -1 },
+    };
+}
+
+void OnlineService::syncPlayer()
+{
+    if (!m_player || !inRoom())
+        return;
+    const bool finished = m_roomState.value("finished").toBool();
+    if (m_roomCurrent < 0 || m_roomCurrent >= m_roomItems.size() || finished) {
+        m_player->applyRoom({}, 0, false);
+        return;
+    }
+    // The local queue: the room's from the current track on (each track once).
+    QStringList ids;
+    for (int i = m_roomCurrent; i < m_roomItems.size(); ++i)
+        if (!ids.contains(m_roomItems.at(i).trackId))
+            ids << m_roomItems.at(i).trackId;
+    const double position = roomPosition();
+    const bool playing = m_roomState.value("playing").toBool();
+    // Our player has already moved on to the next track (a transition, or the end came here first)
+    // and the room is about to follow: don't pull it back.
+    if (playing && m_roomCurrent + 1 < m_roomItems.size()
+        && m_player->currentTrackId() == m_roomItems.at(m_roomCurrent + 1).trackId) {
+        const int duration = m_tracks.value(ids.first()).duration;
+        if (duration <= 0 || position > duration - 30)
+            return;
+    }
+    if (debug())
+        qInfo("online: player <- %s at %.1f s (%s), local %s at %.1f s", qPrintable(ids.first()), position,
+              playing ? "playing" : "paused", qPrintable(m_player->currentTrackId()), m_player->position());
+    m_player->applyRoom(ids, position, playing);
+}
+
+bool OnlineService::interceptPlayer(const QString &action, const QVariant &arg)
+{
+    if (debug())
+        qInfo("online: player action %s %s -> room", qPrintable(action), qPrintable(arg.toString()));
+    if (!canControl()) {
+        emit notice(tr("Only the host controls this room"), QStringLiteral("close"));
+        return true;
+    }
+    const TrackModel *model = Library::instance()->tracks();
+    if (action == QLatin1String("play")) {
+        const int row = arg.toInt();
+        if (!model->isValidRow(row))
+            return true;
+        const QString id = model->at(row).id;
+        // Already in the room's queue: jump to it (the upcoming copy first), otherwise add it.
+        for (int i = std::max(0, m_roomCurrent); i < m_roomItems.size(); ++i) {
+            if (m_roomItems.at(i).trackId == id) {
+                if (i == m_roomCurrent && !m_roomState.value("finished").toBool()) {
+                    if (!m_roomState.value("playing").toBool())
+                        roomSend(QStringLiteral("room.resume"));
+                } else
+                    playInRoom(m_roomItems.at(i).itemId);
+                return true;
+            }
+        }
+        addToRoom({ row });
+    } else if (action == QLatin1String("queue")) {
+        QVariantList rows = arg.toList();
+        std::shuffle(rows.begin(), rows.end(), *QRandomGenerator::global());
+        addToRoom(rows);
+    } else if (action == QLatin1String("resume")) {
+        roomSend(QStringLiteral("room.resume"));
+    } else if (action == QLatin1String("pause")) {
+        roomSend(QStringLiteral("room.pause"), { { "position", roomPosition() } });
+    } else if (action == QLatin1String("next")) {
+        roomSend(QStringLiteral("room.next"));
+    } else if (action == QLatin1String("previous")) {
+        roomSend(QStringLiteral("room.previous"));
+    } else if (action == QLatin1String("seek")) {
+        roomSend(QStringLiteral("room.seek"), { { "position", arg.toDouble() } });
+    }
+    return true;
+}
+
+void OnlineService::playerMovedOn(const QString &trackId)
+{
+    if (m_roomCurrent < 0 || m_roomCurrent >= m_roomItems.size())
+        return;
+    const RoomItem &item = m_roomItems.at(m_roomCurrent);
+    if (debug())
+        qInfo("online: player moved on from %s (room's current %s)", qPrintable(trackId), qPrintable(item.trackId));
+    if (item.trackId == trackId)
+        roomSend(QStringLiteral("room.ended"), { { "itemId", item.itemId } });
+}
+
+// ---- shared playlists -------------------------------------------------------------
+
+OnlineService::SharedPlaylist *OnlineService::findPlaylist(const QString &id)
+{
+    for (SharedPlaylist &p : m_playlists)
+        if (p.id == id)
+            return &p;
+    return nullptr;
+}
+
+QStringList OnlineService::playlistTrackIds(const QString &id) const
+{
+    for (const SharedPlaylist &p : m_playlists)
+        if (p.id == id)
+            return p.trackIds;
+    return {};
+}
+
+bool OnlineService::isPlaylistOwner(const QString &id) const
+{
+    for (const SharedPlaylist &p : m_playlists)
+        if (p.id == id)
+            return p.ownerId == m_userId;
+    return false;
+}
+
+QVariantMap OnlineService::playlistInfo(const QString &id) const
+{
+    for (const SharedPlaylist &p : m_playlists) {
+        if (p.id == id)
+            return { { "owner", p.ownerName }, { "members", p.memberNames }, { "url", p.url },
+                     { "isOwner", p.ownerId == m_userId } };
+    }
+    return {};
+}
+
+void OnlineService::applyPlaylist(const QJsonObject &o)
+{
+    const QString id = o.value("id").toString();
+    if (id.isEmpty() || !o.contains("tracks"))
+        return;
+    SharedPlaylist p;
+    p.id = id;
+    p.name = o.value("name").toString();
+    p.description = o.value("description").toString();
+    p.ownerId = o.value("owner").toObject().value("id").toString();
+    p.ownerName = o.value("owner").toObject().value("name").toString();
+    p.url = o.value("url").toString();
+    p.version = o.value("version").toInt();
+    for (const QJsonValue &m : o.value("members").toArray())
+        p.memberNames << m.toObject().value("name").toString();
+    for (const QJsonValue &v : o.value("tracks").toArray()) {
+        const QJsonObject e = v.toObject();
+        const Track t = storeTrack(e.value("track").toObject());
+        if (t.id.isEmpty() || p.entryOf.contains(t.id))
+            continue;
+        p.trackIds << t.id;
+        p.entryOf.insert(t.id, e.value("entryId").toString());
+    }
+    if (SharedPlaylist *existing = findPlaylist(id))
+        *existing = p;
+    else
+        m_playlists << p;
+    savePlaylists();
+    emit playlistsChanged();
+}
+
+void OnlineService::fetchPlaylist(const QString &id)
+{
+    request("GET", QStringLiteral("/playlists/") + id, {}, [this](const QJsonObject &reply, const QString &error) {
+        if (error.isEmpty() && reply.value("member").toBool())
+            applyPlaylist(reply);
+    });
+}
+
+void OnlineService::refreshPlaylists()
+{
+    if (!registered())
+        return;
+    request("GET", QStringLiteral("/playlists"), {}, [this](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty())
+            return;
+        QSet<QString> present;
+        for (const QJsonValue &v : reply.value("playlists").toArray()) {
+            present.insert(v.toObject().value("id").toString());
+            applyPlaylist(v.toObject());
+        }
+        const auto before = m_playlists.size();
+        m_playlists.erase(std::remove_if(m_playlists.begin(), m_playlists.end(),
+                                         [&](const SharedPlaylist &p) { return !present.contains(p.id); }),
+                          m_playlists.end());
+        if (m_playlists.size() != before) {
+            savePlaylists();
+            emit playlistsChanged();
+        }
+        if (!m_playlists.isEmpty())
+            connectSocket();   // live changes from the others
+    });
+}
+
+void OnlineService::createPlaylist(const QString &name, const QString &description, const QVariantList &rows)
+{
+    portableTracks(rows, [this, name, description](const QList<Track> &tracks, int skipped) {
+        ensureAccount([this, name, description, tracks, skipped](bool ok) {
+            if (!ok)
+                return;
+            request("POST", QStringLiteral("/playlists"),
+                    { { "name", name }, { "description", description }, { "tracks", tracksJson(tracks) } },
+                    [this, name, skipped](const QJsonObject &reply, const QString &error) {
+                if (!error.isEmpty()) {
+                    emit notice(tr("Couldn't create the playlist: %1").arg(error), QStringLiteral("close"));
+                    return;
+                }
+                applyPlaylist(reply);
+                connectSocket();
+                const QString url = reply.value("url").toString();
+                if (QClipboard *clipboard = QGuiApplication::clipboard())
+                    clipboard->setText(url);
+                emit notice(skipped > 0 ? tr("Created %1 — the invite link is copied; %n tracks without a YouTube Music version were skipped", "", skipped).arg(name)
+                                        : tr("Created %1 — the invite link is copied").arg(name),
+                            QStringLiteral("link"));
+                emit playlistOpened(reply.value("id").toString());
+            });
+        });
+    });
+}
+
+void OnlineService::joinPlaylist(const QString &id)
+{
+    if (findPlaylist(id)) {
+        emit playlistOpened(id);
+        return;
+    }
+    ensureAccount([this, id](bool ok) {
+        if (!ok)
+            return;
+        request("POST", QStringLiteral("/playlists/") + id + QStringLiteral("/join"), {},
+                [this, id](const QJsonObject &reply, const QString &error) {
+            if (!error.isEmpty()) {
+                emit notice(tr("Couldn't join the playlist: %1").arg(error), QStringLiteral("close"));
+                return;
+            }
+            applyPlaylist(reply);
+            connectSocket();
+            emit notice(tr("You've joined %1 — what you add, everyone sees").arg(reply.value("name").toString()),
+                        QStringLiteral("check"));
+            emit playlistOpened(id);
+        });
+    });
+}
+
+void OnlineService::addToPlaylist(const QString &id, const QVariantList &rows)
+{
+    const SharedPlaylist *p = findPlaylist(id);
+    if (!p)
+        return;
+    const QString name = p->name;
+    portableTracks(rows, [this, id, name](const QList<Track> &tracks, int skipped) {
+        if (tracks.isEmpty()) {
+            emit notice(tr("No YouTube Music version of this track was found to share"), QStringLiteral("close"));
+            return;
+        }
+        request("POST", QStringLiteral("/playlists/") + id + QStringLiteral("/tracks"), { { "tracks", tracksJson(tracks) } },
+                [this, name, skipped](const QJsonObject &reply, const QString &error) {
+            if (!error.isEmpty()) {
+                emit notice(tr("Couldn't add to %1: %2").arg(name, error), QStringLiteral("close"));
+                return;
+            }
+            applyPlaylist(reply);
+            const int added = reply.value("added").toInt();
+            emit notice(added == 0 ? tr("Already in %1").arg(name)
+                        : skipped > 0 ? tr("Added to %1 — %n without a YouTube Music version skipped", "", skipped).arg(name)
+                                      : tr("Added to %1").arg(name),
+                        QStringLiteral("check"));
+        });
+    });
+}
+
+void OnlineService::removeFromPlaylist(const QString &id, const QString &trackId)
+{
+    const SharedPlaylist *p = findPlaylist(id);
+    if (!p || !p->entryOf.contains(trackId))
+        return;
+    const QString name = p->name;
+    request("DELETE", QStringLiteral("/playlists/") + id + QStringLiteral("/tracks/") + p->entryOf.value(trackId), {},
+            [this, name](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty()) {
+            emit notice(tr("Couldn't remove from %1: %2").arg(name, error), QStringLiteral("close"));
+            return;
+        }
+        applyPlaylist(reply);
+        emit notice(tr("Removed from %1").arg(name), QStringLiteral("check"));
+    });
+}
+
+void OnlineService::editPlaylist(const QString &id, const QString &name, const QString &description)
+{
+    if (!isPlaylistOwner(id)) {
+        emit notice(tr("Only the playlist's owner can rename it"), QStringLiteral("close"));
+        return;
+    }
+    request("PATCH", QStringLiteral("/playlists/") + id, { { "name", name }, { "description", description } },
+            [this](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty())
+            emit notice(tr("Couldn't rename the playlist: %1").arg(error), QStringLiteral("close"));
+        else
+            applyPlaylist(reply);
+    });
+}
+
+void OnlineService::deleteOrLeavePlaylist(const QString &id)
+{
+    const SharedPlaylist *p = findPlaylist(id);
+    if (!p)
+        return;
+    const QString name = p->name;
+    const bool owner = p->ownerId == m_userId;
+    auto drop = [this, id] {
+        for (int i = 0; i < m_playlists.size(); ++i)
+            if (m_playlists.at(i).id == id)
+                m_playlists.removeAt(i--);
+        savePlaylists();
+        emit playlistsChanged();
+    };
+    if (owner) {
+        request("DELETE", QStringLiteral("/playlists/") + id, {}, [this, name, drop](const QJsonObject &, const QString &error) {
+            if (!error.isEmpty()) {
+                emit notice(tr("Couldn't delete %1: %2").arg(name, error), QStringLiteral("close"));
+                return;
+            }
+            drop();
+            emit notice(tr("Deleted %1 for everyone").arg(name), QStringLiteral("check"));
+        });
+    } else {
+        request("POST", QStringLiteral("/playlists/") + id + QStringLiteral("/leave"), {},
+                [this, name, drop](const QJsonObject &, const QString &error) {
+            if (!error.isEmpty()) {
+                emit notice(tr("Couldn't leave %1: %2").arg(name, error), QStringLiteral("close"));
+                return;
+            }
+            drop();
+            emit notice(tr("You've left %1").arg(name), QStringLiteral("check"));
+        });
+    }
+}
+
+void OnlineService::copyPlaylistLink(const QString &id)
+{
+    if (const SharedPlaylist *p = findPlaylist(id))
+        copyToClipboard(p->url, tr("Invite link copied — anyone with it can add tracks"));
+}
+
+void OnlineService::loadPlaylists()
+{
+    QFile f(cacheFile());
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    if (root.value("server").toString() != m_server)
+        return;
+    // Library doesn't exist yet here — the tracks reach the model through tracks().
+    for (const QJsonValue &v : root.value("playlists").toArray()) {
+        const QJsonObject o = v.toObject();
+        SharedPlaylist p;
+        p.id = o.value("id").toString();
+        p.name = o.value("name").toString();
+        p.description = o.value("description").toString();
+        p.ownerId = o.value("ownerId").toString();
+        p.ownerName = o.value("ownerName").toString();
+        p.url = o.value("url").toString();
+        p.version = o.value("version").toInt();
+        for (const QJsonValue &m : o.value("members").toArray())
+            p.memberNames << m.toString();
+        for (const QJsonValue &e : o.value("tracks").toArray()) {
+            const QJsonObject entry = e.toObject();
+            const QJsonObject track = entry.value("track").toObject();
+            const QString trackId = track.value("id").toString();
+            if (trackId.isEmpty())
+                continue;
+            if (!m_tracks.contains(trackId)) {
+                Track t;
+                t.id = trackId;
+                t.path = track.value("path").toString();
+                t.source = track.value("source").toString();
+                t.title = track.value("title").toString();
+                t.artist = track.value("artist").toString();
+                t.artistId = track.value("artistId").toString();
+                t.album = track.value("album").toString();
+                t.duration = track.value("duration").toInt();
+                t.cover = track.value("cover").toString();
+                t.quality = t.source == QLatin1String("soundcloud") ? QStringLiteral("SoundCloud") : QStringLiteral("YouTube Music");
+                t.transient = true;
+                const QString key = TrackModel::albumKey(t);
+                const auto [a, b] = Scanner::fallbackPalette(key);
+                t.colorA = a;
+                t.colorB = b;
+                t.seed = Scanner::stableSeed(key);
+                m_tracks.insert(trackId, t);
+            }
+            p.trackIds << trackId;
+            p.entryOf.insert(trackId, entry.value("entryId").toString());
+        }
+        if (!p.id.isEmpty())
+            m_playlists << p;
+    }
+}
+
+void OnlineService::savePlaylists() const
+{
+    QJsonArray playlists;
+    for (const SharedPlaylist &p : m_playlists) {
+        QJsonArray tracks;
+        for (const QString &id : p.trackIds)
+            tracks.append(QJsonObject { { "entryId", p.entryOf.value(id) }, { "track", trackJson(m_tracks.value(id)) } });
+        playlists.append(QJsonObject { { "id", p.id }, { "name", p.name }, { "description", p.description },
+                                       { "ownerId", p.ownerId }, { "ownerName", p.ownerName }, { "url", p.url },
+                                       { "version", p.version }, { "members", QJsonArray::fromStringList(p.memberNames) },
+                                       { "tracks", tracks } });
+    }
+    QSaveFile f(cacheFile());
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(QJsonDocument(QJsonObject { { "server", m_server }, { "playlists", playlists } }).toJson(QJsonDocument::Compact));
+        f.commit();
+    }
+}
+
+// ---- nokturn:// links open Nokturn ------------------------------------------------
+
+void OnlineService::registerUrlScheme()
+{
+    if (qEnvironmentVariableIsSet("NOKTURN_PROFILE"))
+        return;   // test profiles shouldn't take the links over
+#ifdef Q_OS_WIN
+    // Per user, no admin rights needed; points at this executable, so it follows updates and moves.
+    const QString exe = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+    QSettings key(QStringLiteral("HKEY_CURRENT_USER\\Software\\Classes\\nokturn"), QSettings::NativeFormat);
+    const QString command = QStringLiteral("\"%1\" \"%2\"").arg(exe, QStringLiteral("%1"));
+    if (key.value(QStringLiteral("shell/open/command/Default")).toString() == command)
+        return;
+    key.setValue(QStringLiteral("Default"), QStringLiteral("URL:Nokturn"));
+    key.setValue(QStringLiteral("URL Protocol"), QString());
+    key.setValue(QStringLiteral("DefaultIcon/Default"), QStringLiteral("\"%1\",0").arg(exe));
+    key.setValue(QStringLiteral("shell/open/command/Default"), command);
+#elif defined(Q_OS_LINUX)
+    // An AppImage has no installed .desktop file: a hidden one for the links points at it.
+    // (Installed from source, packaging/linux/nokturn.desktop handles nokturn:// itself.)
+    const QString appImage = qEnvironmentVariable("APPIMAGE");
+    if (appImage.isEmpty())
+        return;
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
+    const QString file = dir + QStringLiteral("/nokturn-links.desktop");
+    const QString exec = QString(appImage).replace(QLatin1Char('"'), QStringLiteral("\\\""));
+    const QByteArray content = QStringLiteral(
+        "[Desktop Entry]\nType=Application\nName=Nokturn\nNoDisplay=true\nIcon=nokturn\n"
+        "Exec=\"%1\" %u\nMimeType=x-scheme-handler/nokturn;\n").arg(exec).toUtf8();
+    QFile current(file);
+    if (current.open(QIODevice::ReadOnly) && current.readAll() == content)
+        return;
+    current.close();
+    QDir().mkpath(dir);
+    QSaveFile out(file);
+    if (!out.open(QIODevice::WriteOnly))
+        return;
+    out.write(content);
+    if (!out.commit())
+        return;
+    QProcess::startDetached(QStringLiteral("xdg-mime"),
+                            { QStringLiteral("default"), QStringLiteral("nokturn-links.desktop"),
+                              QStringLiteral("x-scheme-handler/nokturn") });
+    QProcess::startDetached(QStringLiteral("update-desktop-database"), { dir });
+#endif
+}

@@ -1,4 +1,5 @@
 #include "Language.h"
+#include "online/OnlineService.h"
 #include "platform/GameOverlay.h"
 
 #include <QElapsedTimer>
@@ -44,6 +45,13 @@ int main(int argc, char *argv[])
         return 0;
     if (lyricsOverlayRequest && GameOverlay::sendToRunning(QStringLiteral("lyrics-overlay")))
         return 0;
+    // "nokturn nokturn://r/<code>" (the system opens links this way): a running Nokturn opens it.
+    QString link;
+    for (const QString &arg : app.arguments().mid(1))
+        if ((arg.startsWith(QLatin1String("nokturn:")) || arg.startsWith(QLatin1String("http"))) && OnlineService::isLink(arg))
+            link = arg;
+    if (!link.isEmpty() && GameOverlay::sendToRunning(QStringLiteral("open ") + link))
+        return 0;
 
     Language::instance()->apply();
 
@@ -53,6 +61,9 @@ int main(int argc, char *argv[])
         [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
     engine.loadFromModule("Nokturn", "Main");
+    QObject::connect(GameOverlay::instance(), &GameOverlay::linkReceived, OnlineService::instance(), &OnlineService::openLink);
+    if (!link.isEmpty())
+        QTimer::singleShot(1200, OnlineService::instance(), [link] { OnlineService::instance()->openLink(link); });
     if (overlayRequest)
         QTimer::singleShot(1500, GameOverlay::instance(), &GameOverlay::show);
     else if (lyricsOverlayRequest)

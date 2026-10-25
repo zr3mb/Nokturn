@@ -690,6 +690,61 @@ Item {
         }
 
         Reveal {
+            delay: 172
+            ColumnLayout {
+                width: parent.width
+                spacing: 8
+                Heading { text: qsTr("Online") }
+                SettingRow {
+                    icon: "person"
+                    title: qsTr("Your name")
+                    description: qsTr("What others see in listening rooms and shared playlists. Nokturn makes an anonymous account on the server the first time you share something — no e-mail, no password.")
+                    InputField {
+                        width: 230
+                        implicitHeight: 38
+                        maximumLength: 40
+                        text: Online.displayName
+                        onEditingFinished: Online.displayName = text
+                    }
+                }
+                SettingRow {
+                    icon: "sources"
+                    title: qsTr("Server")
+                    description: qsTr("Links, shared playlists and listening rooms go through this server. %1").arg(
+                        Online.connected ? qsTr("Connected.") : Online.registered ? qsTr("Signed in.") : qsTr("Not used yet."))
+                    InputField {
+                        width: 260
+                        implicitHeight: 38
+                        text: Online.serverUrl
+                        onEditingFinished: Online.serverUrl = text
+                    }
+                }
+                SettingRow {
+                    visible: Online.registered
+                    icon: "close"
+                    title: qsTr("Delete the online account")
+                    description: qsTr("Removes your name, your share links and the shared playlists you own from the server.")
+                    PillButton {
+                        id: forgetButton
+                        property bool confirm: false
+                        kind: "ghost"
+                        text: confirm ? qsTr("Click again to delete") : qsTr("Delete")
+                        fontSize: 13
+                        implicitHeight: 36
+                        onClicked: {
+                            if (!confirm) {
+                                confirm = true
+                                return
+                            }
+                            confirm = false
+                            Online.forgetAccount()
+                        }
+                    }
+                }
+            }
+        }
+
+        Reveal {
             delay: 180
             ColumnLayout {
                 width: parent.width

@@ -471,6 +471,36 @@ Item {
         })
         return s
     }
+    // Online features against a server (--tour-online "<room code>;<playlist id>;<share code>", with
+    // NOKTURN_SERVER and NOKTURN_ONLINE_DEBUG): a share link, joining a shared playlist and a room,
+    // the player's buttons going to the room, the dialogs, leaving.
+    readonly property bool withOnline: Qt.application.arguments.indexOf("--tour-online") >= 0
+    readonly property var onlineSteps: {
+        if (!withOnline)
+            return []
+        const [room, playlist, share] = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-online") + 1].split(";")
+        const sharedIndex = () => Library.playlists.findIndex(p => p.kind === "shared")
+        return [
+            { name: "O1-share", run: () => { Nav.finishOnboarding(); Player.muted = true
+                                            console.log("tour: link opened =", Online.openLink("nokturn://t/" + share)) } },
+            { name: "O2-playlist", run: () => { console.log("tour: shared track =", Player.title, "|", Player.artist)
+                                               Online.openLink("https://" + Online.serverUrl.replace(/^https?:\/\//, "") + "/p/" + playlist) } },
+            { name: "O3-playlist-add", run: () => { const i = sharedIndex()
+                                                   console.log("tour: shared playlist", i, i >= 0 ? Library.playlists[i].name : "", "tracks", i >= 0 ? Library.playlistRows(i).length : -1)
+                                                   if (i >= 0 && Player.currentIndex >= 0) Playlists.addRows(i, [Player.currentIndex]) } },
+            { name: "O4-playlist-after", run: () => { const i = sharedIndex()
+                                                     console.log("tour: after adding", i >= 0 ? Library.playlistRows(i).length : -1, JSON.stringify(Online.playlistInfo(Library.playlists[i].sharedId))) } },
+            { name: "O5-room", run: () => Online.openLink("nokturn://r/" + room) },
+            { name: "O6-room-state", run: () => console.log("tour: in room", Online.inRoom, JSON.stringify(Online.room)) },
+            { name: "O7-buttons", run: () => { Player.next(); Player.pause(); Player.seek(42) } },
+            { name: "O8-after-buttons", run: () => console.log("tour: room playing", Online.room.playing, "| player", Player.title, Player.inRoom) },
+            { name: "O9-leave", run: () => { Online.leaveRoom(); console.log("tour: in room after leaving", Online.inRoom, Player.inRoom) } },
+            { name: "O10-room-start", run: () => Nav.navigate("room") },
+            { name: "O10b-create", run: () => Online.createRoom("Created here", "host") },
+            { name: "O10c-created", run: () => console.log("tour: created", Online.inRoom, Online.room.name, Online.room.mode, "host", Online.room.isHost, Online.room.url) },
+            { name: "O11-dialog", run: () => Nav.createPlaylist([]) }
+        ]
+    }
     // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).
     readonly property bool withScSeekLiked: Qt.application.arguments.indexOf("--tour-sc-seek-liked") >= 0
     readonly property var scSeekLikedSteps: {
@@ -682,7 +712,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

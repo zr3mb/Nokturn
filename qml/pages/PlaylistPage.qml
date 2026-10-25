@@ -63,7 +63,9 @@ Item {
         const yt = p.kind === "ytplaylist"
         const sp = p.kind === "spplaylist" || p.kind === "spotifyliked"
         const sc = p.kind === "scplaylist" || p.kind === "scliked"
+        const shared = p.kind === "shared"
         const meta = yt ? "YouTube Music"
+                   : shared ? (p.description || qsTr("Shared by %1 · %n people add to it", "", p.members).arg(p.owner))
                    : p.kind === "youtube" ? (YouTube.connected ? qsTr("Liked on your YouTube account") : qsTr("Sample tracks from YouTube Music"))
                    : p.kind === "spotifyliked" ? qsTr("Liked on your Spotify account")
                    : p.kind === "scliked" ? qsTr("Liked on your SoundCloud account")
@@ -72,10 +74,12 @@ Item {
                    : p.kind === "user" ? (p.description || qsTr("Your playlist on this computer"))
                    : qsTr("Your playlist")
         return { label: yt ? qsTr("PLAYLIST · YOUTUBE MUSIC") : sp ? qsTr("PLAYLIST · SPOTIFY")
+                        : shared ? qsTr("SHARED PLAYLIST")
                         : sc ? qsTr("PLAYLIST · SOUNDCLOUD") : qsTr("PLAYLIST"), title: p.name, meta: [meta],
                  colorA: p.colorA, colorB: p.colorB, seed: p.seed, cover: p.cover || "", icon: p.icon, round: false,
                  mosaic: p.mosaic || [], playlistIndex: index, customCover: p.customCover === true,
-                 kind: p.kind, editable: Playlists.canEdit(index),
+                 kind: p.kind, editable: Playlists.canEdit(index), sharedId: p.sharedId || "",
+                 owner: shared ? Online.isPlaylistOwner(p.sharedId) : true,
                  rows: Library.playlistRows(index), loading: Library.playlistLoading(index) }
     }
     // Queue id for the mix settings (separate for each playlist / album / artist).
@@ -90,7 +94,8 @@ Item {
         if (!p) return ""
         return p.kind === "ytplaylist" ? "yt:" + p.ytId : p.kind === "spplaylist" ? "sp:" + p.spId
              : p.kind === "scplaylist" ? "sc:" + p.scId
-             : p.kind === "user" ? "user:" + p.userId : "playlist:" + p.kind
+             : p.kind === "user" ? "user:" + p.userId
+             : p.kind === "shared" ? "shared:" + p.sharedId : "playlist:" + p.kind
     }
 
     // Sort order of this list — remembered per playlist / album ("" = as the source orders it).
@@ -387,7 +392,7 @@ Item {
     }
 
     // "⋯" next to Play: sort, save as a new playlist, and for the user's own playlists editing,
-    // who can see it (YouTube Music) and deleting.
+    // who can see it (YouTube Music) and deleting; for shared playlists the invite link and leaving.
     Popup {
         id: playlistMenu
         property bool confirmDelete: false
@@ -413,7 +418,27 @@ Item {
             spacing: 2
 
             MenuEntry {
-                visible: playlistMenu.own
+                visible: page.info.kind === "shared"
+                Layout.fillWidth: true
+                icon: "link"
+                text: qsTr("Copy the invite link")
+                onTriggered: {
+                    playlistMenu.close()
+                    Online.copyPlaylistLink(page.info.sharedId)
+                }
+            }
+            MenuEntry {
+                visible: Online.inRoom && Online.room.canControl === true && page.rows.length > 0
+                Layout.fillWidth: true
+                icon: "group"
+                text: qsTr("Add to the listening room")
+                onTriggered: {
+                    playlistMenu.close()
+                    Online.addToRoom(page.rows)
+                }
+            }
+            MenuEntry {
+                visible: playlistMenu.own && page.info.owner !== false
                 Layout.fillWidth: true
                 icon: "tune"
                 text: page.info.kind === "ytplaylist" ? qsTr("Rename") : qsTr("Edit name and description")
@@ -477,9 +502,12 @@ Item {
                 visible: playlistMenu.own
                 Layout.fillWidth: true
                 icon: "close"
-                text: playlistMenu.confirmDelete
+                text: page.info.kind === "shared" && page.info.owner === false
+                      ? (playlistMenu.confirmDelete ? qsTr("Click again to leave") : qsTr("Leave the playlist"))
+                      : playlistMenu.confirmDelete
                       ? (page.info.kind === "ytplaylist" ? qsTr("Click again — it's deleted from YouTube Music too")
-                                                         : qsTr("Click again to delete"))
+                         : page.info.kind === "shared" ? qsTr("Click again — it's deleted for everyone")
+                                                       : qsTr("Click again to delete"))
                       : qsTr("Delete playlist")
                 onTriggered: {
                     if (!playlistMenu.confirmDelete) {

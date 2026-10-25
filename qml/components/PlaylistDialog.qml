@@ -3,14 +3,15 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Nokturn
 
-// New playlist — kept on this computer or on the YouTube Music account — or editing an existing one
-// (name, description; who can see it for YouTube Music).
+// New playlist — kept on this computer, on the YouTube Music account or shared through the Nokturn
+// server — or editing an existing one (name, description; who can see it for YouTube Music).
 Popup {
     id: root
     property string mode: "create"      // "create" | "edit"
     property int index: -1              // edit: the playlist (Library.playlists)
     property var rows: []               // create: tracks to start with
-    property bool youtube: false        // create: on YouTube Music
+    property string target: "local"     // create: "local" | "youtube" | "shared"
+    readonly property bool youtube: target === "youtube"
     property int privacy: 0             // 0 private, 1 unlisted, 2 public
     readonly property var privacyKeys: ["PRIVATE", "UNLISTED", "PUBLIC"]
     readonly property var playlist: index >= 0 ? Library.playlists[index] || ({}) : ({})
@@ -20,7 +21,8 @@ Popup {
         mode = m
         index = i
         rows = r || []
-        youtube = Prefs.boolValue("playlists/youtube", false) && YouTube.connected
+        const saved = Prefs.stringValue("playlists/target", Prefs.boolValue("playlists/youtube", false) ? "youtube" : "local")
+        target = saved === "youtube" && !YouTube.connected ? "local" : saved
         privacy = 0
         nameField.text = m === "edit" ? playlist.name || "" : ""
         descriptionField.text = m === "edit" ? playlist.description || "" : ""
@@ -30,9 +32,8 @@ Popup {
 
     function accept() {
         if (mode === "create") {
-            Prefs.setValue("playlists/youtube", youtube)
-            Playlists.createPlaylist(nameField.text, descriptionField.text, youtube ? "youtube" : "local",
-                                     privacyKeys[privacy], rows)
+            Prefs.setValue("playlists/target", target)
+            Playlists.createPlaylist(nameField.text, descriptionField.text, target, privacyKeys[privacy], rows)
         } else {
             Playlists.edit(index, nameField.text, descriptionField.text)
         }
@@ -112,21 +113,24 @@ Popup {
                 font.weight: Font.DemiBold
             }
             SegmentedTabs {
-                model: [qsTr("This computer"), "YouTube Music"]
-                currentIndex: root.youtube ? 1 : 0
+                readonly property var keys: ["local", "youtube", "shared"]
+                model: [qsTr("This computer"), "YouTube Music", qsTr("Shared")]
+                currentIndex: keys.indexOf(root.target)
                 onActivated: i => {
-                    if (i === 1 && !YouTube.connected) {
-                        currentIndex = 0
+                    if (keys[i] === "youtube" && !YouTube.connected) {
+                        currentIndex = keys.indexOf(root.target)
                         Nav.toast(qsTr("Sign in to YouTube Music first (Sources)"), "person")
                         return
                     }
-                    root.youtube = i === 1
+                    root.target = keys[i]
                 }
             }
             Text {
                 Layout.fillWidth: true
-                text: root.youtube
+                text: root.target === "youtube"
                       ? qsTr("Saved on your YouTube Music account — you'll see it on your phone too. Spotify tracks go in as their YouTube Music version, local files are skipped.")
+                      : root.target === "shared"
+                      ? qsTr("Saved on the Nokturn server with an invite link — everyone who opens it can add and remove tracks. Local files and Spotify tracks go in as their YouTube Music version.")
                       : qsTr("Saved only in Nokturn on this computer. It can hold any track — local files, YouTube Music, Spotify and SoundCloud.")
                 color: Theme.textFaint
                 font.pixelSize: 12

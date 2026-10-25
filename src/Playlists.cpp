@@ -3,6 +3,7 @@
 #include "AppPaths.h"
 #include "Library.h"
 #include "LibraryScanner.h"
+#include "online/OnlineService.h"
 #include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 
@@ -112,7 +113,7 @@ void Playlists::keepTrack(const Track &t)
 bool Playlists::canEdit(int index) const
 {
     const QString kind = entry(index).value("kind").toString();
-    return kind == QLatin1String("user") || kind == QLatin1String("ytplaylist");
+    return kind == QLatin1String("user") || kind == QLatin1String("ytplaylist") || kind == QLatin1String("shared");
 }
 
 QVariantList Playlists::targets() const
@@ -122,7 +123,7 @@ QVariantList Playlists::targets() const
     for (int i = 0; i < all.size(); ++i) {
         const QVariantMap p = all.at(i).toMap();
         const QString kind = p.value("kind").toString();
-        if (kind == QLatin1String("user") || kind == QLatin1String("ytplaylist"))
+        if (kind == QLatin1String("user") || kind == QLatin1String("ytplaylist") || kind == QLatin1String("shared"))
             out << QVariantMap { { "index", i }, { "name", p.value("name") }, { "kind", kind }, { "cover", p.value("cover") } };
     }
     return out;
@@ -134,6 +135,10 @@ void Playlists::createPlaylist(const QString &name, const QString &description, 
                                const QString &privacy, const QVariantList &rows)
 {
     const QString title = name.trimmed().isEmpty() ? tr("New playlist") : name.trimmed();
+    if (target == QLatin1String("shared")) {
+        OnlineService::instance()->createPlaylist(title, description.trimmed(), rows);
+        return;
+    }
     if (target == QLatin1String("youtube")) {
         if (!YouTubeService::instance()->connected()) {
             emit notice(tr("Sign in to YouTube Music first"), QStringLiteral("close"));
@@ -203,6 +208,10 @@ void Playlists::addRows(int index, const QVariantList &rows)
         emit notice(added > 0 ? tr("Added to %1").arg(name) : tr("Already in %1").arg(name), QStringLiteral("check"));
         return;
     }
+    if (kind == QLatin1String("shared")) {
+        OnlineService::instance()->addToPlaylist(p.value("sharedId").toString(), rows);
+        return;
+    }
     if (kind != QLatin1String("ytplaylist"))
         return;
     beginBusy();
@@ -241,6 +250,10 @@ void Playlists::removeRow(int index, int row)
         }
         return;
     }
+    if (kind == QLatin1String("shared")) {
+        OnlineService::instance()->removeFromPlaylist(p.value("sharedId").toString(), t.id);
+        return;
+    }
     if (kind != QLatin1String("ytplaylist") || t.source != QLatin1String("youtube"))
         return;
     beginBusy();
@@ -268,6 +281,10 @@ void Playlists::edit(int index, const QString &name, const QString &description)
             save();
             emit changed();
         }
+        return;
+    }
+    if (kind == QLatin1String("shared")) {
+        OnlineService::instance()->editPlaylist(p.value("sharedId").toString(), title, description.trimmed());
         return;
     }
     if (kind != QLatin1String("ytplaylist") || title == p.value("name").toString())
@@ -308,6 +325,10 @@ void Playlists::deletePlaylist(int index)
         save();
         emit changed();
         emit notice(tr("Deleted %1").arg(name), QStringLiteral("check"));
+        return;
+    }
+    if (kind == QLatin1String("shared")) {
+        OnlineService::instance()->deleteOrLeavePlaylist(p.value("sharedId").toString());
         return;
     }
     if (kind != QLatin1String("ytplaylist"))

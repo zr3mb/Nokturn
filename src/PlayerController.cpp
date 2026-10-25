@@ -8,6 +8,7 @@
 #include "TrackModel.h"
 #include "audio/Equalizer.h"
 #include "lyrics/LyricsService.h"
+#include "online/OnlineService.h"
 #include "platform/DiscordPresence.h"
 #include "soundcloud/SoundCloudService.h"
 #include "spotify/SpotifyService.h"
@@ -27,6 +28,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRandomGenerator>
+#include <QScopeGuard>
 #include <QtMultimedia/qtaudio.h>
 
 #include <algorithm>
@@ -128,6 +130,7 @@ PlayerController::PlayerController(QObject *parent)
     m_clock.start();
 
     DiscordPresence::instance()->attach(this);
+    OnlineService::instance()->attach(this);
 #ifdef NOKTURN_MPRIS
     new Mpris(this);   // Linux: MPRIS (system panel, media keys)
 #endif
@@ -309,7 +312,7 @@ QVariantList PlayerController::upNext() const
     for (int k = 1; k < m_queue.size() && out.size() < 6; ++k) {
         int pos = m_queuePos + k;
         if (pos >= m_queue.size()) {
-            if (m_repeat != 1)
+            if (m_repeat != 1 || inRoom())
                 break;
             pos %= m_queue.size();
         }
@@ -465,6 +468,9 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
 
 void PlayerController::emitTrackChanged()
 {
+    if (inRoom() && !m_roomApplying && !m_roomTrack.isEmpty() && m_roomTrack != m_currentId && m_room.movedOn)
+        m_room.movedOn(m_roomTrack);
+    m_roomTrack = m_currentId;
     LyricsService::instance()->setTrack(current());
     emit currentChanged();
     emit colorsChanged();
@@ -631,6 +637,8 @@ bool PlayerController::retryStream(int d)
 
 void PlayerController::playFrom(const QVariantList &rows, int row, const QString &context)
 {
+    if (roomIntercept(QStringLiteral("play"), row))
+        return;
     if (!canPlay(row, true))
         return;
 
@@ -659,6 +667,8 @@ void PlayerController::playFrom(const QVariantList &rows, int row, const QString
 
 void PlayerController::playShuffled(const QVariantList &rows, const QString &context)
 {
+    if (roomIntercept(QStringLiteral("queue"), rows))
+        return;
     QStringList ids = queueIds(rows);
     std::shuffle(ids.begin(), ids.end(), *QRandomGenerator::global());
     // The first one that can be played starts (not a sample track; the playback engine is ready).
@@ -685,6 +695,8 @@ void PlayerController::playIndex(int row)
 
 void PlayerController::jumpTo(int row)
 {
+    if (roomIntercept(QStringLiteral("play"), row))
+        return;
     if (!canPlay(row, true))
         return;
     const QString id = m_tracks->at(row).id;
@@ -700,6 +712,8 @@ void PlayerController::jumpTo(int row)
 
 void PlayerController::play()
 {
+    if (roomIntercept(QStringLiteral("resume")))
+        return;
     if (!hasTrack()) {
         const QVariantList local = Library::instance()->libraryRows();
         if (!local.isEmpty())
@@ -720,6 +734,8 @@ void PlayerController::play()
 
 void PlayerController::pause()
 {
+    if (roomIntercept(QStringLiteral("pause"), position()))
+        return;
     m_wantPlay = false;
     m_autoplayAfterResolve = false;
     if (m_engine.inTransition())
@@ -733,13 +749,18 @@ void PlayerController::toggle()
     active ? pause() : play();
 }
 
-void PlayerController::next() { advance(true); }
+void PlayerController::next()
+{
+    if (roomIntercept(QStringLiteral("next")))
+        return;
+    advance(true);
+}
 
 int PlayerController::nextQueuePos() const
 {
     if (m_queue.isEmpty())
         return -1;
-    if (m_shuffle && m_queue.size() > 1) {
+    if (m_shuffle && !inRoom() && m_queue.size() > 1) {
         if (const int planned = int(m_queue.indexOf(m_shuffleNextId)); planned >= 0 && planned != m_queuePos)
             return planned;   // the one whose URL we've already prepared
         int pos;
@@ -751,7 +772,7 @@ int PlayerController::nextQueuePos() const
     const int pos = m_queuePos + 1;
     if (pos < m_queue.size())
         return pos;
-    return m_repeat == 0 ? -1 : 0;
+    return m_repeat == 0 || inRoom() ? -1 : 0;
 }
 
 void PlayerController::advance(bool userInitiated)
@@ -762,10 +783,17 @@ void PlayerController::advance(bool userInitiated)
     int pos;
     if (!userInitiated && m_plannedPos >= 0 && m_plannedPos < m_queue.size()) {
         pos = m_plannedPos;   // the same choice that was prepared for the mix (matters with shuffle)
-    } else if (m_shuffle && m_queue.size() > 1) {
+    } else if (m_shuffle && !inRoom() && m_queue.size() > 1) {
         pos = nextQueuePos();
     } else {
         pos = m_queuePos + 1;
+        if (pos >= m_queue.size() && inRoom()) {
+            // The room's queue ran out here first — the room decides what comes next.
+            if (m_room.movedOn)
+                m_room.movedOn(m_currentId);
+            player().pause();
+            return;
+        }
         if (pos >= m_queue.size()) {
             if (!userInitiated && m_repeat == 0) {
                 if (continueAfterQueue())
@@ -860,6 +888,8 @@ void PlayerController::skipAfterError(const QString &message)
     if (!m_currentId.isEmpty() && m_skipPending == m_currentId)
         return;   // the same failure reported twice (errorOccurred + InvalidMedia)
     emit notice(message, QStringLiteral("close"));
+    if (inRoom())
+        return;   // the room moves on for everyone; skipping here alone would only be pulled back
     // Skip only when music was expected and there's somewhere to go; stop after a few failures in a row
     // (e.g. no network) instead of cycling through the whole queue.
     if (!m_wantPlay || m_queue.size() <= 1)
@@ -928,7 +958,7 @@ void PlayerController::checkStall(double dt)
     const double total = player().duration() / 1000.0;
     if (total <= 0 || total - pos / 1000.0 < 15.0) {
         // Stuck at the end — treat it as the end of the track.
-        if (m_repeat == 2)
+        if (m_repeat == 2 && !inRoom())
             seek(0.0);
         else
             advance(false);
@@ -959,6 +989,8 @@ void PlayerController::setAutoplay(bool on)
 
 void PlayerController::previous()
 {
+    if (roomIntercept(QStringLiteral("previous")))
+        return;
     if (position() > 3.0 || m_queue.isEmpty()) {
         seek(0.0);
         return;
@@ -980,7 +1012,7 @@ void PlayerController::previous()
 
 void PlayerController::seek(double seconds)
 {
-    if (!hasTrack())
+    if (!hasTrack() || roomIntercept(QStringLiteral("seek"), seconds))
         return;
     stopTransition();
     const qint64 ms = qint64(std::max(0.0, seconds) * 1000);
@@ -1030,7 +1062,7 @@ void PlayerController::onDeckMediaStatus(int d, QMediaPlayer::MediaStatus status
     case QMediaPlayer::EndOfMedia:
         if (m_resume.remove(m_currentId))
             storeResume();
-        if (m_repeat == 2) {
+        if (m_repeat == 2 && !inRoom()) {
             player().setPosition(0);
             player().play();
         } else {
@@ -1075,6 +1107,78 @@ void PlayerController::onModelReset()
     emit durationChanged();
     emit likedChanged();
     emit queueChanged();
+}
+
+// ---- listening rooms ----------------------------------------------------------
+
+bool PlayerController::roomIntercept(const QString &action, const QVariant &arg)
+{
+    return m_room.intercept && !m_roomApplying && m_room.intercept(action, arg);
+}
+
+void PlayerController::setRoomLink(RoomLink link)
+{
+    const bool was = inRoom();
+    m_room = std::move(link);
+    m_roomTrack = m_currentId;
+    if (was && !inRoom() && m_context == QLatin1String("room"))
+        m_context.clear();   // the room's queue stays and plays on here
+    if (was != inRoom())
+        emit roomLinkChanged();
+}
+
+void PlayerController::applyRoom(const QStringList &ids, double seconds, bool play)
+{
+    m_roomApplying = true;
+    const auto done = qScopeGuard([this] { m_roomApplying = false; });
+    if (m_context != QLatin1String("room")) {
+        m_context = QStringLiteral("room");
+        emit mixChanged();
+    }
+    if (ids.isEmpty()) {
+        if (playing() || m_wantPlay)
+            pause();
+        if (!m_queue.isEmpty()) {
+            m_queue.clear();
+            m_queuePos = -1;
+            cancelPreload();
+            emit queueChanged();
+        }
+        m_roomTrack = m_currentId;
+        return;
+    }
+    const QString id = ids.first();
+    if (m_tracks->rowOf(id) < 0)
+        return;   // not in the track model yet — the next state brings it
+    const bool queueDiffers = ids != m_queue;
+    m_queue = ids;
+    if (id != m_currentId) {
+        m_queuePos = 0;
+        m_shuffleNextId.clear();
+        // The room's position always (also 0 — not where a long recording was left last time).
+        m_pendingSeek = qint64(std::max(0.0, seconds) * 1000);
+        m_roomTrack = id;
+        load(id, play);
+        emit queueChanged();
+        return;
+    }
+    m_queuePos = 0;
+    // The prepared next track is no longer next (someone changed the queue).
+    if (!m_plannedId.isEmpty() && !m_engine.inTransition()) {
+        if (ids.value(1) != m_plannedId)
+            cancelPreload();
+        else
+            m_plannedPos = 1;
+    }
+    const bool steady = !buffering() && !m_engine.inTransition();
+    if (steady && std::abs(position() - seconds) > 3.0)
+        seek(seconds);
+    if (play && !playing())
+        this->play();
+    else if (!play && (playing() || m_wantPlay))
+        pause();
+    if (queueDiffers)
+        emit queueChanged();
 }
 
 // ---- mixing -------------------------------------------------------------------
@@ -1257,7 +1361,7 @@ void PlayerController::updateMix(double dt)
         return;
     }
     const MixConfig mix = effectiveMix();
-    if (!mix.enabled || !playing() || m_repeat == 2 || live() || !m_decks[m_active].resolving.isEmpty())
+    if (!mix.enabled || !playing() || (m_repeat == 2 && !inRoom()) || live() || !m_decks[m_active].resolving.isEmpty())
         return;
     const double total = player().duration() > 0 ? player().duration() / 1000.0 : double(duration());
     if (total <= 0)

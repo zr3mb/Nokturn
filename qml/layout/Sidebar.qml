@@ -107,6 +107,7 @@ Panel {
                         { key: "search", label: qsTr("Search"), icon: "search" },
                         { key: "library", label: qsTr("Library"), icon: "library" },
                         { key: "sources", label: qsTr("Sources"), icon: "sources" },
+                        { key: "room", label: qsTr("Listening room"), icon: "group" },
                         { key: "equalizer", label: qsTr("Equalizer"), icon: "equalizer" },
                         { key: "stats", label: qsTr("Stats"), icon: "chart" }
                     ]
@@ -179,6 +180,8 @@ Panel {
                                 return "SoundCloud" + (modelData.count >= 0 ? " · " + qsTr("%n tracks", "", modelData.count) : "")
                             if (modelData.kind === "scliked")
                                 return "SoundCloud · " + qsTr("%n tracks", "", Library.playlistRows(index).length)
+                            if (modelData.kind === "shared")
+                                return qsTr("Shared · %n tracks", "", modelData.count)
                             const n = Library.playlistRows(index).length
                             return qsTr("Playlist · %n tracks", "", n)
                         }
