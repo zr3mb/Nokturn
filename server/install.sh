@@ -222,7 +222,16 @@ fi
 ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/nokturn
 nginx -t
 systemctl enable nginx >/dev/null
-systemctl reload nginx || systemctl restart nginx
+if systemctl is-active --quiet nginx; then
+    systemctl reload nginx
+elif ! systemctl restart nginx; then
+    journalctl -u nginx -n 15 --no-pager >&2 || true
+    if command -v ss >/dev/null; then
+        busy="$(ss -ltnpH '( sport = :80 or sport = :443 )' 2>/dev/null || true)"
+        [[ -n "$busy" ]] && warn "Ports 80/443 are taken by another program (e.g. Apache, Caddy, Docker):"$'\n'"$busy"
+    fi
+    die "nginx doesn't start — see the log above. Free ports 80/443 (e.g. sudo systemctl disable --now apache2) and run the script again."
+fi
 
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
     say "Opening ports 80 and 443 in ufw"

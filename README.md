@@ -60,6 +60,9 @@ Publishing the release starts the **Linux AppImage** workflow (`.github/workflow
 Actions on Ubuntu 22.04 with Qt 6.8 and TagLib 2): it builds `Nokturn-<version>-x86_64.AppImage` with Deno
 inside, checks that it starts and attaches it with its `.sha256` to the same release a few minutes later.
 It can also be run by hand from the Actions tab (without a tag it only builds an artifact).
+The **Windows installer** workflow (`.github/workflows/windows-installer.yml`, MSYS2 UCRT64 on GitHub Actions) does
+the same for the setup and its package, so a release can also be made without Windows: bump the version in
+`CMakeLists.txt` on `main`, then `gh release create vX.Y.Z --target main --generate-notes`.
 
 The app (`src/Updater.*`) checks `releases/latest` 5 s after startup and every 6 hours. When the release is newer,
 it shows a dialog with the change list: *Update now* downloads the installer, verifies SHA-256 (the `digest` field
