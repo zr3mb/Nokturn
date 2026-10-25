@@ -54,7 +54,7 @@ QtObject {
         const list = Library.playlists
         for (let i = 0; i < list.length; ++i) {
             const p = list[i]
-            if (p.kind === kind && (p.userId === id || p.ytId === id))
+            if (p.kind === kind && (p.userId === id || p.ytId === id || p.sharedId === id))
                 return navigate("playlist", { kind: "playlist", index: i })
         }
     }

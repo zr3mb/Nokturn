@@ -12,8 +12,9 @@
 class QJSEngine;
 class QQmlEngine;
 
-// The user's own playlists: created here, kept either on this computer (playlists.json) or on the
-// YouTube Music account. Local playlists can hold any track — local files, YouTube and Spotify
+// The user's own playlists: created here, kept on this computer (playlists.json), on the YouTube
+// Music account, or on the Nokturn server as a shared playlist (OnlineService) that everyone with
+// its link can add to. Local playlists can hold any track — local files, YouTube and Spotify
 // tracks (their data is kept too, so they stay playable after the search results are gone).
 // A YouTube Music playlist only takes YouTube videos: Spotify tracks go in as their YouTube Music
 // match, local files are skipped.
@@ -42,7 +43,7 @@ public:
 
     bool busy() const { return m_busy > 0; }
 
-    // target: "local" | "youtube"; privacy (YouTube): "PRIVATE" | "UNLISTED" | "PUBLIC"; rows: tracks to start with.
+    // target: "local" | "youtube" | "shared"; privacy (YouTube): "PRIVATE" | "UNLISTED" | "PUBLIC"; rows: tracks to start with.
     Q_INVOKABLE void createPlaylist(const QString &name, const QString &description, const QString &target,
                                     const QString &privacy, const QVariantList &rows = {});
     Q_INVOKABLE void addRows(int index, const QVariantList &rows);
@@ -51,7 +52,7 @@ public:
     Q_INVOKABLE void setPrivacy(int index, const QString &privacy);   // YouTube Music playlists
     Q_INVOKABLE void deletePlaylist(int index);
     Q_INVOKABLE void copy(int index, const QString &target);           // a copy on this computer / on YouTube Music
-    Q_INVOKABLE bool canEdit(int index) const;                        // the user's own: local or on YouTube Music
+    Q_INVOKABLE bool canEdit(int index) const;                        // the user's own: local, YouTube Music, shared
     Q_INVOKABLE QVariantList targets() const;                         // for "Add to playlist": { index, name, kind, cover }
 
     // For Library

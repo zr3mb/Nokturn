@@ -24,7 +24,8 @@ Item {
     // The playlist this row is shown in (Library.playlists index) — enables "Remove from this playlist".
     property int playlistIndex: -1
 
-    // Track menu: add to a playlist, remove from this one, the YouTube Music match of a Spotify track.
+    // Track menu: add to a playlist, remove from this one, share links and the listening room,
+    // the YouTube Music match of a Spotify track.
     readonly property int menuWidth: 320
     function openMenu(px, py) {
         if (t.demo)
@@ -291,6 +292,37 @@ Item {
                     onTriggered: {
                         menu.close()
                         Playlists.removeRow(root.playlistIndex, root.trackIndex)
+                    }
+                }
+
+                // ---- online ----
+                MenuEntry {
+                    Layout.fillWidth: true
+                    icon: "share"
+                    text: qsTr("Copy a share link")
+                    onTriggered: {
+                        menu.close()
+                        Online.shareTrack(root.trackIndex)
+                    }
+                }
+                MenuEntry {
+                    visible: Online.inRoom && Online.room.canControl === true
+                    Layout.fillWidth: true
+                    icon: "group"
+                    text: qsTr("Add to the listening room")
+                    onTriggered: {
+                        menu.close()
+                        Online.addToRoom([root.trackIndex])
+                    }
+                }
+                MenuEntry {
+                    visible: Online.inRoom && Online.room.canControl === true
+                    Layout.fillWidth: true
+                    icon: "queue"
+                    text: qsTr("Play next in the room")
+                    onTriggered: {
+                        menu.close()
+                        Online.addToRoom([root.trackIndex], true)
                     }
                 }
 

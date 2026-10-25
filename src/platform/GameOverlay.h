@@ -120,6 +120,8 @@ signals:
     void viewChanged();
     // "left", "right", "up", "down", "accept", "back", "playPause", "previousTrack", "nextTrack"
     void padInput(const QString &action);
+    // A nokturn:// link opened while Nokturn was already running ("open <link>" on the local socket).
+    void linkReceived(const QString &link);
 
 private:
     explicit GameOverlay(QObject *parent = nullptr);

@@ -18,6 +18,7 @@
 #include <QtQml/qqmlregistration.h>
 
 #include <array>
+#include <functional>
 
 class QBuffer;
 class StreamFetch;
@@ -73,6 +74,8 @@ class PlayerController : public QObject
     Q_PROPERTY(QString transitionLabel READ transitionLabel NOTIFY transitionChanged)
     // When the queue ends: continue with the next playlist (or the whole library) instead of stopping.
     Q_PROPERTY(bool autoplay READ autoplay WRITE setAutoplay NOTIFY mixChanged)
+    // A listening room (Online) drives the player: the queue is the room's.
+    Q_PROPERTY(bool inRoom READ inRoom NOTIFY roomLinkChanged)
 
 public:
     explicit PlayerController(QObject *parent = nullptr);
@@ -156,6 +159,21 @@ public:
     QString currentTrackId() const { return m_currentId; }
     const Track *currentTrack() const { return current(); }
 
+    // ---- listening rooms (OnlineService) ----
+    // While a room is joined, the user's actions don't play locally: `intercept` gets them
+    // ("play" + row, "queue" + rows, "resume", "pause" + seconds, "next", "previous", "seek" + seconds)
+    // and the room decides. `movedOn` reports a track the player left by itself (its end, a transition).
+    struct RoomLink
+    {
+        std::function<bool(const QString &action, const QVariant &arg)> intercept;
+        std::function<void(const QString &trackId)> movedOn;
+    };
+    void setRoomLink(RoomLink link);
+    bool inRoom() const { return bool(m_room.intercept); }
+    // The room's state: its queue from the current track on (empty = nothing plays), where that
+    // track is and whether it plays. Small drifts are left alone; over 3 s the player seeks.
+    void applyRoom(const QStringList &ids, double seconds, bool play);
+
 signals:
     void currentChanged();
     void colorsChanged();
@@ -174,6 +192,7 @@ signals:
     void transitionChanged();
     void seeked(double seconds);
     void notice(const QString &text, const QString &icon);
+    void roomLinkChanged();
 
 private:
     static constexpr int kBars = 48;
@@ -238,6 +257,7 @@ private:
     void tick();
     void saveState() const;
     void applyVolume();
+    bool roomIntercept(const QString &action, const QVariant &arg = {});
 
     TrackModel *m_tracks = nullptr;
     AudioEngine m_engine;               // the actual output: deck mixer + equalizer + QAudioSink
@@ -291,4 +311,8 @@ private:
     QList<qreal> m_targets;
     std::vector<float> m_played;
     qreal m_level = 0.0;
+
+    RoomLink m_room;
+    bool m_roomApplying = false;       // the room's own state is being applied — not a user action
+    QString m_roomTrack;               // the track the room knows we play (to report moving on from it)
 };

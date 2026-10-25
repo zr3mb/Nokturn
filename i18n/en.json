@@ -64,5 +64,33 @@
     "With %n track",
     "With %n tracks"
   ],
-  "%n plays": ["%n play", "%n plays"]
+  "%n plays": ["%n play", "%n plays"],
+  "Shared · %n tracks": [
+    "Shared · %n track",
+    "Shared · %n tracks"
+  ],
+  "Shared by %1 · %n people add to it": [
+    "Shared by %1 · %n person adds to it",
+    "Shared by %1 · %n people add to it"
+  ],
+  "Listening — %n": [
+    "Listening — %n",
+    "Listening — %n"
+  ],
+  "Added %n tracks to the room": [
+    "Added %n track to the room",
+    "Added %n tracks to the room"
+  ],
+  "%n without a YouTube Music version skipped": [
+    "%n without a YouTube Music version skipped",
+    "%n without a YouTube Music version skipped"
+  ],
+  "Created %1 — the invite link is copied; %n tracks without a YouTube Music version were skipped": [
+    "Created %1 — the invite link is copied; %n track without a YouTube Music version was skipped",
+    "Created %1 — the invite link is copied; %n tracks without a YouTube Music version were skipped"
+  ],
+  "Added to %1 — %n without a YouTube Music version skipped": [
+    "Added to %1 — %n without a YouTube Music version skipped",
+    "Added to %1 — %n without a YouTube Music version skipped"
+  ]
 }

@@ -154,7 +154,9 @@ Item {
             IconButton {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "shuffle"
-                active: Player.shuffle
+                active: Player.shuffle && !Player.inRoom
+                enabled: !Player.inRoom   // a listening room plays its queue in order
+                opacity: enabled ? 1 : 0.35
                 onClicked: Player.shuffle = !Player.shuffle
             }
             IconButton {
@@ -181,7 +183,9 @@ Item {
             IconButton {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: Player.repeatMode === 2 ? "repeatOne" : "repeat"
-                active: Player.repeatMode > 0
+                active: Player.repeatMode > 0 && !Player.inRoom
+                enabled: !Player.inRoom
+                opacity: enabled ? 1 : 0.35
                 onClicked: Player.cycleRepeat()
             }
         }
@@ -233,6 +237,20 @@ Item {
             Behavior on opacity { NumberAnimation { duration: 500 } }
         }
         Item { width: 12; height: 1 }
+        IconButton {
+            visible: Player.inRoom
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "group"
+            active: true
+            onClicked: Nav.navigate("room")
+        }
+        IconButton {
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "share"
+            iconSize: 18
+            enabled: Player.hasTrack
+            onClicked: Online.shareCurrent()
+        }
         IconButton {
             anchors.verticalCenter: parent.verticalCenter
             icon: "equalizer"

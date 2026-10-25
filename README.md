@@ -7,6 +7,8 @@ The interface is available in **English** and **Polish**.
 and **YouTube Music** (sign-in through the browser, liked songs, playlists, search, playback via yt-dlp).
 The visualizer shows the real spectrum (FFT). On top of that: lyrics, mixing tracks with smooth transitions
 (like Spotify's "Mix") and a "Listening" status on Discord. Runs on **Windows** and **Linux**.
+Online, through a small server of its own: **share links** for tracks, **shared playlists** everyone with the link
+adds to, and **listening rooms** where friends hear the same queue at the same moment.
 Radio and custom streams are only an interface for now.
 
 C++20 · Qt 6.8+ (Qt Quick / QML, Qt Multimedia, Qt WebSockets, Qt DBus on Linux) · TagLib 2 · CMake
@@ -297,6 +299,83 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
   Mix settings work as for any playlist.
 - YouTube Music playlists you only saved (someone else's) can't be edited — YouTube Music refuses the change.
 
+## Online features — how it works
+
+Share links, shared playlists and listening rooms go through the Nokturn server (`server/`, see
+[Server](#server-vps)), by default `https://nokturn.404piwko.wtf`. Nothing is sent there until one of these
+features is used.
+
+- **Account:** anonymous. The first time you share something, Nokturn registers with the name from
+  *Settings → Online → Your name* and gets a token (kept encrypted like the other tokens, in
+  `online-<server>.token`). No e-mail, no password. *Delete the online account* removes the name, the links and
+  the shared playlists you own from the server.
+- **What travels:** only YouTube Music and SoundCloud tracks, the sources everyone can play. A Spotify track goes
+  as its YouTube Music match, a local file as the YouTube Music track that matches its artist, title and duration;
+  a track without a match is skipped with a notice.
+- **Share links:** *Copy a share link* in a track's menu (⋯ or right-click) or the share button on the player bar
+  copies `…/t/<code>`. Opened in a browser, the page shows the track (with a preview in chat apps), an *Open in
+  Nokturn* button (`nokturn://t/<code>`) and a *Listen on YouTube Music / SoundCloud* link; opened in Nokturn, the
+  track plays.
+- **Shared playlists:** *New playlist → Save to: Shared*. The invite link (`…/p/<id>`) is copied right away and
+  can be copied again from the playlist's ⋯ menu. Everyone who opens it joins: the playlist shows up in their
+  sidebar, and what anyone adds or removes reaches the others at once (WebSocket). The owner renames and deletes
+  it (for everyone); the others can leave. Kept in `shared-playlists.json` too, so they show up offline.
+- **Listening rooms:** *Listening room* in the sidebar — start one or paste a link / a 6-character code.
+  The invite link is `…/r/<code>`. While you're in a room, the player plays the room's queue: clicking a track
+  adds it to the room (or jumps to it when it's already queued), and play / pause / next / previous / seeking
+  (including the media keys) go to the room, so everybody follows. Two modes:
+  - *Everyone adds* — everyone adds tracks, skips and pauses;
+  - *The host picks the music* — only the host adds and controls, the others listen along. The host can hand
+    the room over or remove someone.
+
+  The server keeps the clock: the position is "*x* seconds at server time *t*", and each player corrects itself
+  when it drifts more than 3 s (the clock offset comes from ping round trips). Players report when a track ends;
+  in *host* mode only the host's report counts, in *open* mode anyone's near the end of the track, and the server
+  moves on by itself when a track is overdue. Transitions (crossfade, Mix) keep working inside a room. Shuffle and
+  repeat are off there — the room's order applies. Someone who loses the connection keeps their place for 45 s;
+  a room with nobody in it closes after 15 minutes.
+- **Links open Nokturn:** `nokturn://` is registered for the current user on startup (Windows: `HKCU\Software\Classes\nokturn`,
+  removed by the uninstaller; Linux AppImage: a hidden `nokturn-links.desktop` + `xdg-mime`; installed from
+  source: `MimeType` in `nokturn.desktop`). A link opened while Nokturn runs goes to the running window.
+- `NOKTURN_SERVER=<url>` points at another server (testing), *Settings → Online → Server* permanently.
+  `NOKTURN_ONLINE_DEBUG=1` logs room states, what the player is told and what it reports.
+  `--tour <dir> --tour-online "<room>;<playlist>;<share>"` walks through it against a server.
+
+## Server (VPS)
+
+The server is Python 3 + aiohttp with SQLite (accounts, share links, shared playlists); listening rooms live in
+memory. Behind nginx with a Let's Encrypt certificate it takes a few MB of RAM.
+
+1. Point the subdomain at the VPS: an `A` record (and `AAAA` for IPv6) `nokturn.404piwko.wtf → <VPS address>`.
+2. On the VPS (Ubuntu 22.04 / 24.04):
+
+   ```bash
+   git clone https://github.com/zr3mb/Nokturn.git && cd Nokturn
+   sudo ./server/install.sh --email you@example.com      # e-mail for Let's Encrypt expiry notices (optional)
+   ```
+
+   It installs nginx, certbot and Python, creates the `nokturn` system user, puts the code in
+   `/opt/nokturn-server` (with its own venv), the database in `/var/lib/nokturn/nokturn.db`, the settings in
+   `/etc/nokturn-server.env`, a hardened `nokturn-server` systemd service on `127.0.0.1:8710`, the nginx site
+   (with WebSocket proxying for `/api/v1/ws`) and the certificate; ports 80/443 are opened in ufw if it's active.
+   `--domain <name>` uses another domain, `--no-tls` stays on plain HTTP, `--uninstall` removes the service and
+   the site (the data stays).
+3. Update: `git pull && sudo ./server/install.sh` (the database is kept).
+
+Logs: `journalctl -u nokturn-server -f`. Backup: `sqlite3 /var/lib/nokturn/nokturn.db ".backup /root/nokturn.db"`.
+Locally: `cd server && pip install -r requirements.txt && python3 -m nokturn_server --db /tmp/n.db --public-url http://127.0.0.1:8710`
+(then `NOKTURN_SERVER=http://127.0.0.1:8710` for the app). Tests: `cd server && python3 -m unittest discover -s tests`.
+
+API (`/api/v1`, JSON, `Authorization: Bearer <token>`): `POST /register`, `GET|PATCH|DELETE /me`,
+`POST /shares`, `GET /shares/<code>`, `GET|POST /playlists`, `GET|PATCH|DELETE /playlists/<id>`,
+`POST /playlists/<id>/join|leave|tracks`, `DELETE /playlists/<id>/tracks/<entry>`,
+`POST /playlists/<id>/tracks/<entry>/move`, `GET /rooms/<code>` (preview), `GET /health`. Rooms run over the
+WebSocket `/api/v1/ws`: `room.create`, `room.join`, `room.leave`, `room.add`, `room.remove`, `room.move`,
+`room.play`, `room.pause`, `room.resume`, `room.seek`, `room.next`, `room.previous`, `room.ended`, `room.mode`,
+`room.host`, `room.rename`, `room.kick`, `ping`; the server answers with the whole room (`room`), `room.left`,
+`playlist` / `playlist.removed` (a shared playlist changed) and `error`. The pages `/t/<code>`, `/r/<code>`,
+`/p/<id>` are in Polish or English depending on the browser. Requests are rate-limited per address and account.
+
 ## Lyrics — how it works
 
 - **Where:** the *Lyrics* tab in the "Now playing" panel (or the button with text lines on the player bar)
@@ -362,6 +441,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `src/lyrics/LyricsAligner.*` | Aligning lyrics with the transcription (line times) |
 | `src/lyrics/SpeechEngine.*` | whisper.cpp: download with SHA-256 verification, decoding to 16 kHz, transcription, hardware detection |
 | `src/lyrics/LyricsService.*` | `Lyrics` singleton for QML: lyric sources, cache, current line, alignment (alpha) |
+| `src/online/OnlineService.*` | `Online` singleton: the server account, share links, shared playlists, listening rooms (WebSocket, driving the player), `nokturn://` links |
 | `src/platform/DiscordPresence.*` | `Discord` singleton: Discord IPC (Rich Presence), "Listening" status |
 | `src/platform/WindowsMediaControls.*`, `WinRtMedia.h` | Windows: SMTC (media flyout, lock screen) and media keys |
 | `src/platform/Mpris.*` | MPRIS 2 on Linux (D-Bus): media keys, system panel controls |
@@ -370,6 +450,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `src/MemoryTrim.*` | `Memory` singleton: gives freed memory back to the system after a page closes, the library is rebuilt or the window is minimized |
 | `i18n/` | Translations: `pl.json` (Polish), `en.json` (English plural forms) |
 | `scripts/check_translations.py` | Translation completeness check |
+| `server/` | The online server: `nokturn_server/` (aiohttp app, SQLite, rooms, link pages), `install.sh` for Ubuntu, tests |
 | `packaging/linux/` | `.desktop` file, SVG icon, metainfo (AppStream) |
 | `packaging/windows/` | The setup (`setup/`), the package it downloads (`make_payload.py`), the icon |
 | `qml/onboarding/` | First-run wizard: steps, animated layout thumbnails (`LayoutPreview`), transition preview |
@@ -377,7 +458,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `qml/Nav.qml` | Navigation (back/forward history), panel state, notifications |
 | `qml/Icons.qml` | Vector icons (SVG paths) |
 | `qml/layout/` | Title bar, sidebar, player bar, "Now playing" panel, full-screen mode |
-| `qml/pages/` | Home, Search, Library, Playlist/Album/Artist, Sources, Settings, Equalizer |
+| `qml/pages/` | Home, Search, Library, Playlist/Album/Artist, Sources, Settings, Equalizer, Stats, Listening room |
 | `qml/components/` | Reusable components (covers, buttons, sliders, visualizer, cards…) |
 
 ## Keyboard shortcuts

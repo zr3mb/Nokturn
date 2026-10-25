@@ -170,6 +170,7 @@ ApplicationWindow {
     Component { id: settingsPage; SettingsPage {} }
     Component { id: equalizerPage; EqualizerPage {} }
     Component { id: statsPage; StatsPage {} }
+    Component { id: roomPage; RoomPage {} }
 
     function pageComponent(name) {
         switch (name) {
@@ -181,6 +182,7 @@ ApplicationWindow {
         case "settings": return settingsPage
         case "equalizer": return equalizerPage
         case "stats": return statsPage
+        case "room": return roomPage
         default: return homePage
         }
     }
@@ -248,6 +250,20 @@ ApplicationWindow {
     Connections {
         target: Lyrics
         function onNotice(text, icon) { toast.show(text, icon) }
+    }
+
+    Connections {
+        target: Online
+        function onNotice(text, icon) { toast.show(text, icon) }
+        function onRoomOpened() { Nav.navigate("room") }
+        function onPlaylistOpened(id) { Nav.openPlaylist("shared", id) }
+        // A nokturn:// link opened from a browser or a chat app
+        function onActivateRequested() {
+            if (win.visibility === Window.Minimized || win.visibility === Window.Hidden)
+                win.showNormal()
+            win.raise()
+            win.requestActivate()
+        }
     }
 
     Connections {
