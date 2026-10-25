@@ -1,0 +1,70 @@
+# Builds the Windows installer (setup + the package it downloads) and attaches it to the GitHub release.
+# Runs when a release is published (e.g. `gh release create vX.Y.Z` from any system); can also be started
+# by hand (Actions → Windows installer → Run workflow) — without a tag it only keeps a workflow artifact.
+name: Windows installer
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and upload to (e.g. v0.17.0); empty = build main, artifact only"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - name: Pick the tag
+        id: tag
+        shell: bash
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "ref=${tag:-main}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.ref }}
+
+      - name: MSYS2 UCRT64 toolchain with Qt 6
+        id: msys
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-declarative mingw-w64-ucrt-x86_64-qt6-multimedia
+            mingw-w64-ucrt-x86_64-qt6-websockets mingw-w64-ucrt-x86_64-qt6-imageformats mingw-w64-ucrt-x86_64-qt6-svg
+            mingw-w64-ucrt-x86_64-qt6-tools mingw-w64-ucrt-x86_64-taglib mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-librsvg mingw-w64-ucrt-x86_64-zstd
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $msys = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'ucrt64'
+          ./build-installer.ps1 -Msys $msys
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(Nokturn VERSION ([\d.]+)').Matches[0].Groups[1].Value
+          $setup = "installer/Nokturn-$version-setup.exe"
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          Set-Content "$setup.sha256" "$hash  Nokturn-$version-setup.exe" -Encoding ascii -NoNewline
+          Get-ChildItem installer
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nokturn-windows
+          path: installer/*
+
+      - name: Attach to the release
+        if: steps.tag.outputs.tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.tag.outputs.tag }}" installer/* --clobber
