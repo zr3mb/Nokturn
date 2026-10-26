@@ -114,9 +114,7 @@ class Streams:
         if not self.ytdlp:
             raise StreamError("yt-dlp is not installed on the server")
         # Live streams are HLS playlists whose segments come straight from YouTube — they can't be relayed.
-        # The HLS / DASH manifests aren't needed for the audio URL: skipping them saves requests.
         args = [self.ytdlp, "--no-warnings", "--no-playlist", "--no-progress", "--match-filter", "!is_live",
-                "--extractor-args", "youtube:skip=hls,dash,translated_subs",
                 "-f", "bestaudio[ext=m4a]/bestaudio/best", "--print", "urls",
                 "https://music.youtube.com/watch?v=" + video_id]
         if self.cookies and os.path.isfile(self.cookies):

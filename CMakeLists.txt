@@ -61,6 +61,7 @@ qt_add_qml_module(Nokturn
         src/youtube/YtMusicApi.h      src/youtube/YtMusicApi.cpp
         src/youtube/StreamResolver.h  src/youtube/StreamResolver.cpp
         src/youtube/StreamFetch.h     src/youtube/StreamFetch.cpp
+        src/youtube/LocalStreamProxy.h src/youtube/LocalStreamProxy.cpp
         src/youtube/YouTubeService.h  src/youtube/YouTubeService.cpp
         src/lyrics/Lyrics.h           src/lyrics/Lyrics.cpp
         src/lyrics/LrcLib.h           src/lyrics/LrcLib.cpp

@@ -12,6 +12,7 @@
 #include "platform/DiscordPresence.h"
 #include "soundcloud/SoundCloudService.h"
 #include "spotify/SpotifyService.h"
+#include "youtube/LocalStreamProxy.h"
 #include "youtube/StreamFetch.h"
 #include "youtube/YouTubeService.h"
 
@@ -578,7 +579,10 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
     delete std::exchange(deck.fetch, nullptr);
     if (!StreamFetch::suits(url)) {
         deck.resolving.clear();
-        deck.player->setSource(url);
+        // Audio relayed by the Nokturn server (Android) goes through the local proxy: Qt fetches it,
+        // FFmpeg only reads plain HTTP from 127.0.0.1.
+        const bool relayed = url.path().startsWith(QLatin1String("/api/v1/stream/"));
+        deck.player->setSource(relayed ? LocalStreamProxy::instance()->wrap(url) : url);
         if (d == m_active && m_autoplayAfterResolve)
             deck.player->play();
         return;
