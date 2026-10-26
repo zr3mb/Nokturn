@@ -7,7 +7,9 @@
 #   sudo ./server/install.sh                                  # nokturn.404piwko.wtf
 #   sudo ./server/install.sh --domain music.example.com --email me@example.com
 #   sudo ./server/install.sh --no-tls                         # plain HTTP (testing, or TLS terminated elsewhere)
+#   sudo ./server/install.sh --no-nginx --host 172.18.0.1     # another proxy in front (e.g. Caddy in Docker)
 #   sudo ./server/install.sh --uninstall                      # removes the service and the nginx site, keeps the data
+# --no-nginx and --host are remembered in /etc/nokturn-server.env, so later updates keep them.
 set -euo pipefail
 
 DOMAIN="nokturn.404piwko.wtf"
@@ -15,6 +17,8 @@ EMAIL=""
 PORT="8710"
 TLS=1
 UNINSTALL=0
+NGINX=""
+HOST=""
 
 APP_DIR="/opt/nokturn-server"
 DATA_DIR="/var/lib/nokturn"
@@ -24,7 +28,7 @@ SERVICE_USER="nokturn"
 NGINX_SITE="/etc/nginx/sites-available/nokturn"
 
 usage() {
-    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
@@ -34,6 +38,8 @@ while [[ $# -gt 0 ]]; do
         --email) EMAIL="$2"; shift 2 ;;
         --port) PORT="$2"; shift 2 ;;
         --no-tls) TLS=0; shift ;;
+        --no-nginx) NGINX=0; shift ;;
+        --host) HOST="$2"; shift 2 ;;
         --uninstall) UNINSTALL=1; shift ;;
         -h|--help) usage 0 ;;
         *) echo "Unknown option: $1" >&2; usage 1 ;;
@@ -47,6 +53,17 @@ die() { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || die "Run it as root: sudo $0 $*"
 [[ "$DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || die "Invalid domain: $DOMAIN"
 [[ "$PORT" =~ ^[0-9]+$ ]] || die "Invalid port: $PORT"
+
+# An update keeps the proxy choice and the listening address of the previous install.
+if [[ -f "$ENV_FILE" ]]; then
+    previous_host="$(sed -n 's/^NOKTURN_HOST=//p' "$ENV_FILE" | tail -n1)"
+    previous_proxy="$(sed -n 's/^NOKTURN_PROXY=//p' "$ENV_FILE" | tail -n1)"
+    [[ -z "$HOST" ]] && HOST="$previous_host"
+    [[ -z "$NGINX" && "$previous_proxy" == "external" ]] && NGINX=0
+fi
+NGINX="${NGINX:-1}"
+HOST="${HOST:-127.0.0.1}"
+[[ "$HOST" =~ ^[0-9A-Fa-f.:]+$ ]] || die "Invalid address: $HOST"
 
 if [[ $UNINSTALL -eq 1 ]]; then
     say "Removing the service and the nginx site (the data in $DATA_DIR stays)"
@@ -72,8 +89,9 @@ fi
 say "Installing packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-packages=(python3 python3-venv nginx curl sqlite3 unzip)
-[[ $TLS -eq 1 ]] && packages+=(certbot python3-certbot-nginx)
+packages=(python3 python3-venv curl sqlite3 unzip)
+[[ $NGINX -eq 1 ]] && packages+=(nginx)
+[[ $NGINX -eq 1 && $TLS -eq 1 ]] && packages+=(certbot python3-certbot-nginx)
 apt-get install -y -q "${packages[@]}"
 
 say "Service user and directories"
@@ -122,10 +140,11 @@ PUBLIC_URL="https://$DOMAIN"
 [[ $TLS -eq 0 ]] && PUBLIC_URL="http://$DOMAIN"
 cat > "$ENV_FILE" <<EOF
 # Read by $SERVICE.service. Change and run: sudo systemctl restart $SERVICE
-NOKTURN_HOST=127.0.0.1
+NOKTURN_HOST=$HOST
 NOKTURN_PORT=$PORT
 NOKTURN_DB=$DATA_DIR/nokturn.db
 NOKTURN_PUBLIC_URL=$PUBLIC_URL
+NOKTURN_PROXY=$([[ $NGINX -eq 1 ]] && echo nginx || echo external)
 EOF
 chmod 0644 "$ENV_FILE"
 
@@ -191,6 +210,8 @@ systemctl enable "$SERVICE" >/dev/null
 systemctl enable --now "$SERVICE-ytdlp.timer" >/dev/null
 systemctl restart "$SERVICE"
 
+if [[ $NGINX -eq 1 ]]; then
+# (not indented: the heredocs below end at the start of a line)
 say "nginx"
 # certbot adds the HTTPS server block to this file; on an update an existing certificate is kept.
 if [[ $TLS -eq 1 && -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]]; then
@@ -314,19 +335,25 @@ if [[ $TLS -eq 1 && $HAVE_CERT -eq 0 ]]; then
         warn "No certificate yet. The server runs over HTTP; fix DNS and run the script again."
     fi
 fi
+else
+    say "No nginx: the proxy in front of the server forwards $DOMAIN to $HOST:$PORT"
+fi
 
 EXTRA_ARGS=""
 [[ "$DOMAIN" != "nokturn.404piwko.wtf" ]] && EXTRA_ARGS+=" --domain $DOMAIN"
 [[ $TLS -eq 0 ]] && EXTRA_ARGS+=" --no-tls"
 
 say "Checking the server"
+check_host="$HOST"
+[[ "$check_host" == "0.0.0.0" ]] && check_host="127.0.0.1"
+[[ "$check_host" == *:* ]] && check_host="[$check_host]"
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-    if curl -fsS "http://127.0.0.1:$PORT/api/v1/health" >/dev/null 2>&1; then
+    if curl -fsS "http://$check_host:$PORT/api/v1/health" >/dev/null 2>&1; then
         break
     fi
     sleep 1
 done
-if curl -fsS "http://127.0.0.1:$PORT/api/v1/health" >/dev/null 2>&1; then
+if curl -fsS "http://$check_host:$PORT/api/v1/health" >/dev/null 2>&1; then
     say "Running: $PUBLIC_URL"
 else
     warn "The service doesn't answer — see: journalctl -u $SERVICE -n 50"

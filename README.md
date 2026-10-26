@@ -404,6 +404,11 @@ memory. Behind nginx with a Let's Encrypt certificate it takes a few MB of RAM.
    the site (the data stays).
 3. Update: `git pull && sudo ./server/install.sh` (the database is kept).
 
+Another reverse proxy already on ports 80/443 (e.g. Caddy in Docker): `sudo ./server/install.sh --no-nginx
+--host 172.18.0.1` skips nginx and certbot and listens on the Docker network's gateway, which the proxy forwards
+to (Caddy: `nokturn.404piwko.wtf { reverse_proxy 172.18.0.1:8710 }`; with ufw active also
+`sudo ufw allow from 172.18.0.0/16 to any port 8710 proto tcp`). Both choices are remembered for later updates.
+
 Audio for the Android app: the script also installs yt-dlp (in the venv, updated daily by the
 `nokturn-server-ytdlp.timer`) and Deno for YouTube's JavaScript challenge. `GET /api/v1/stream/<videoId>` resolves
 a video and returns a signed link of the server's own, valid for a few hours; requests to it are forwarded to
