@@ -42,10 +42,9 @@ StreamFetch::~StreamFetch()
 
 bool StreamFetch::suits(const QUrl &url)
 {
-    // googlevideo.com directly, or the Nokturn server relaying it (the Android app)
-    const bool youtube = url.host().endsWith(QLatin1String("googlevideo.com"))
-                         || url.path().startsWith(QLatin1String("/api/v1/stream/"));
-    return youtube && declaredLength(url) <= kMaxSize;
+    // Only googlevideo.com directly. Audio relayed by the Nokturn server (the Android app) plays
+    // from the URL as it arrives: the whole file first would add the relay's transfer to the wait.
+    return url.host().endsWith(QLatin1String("googlevideo.com")) && declaredLength(url) <= kMaxSize;
 }
 
 void StreamFetch::next()
