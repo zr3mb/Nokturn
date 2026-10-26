@@ -12,7 +12,7 @@ Item {
     // The tab the page opened on: its rows animate in. Each tab is built the first time it's shown (they
     // hold many covers); one opened later shows its rows at once, as if it had been there all along.
     readonly property int startTab: args && args.tab !== undefined ? args.tab : 0
-    readonly property real pad: 34
+    readonly property real pad: Nav.mobile ? 16 : 34
     // Local files + liked on YouTube Music
     readonly property var libraryRows: {
         if (Library.tracks.revision < 0)   // never: the read makes the binding re-run (a bare read is compiled away)
@@ -80,7 +80,7 @@ Item {
         Rectangle {
             visible: Library.localCount === 0 && !Library.scanning && !YouTube.connected
             Layout.fillWidth: true
-            implicitHeight: 72
+            implicitHeight: Math.max(72, emptyText.implicitHeight + 28)
             radius: 16
             color: Theme.alpha(Theme.accent, 0.08)
             border.width: 1
@@ -93,6 +93,7 @@ Item {
                 spacing: 14
                 Icon { name: "folder"; size: 24; color: Theme.accent }
                 Text {
+                    id: emptyText
                     Layout.fillWidth: true
                     text: qsTr("You don't have any local files yet. Add a music folder — Nokturn will read the tags and covers.")
                     color: Theme.textDim
@@ -100,6 +101,7 @@ Item {
                     wrapMode: Text.WordWrap
                 }
                 PillButton {
+                    visible: !Nav.mobile   // the header's "Add folder" is right above
                     icon: "folder"
                     text: qsTr("Choose a folder")
                     onClicked: Nav.addFolder()

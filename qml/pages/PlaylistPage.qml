@@ -119,7 +119,7 @@ Item {
     }
     readonly property var mix: Player.mixRevision >= 0 ? Player.mixFor(context) : ({})
     readonly property int totalSeconds: Library.totalDuration(info.rows)
-    readonly property real pad: 34
+    readonly property real pad: Nav.mobile ? 16 : 34
 
     readonly property bool playingHere: Player.playing && info.rows.indexOf(Player.currentIndex) >= 0
 
@@ -158,17 +158,22 @@ Item {
                 id: headerColumn
                 y: page.pad
                 width: parent.width
-                spacing: 34
+                spacing: Nav.mobile ? 20 : 34
 
                 Reveal {
-                    RowLayout {
+                    // Phone: the cover above the title
+                    GridLayout {
                         width: parent.width
-                        spacing: 30
+                        columns: Nav.mobile ? 1 : 2
+                        columnSpacing: 30
+                        rowSpacing: 18
 
                         ArtCover {
-                            Layout.preferredWidth: 224
-                            Layout.preferredHeight: 224
-                            radius: page.info.round ? 112 : 20
+                            readonly property real side: Nav.mobile ? Math.min(220, page.width * 0.56) : 224
+                            Layout.preferredWidth: side
+                            Layout.preferredHeight: side
+                            Layout.alignment: Qt.AlignHCenter
+                            radius: page.info.round ? side / 2 : 20
                             colorA: page.info.colorA
                             colorB: page.info.colorB
                             seed: page.info.seed
@@ -198,7 +203,7 @@ Item {
                                 width: 40; height: 40
                                 radius: 20
                                 visible: page.info.playlistIndex !== undefined
-                                opacity: coverHover.hovered || coverMenu.opened ? 1 : 0
+                                opacity: coverHover.hovered || coverMenu.opened || Nav.mobile ? 1 : 0
                                 Behavior on opacity { NumberAnimation { duration: Theme.fast } }
                                 color: Qt.rgba(0, 0, 0, editArea.containsMouse ? 0.72 : 0.55)
                                 Icon {
@@ -239,7 +244,8 @@ Item {
                                 text: page.info.title
                                 color: Theme.text
                                 font.family: Theme.fontDisplay
-                                font.pixelSize: page.info.title.length > 16 ? 48 : 64
+                                font.pixelSize: Nav.mobile ? (page.info.title.length > 16 ? 28 : 36)
+                                                           : page.info.title.length > 16 ? 48 : 64
                                 font.weight: Font.Bold
                                 wrapMode: Text.WordWrap
                                 maximumLineCount: 2
@@ -255,6 +261,8 @@ Item {
                                 color: Theme.textDim
                                 font.pixelSize: 14
                                 elide: Text.ElideRight
+                                wrapMode: Nav.mobile ? Text.Wrap : Text.NoWrap
+                                maximumLineCount: 2
                             }
                         }
                     }

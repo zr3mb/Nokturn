@@ -7,7 +7,7 @@ import Nokturn
 // Big "Continue listening" card with a visualizer in the background.
 Item {
     id: root
-    implicitHeight: 236
+    implicitHeight: Nav.mobile ? 200 : 236
     Layout.fillWidth: true
 
     readonly property string frame: Theme.roundedRectPath(width, height, 24)
@@ -30,6 +30,7 @@ Item {
     }
 
     Visualizer {
+        visible: !Nav.mobile
         anchors { right: parent.right; bottom: parent.bottom; rightMargin: 26; bottomMargin: 24 }
         bars: 22
         barWidth: 4
@@ -44,13 +45,14 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 26
-        spacing: 26
+        anchors.margins: Nav.mobile ? 18 : 26
+        spacing: Nav.mobile ? 16 : 26
 
         ArtCover {
             id: cover
-            Layout.preferredWidth: root.height - 52
-            Layout.preferredHeight: root.height - 52
+            Layout.alignment: Qt.AlignTop
+            Layout.preferredWidth: Nav.mobile ? 84 : root.height - 52
+            Layout.preferredHeight: Nav.mobile ? 84 : root.height - 52
             radius: 16
             colorA: Player.colorA
             colorB: Player.colorB
@@ -89,7 +91,7 @@ Item {
                     text: qsTr("Full screen")
                     fontSize: 13
                     implicitHeight: 34
-                    visible: Player.hasTrack
+                    visible: Player.hasTrack && !Nav.mobile
                     onClicked: Nav.immersive = true
                 }
             }
@@ -99,9 +101,11 @@ Item {
                       : Library.localCount > 0 ? qsTr("Your library is waiting") : qsTr("Add your music")
                 color: Theme.text
                 font.family: Theme.fontDisplay
-                font.pixelSize: 34
+                font.pixelSize: Nav.mobile ? 24 : 34
                 font.weight: Font.Bold
                 elide: Text.ElideRight
+                wrapMode: Nav.mobile ? Text.Wrap : Text.NoWrap
+                maximumLineCount: 2
             }
             Text {
                 Layout.fillWidth: true
@@ -111,8 +115,10 @@ Item {
                         ? qsTr("%n tracks from your folders", "", Library.localCount)
                         : qsTr("Point to a folder with files — Nokturn will read the tags and covers.")
                 color: Theme.textDim
-                font.pixelSize: 15
+                font.pixelSize: Nav.mobile ? 13 : 15
                 elide: Text.ElideRight
+                wrapMode: Nav.mobile ? Text.Wrap : Text.NoWrap
+                maximumLineCount: Nav.mobile ? 3 : 1
             }
             SourceBadge {
                 Layout.topMargin: 4
@@ -132,7 +138,7 @@ Item {
                     onClicked: Library.localCount > 0 ? Player.play() : Nav.addFolder()
                 }
                 PillButton {
-                    visible: Library.localCount > 1
+                    visible: Library.localCount > 1 && !Nav.mobile
                     kind: "secondary"
                     icon: "shuffle"
                     text: qsTr("Shuffle")

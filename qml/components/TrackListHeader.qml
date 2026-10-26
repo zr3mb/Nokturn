@@ -8,7 +8,7 @@ Item {
     property bool showAlbum: true
 
     Layout.fillWidth: true
-    implicitHeight: 38
+    implicitHeight: Nav.mobile ? 0 : 38   // phone rows have no columns
 
     component Head: Text {
         color: Theme.textFaint
@@ -18,6 +18,7 @@ Item {
     }
 
     RowLayout {
+        visible: !Nav.mobile
         anchors.fill: parent
         anchors.leftMargin: 14
         anchors.rightMargin: 10
@@ -43,6 +44,7 @@ Item {
     }
 
     Rectangle {
+        visible: !Nav.mobile
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         height: 1
         color: Qt.rgba(1, 1, 1, 0.06)

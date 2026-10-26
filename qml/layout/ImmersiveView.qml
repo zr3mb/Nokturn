@@ -40,7 +40,7 @@ Item {
 
     Loader {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 24; rightMargin: 24 }
-        height: 150
+        height: Nav.mobile ? 90 : 150
         active: root.built
         sourceComponent: Visualizer {
             bars: 80
@@ -62,6 +62,7 @@ Item {
         sourceComponent: Item {
             DragHandler {
                 target: null
+                enabled: !Nav.mobile
                 onActiveChanged: if (active) root.Window.window.startSystemMove()
             }
 
@@ -87,40 +88,52 @@ Item {
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(implicitWidth, root.width - 150)
                     text: Player.album || (Player.source === "youtube" ? "YouTube Music" : Player.artist)
                     color: Theme.text
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
+                    elide: Text.ElideRight
                 }
             }
 
             IconButton {
-                anchors { right: windowControls.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                anchors { right: windowControls.left; rightMargin: Nav.mobile ? 0 : 12; verticalCenter: parent.verticalCenter }
                 icon: "lyrics"
                 iconSize: 22
-                active: Nav.immersiveLyrics
-                onClicked: Nav.immersiveLyrics = !Nav.immersiveLyrics
+                active: Nav.mobile ? root.phoneLyrics : Nav.immersiveLyrics
+                onClicked: Nav.mobile ? root.phoneLyrics = !root.phoneLyrics : Nav.immersiveLyrics = !Nav.immersiveLyrics
             }
 
             WindowControls {
                 id: windowControls
-                anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                visible: !Nav.mobile
+                width: Nav.mobile ? 0 : implicitWidth
+                anchors { right: parent.right; rightMargin: Nav.mobile ? 16 : 10; verticalCenter: parent.verticalCenter }
             }
         }
     }
 
     readonly property bool showLyrics: Nav.immersiveLyrics && root.width > 1100 && Lyrics.state !== "none"
+    // Phone: the lyrics take the cover's place while this is on (the lyrics button in the top bar).
+    property bool phoneLyrics: false
 
-    RowLayout {
+    // Desktop: cover, controls (and lyrics) side by side; phone: one column.
+    GridLayout {
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: -30
-        spacing: Math.min(root.showLyrics ? 60 : 90, root.width * 0.05)
+        anchors.verticalCenterOffset: Nav.mobile ? 0 : -30
+        columns: Nav.mobile ? 1 : 3
+        rowSpacing: 26
+        columnSpacing: Math.min(root.showLyrics ? 60 : 90, root.width * 0.05)
 
         Item {
             id: coverBox
-            readonly property real s: Math.min(root.height * 0.52, root.width * (root.showLyrics ? 0.24 : 0.34), 500)
+            visible: !(Nav.mobile && root.phoneLyrics)
+            readonly property real s: Nav.mobile ? Math.min(root.width - 56, root.height * 0.42)
+                                                 : Math.min(root.height * 0.52, root.width * (root.showLyrics ? 0.24 : 0.34), 500)
             Layout.preferredWidth: s
             Layout.preferredHeight: s
+            Layout.alignment: Qt.AlignHCenter
             transform: Translate { y: root.enter * 60 }
             scale: 0.92 + (1 - root.enter) * 0.08
 
@@ -142,11 +155,24 @@ Item {
             }
         }
 
+        // Phone: the lyrics in the cover's place
         Loader {
-            Layout.preferredWidth: Math.min(540, root.width * (root.showLyrics ? 0.3 : 0.4))
+            visible: Nav.mobile && root.phoneLyrics
+            Layout.preferredWidth: root.width - 40
+            Layout.preferredHeight: root.height * 0.42
+            active: root.built && Nav.mobile && root.phoneLyrics
+            sourceComponent: LyricsView {
+                large: true
+                fontSize: 20
+                lineSpacing: 10
+            }
+        }
+
+        Loader {
+            Layout.preferredWidth: Nav.mobile ? root.width - 48 : Math.min(540, root.width * (root.showLyrics ? 0.3 : 0.4))
             active: root.built
             sourceComponent: ColumnLayout {
-                spacing: 10
+                spacing: Nav.mobile ? 6 : 10
                 opacity: 1 - root.enter
                 transform: Translate { x: root.enter * 40 }
 
@@ -162,7 +188,7 @@ Item {
                     text: Player.title
                     color: Theme.text
                     font.family: Theme.fontDisplay
-                    font.pixelSize: 56
+                    font.pixelSize: Nav.mobile ? 28 : 56
                     font.weight: Font.Bold
                     wrapMode: Text.WordWrap
                     maximumLineCount: 2
@@ -174,7 +200,7 @@ Item {
                     text: Player.artist
                     artistId: Player.artistId
                     linkEnabled: Player.hasTrack
-                    font.pixelSize: 22
+                    font.pixelSize: Nav.mobile ? 17 : 22
                     elide: Text.ElideRight
                 }
                 RowLayout {
@@ -187,7 +213,7 @@ Item {
                     }
                 }
 
-                Item { Layout.preferredHeight: 22 }
+                Item { Layout.preferredHeight: Nav.mobile ? 10 : 22 }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -216,7 +242,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: 8
-                    spacing: 18
+                    spacing: Nav.mobile ? 4 : 18
 
                     IconButton {
                         icon: "shuffle"
@@ -233,7 +259,7 @@ Item {
                         onClicked: Player.previous()
                     }
                     PlayButton {
-                        size: 70
+                        size: Nav.mobile ? 64 : 70
                         onClicked: Player.toggle()
                     }
                     IconButton {
@@ -265,6 +291,7 @@ Item {
                 }
 
                 RowLayout {
+                    visible: !Nav.mobile   // phones have volume buttons
                     spacing: 8
                     Layout.topMargin: 4
                     IconButton {

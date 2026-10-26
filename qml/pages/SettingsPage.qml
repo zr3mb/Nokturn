@@ -98,6 +98,7 @@ Item {
                     }
                 }
                 SettingRow {
+                    visible: !Nav.mobile   // desktop only
                     icon: "refresh"
                     title: qsTr("First-run wizard")
                     description: qsTr("Go through choosing the layout, colors, music sources, transitions and integrations again.")
@@ -140,6 +141,7 @@ Item {
                     Toggle { checked: Theme.ambient; onToggled: c => Theme.ambient = c }
                 }
                 SettingRow {
+                    visible: !Nav.mobile   // desktop only
                     icon: "menuOpen"
                     title: qsTr("Compact sidebar")
                     description: qsTr("Show only icons in the sidebar.")
@@ -220,7 +222,7 @@ Item {
         // The in-game overlay (GameOverlay, qml/overlay) — Windows only.
         Reveal {
             delay: 135
-            visible: GameOverlay.supported
+            visible: GameOverlay.supported && !Nav.mobile
             ColumnLayout {
                 width: parent.width
                 spacing: 8
@@ -546,6 +548,7 @@ Item {
                     Toggle { checked: Lyrics.karaoke; onToggled: c => Lyrics.karaoke = c }
                 }
                 SettingRow {
+                    visible: !Nav.mobile   // desktop only
                     icon: "clock"
                     title: qsTr("Automatic timing (alpha)")
                     description: Lyrics.hardwareOk
@@ -560,7 +563,7 @@ Item {
                 }
                 // Shown with the hardware for it: recognizing lyrics (a button in the lyrics) needs them too.
                 SettingRow {
-                    visible: Lyrics.hardwareOk
+                    visible: Lyrics.hardwareOk && !Nav.mobile
                     icon: "tune"
                     title: qsTr("Speech recognition model")
                     description: qsTr("A larger model recognizes singing better but runs slower.") + " "
@@ -623,7 +626,7 @@ Item {
                 }
                 // An NVIDIA card: recognition runs there, several times faster
                 SettingRow {
-                    visible: Lyrics.sttGpuName !== ""
+                    visible: Lyrics.sttGpuName !== "" && !Nav.mobile
                     icon: "equalizer"
                     title: qsTr("Graphics card acceleration")
                     description: !Lyrics.sttGpuSupported
@@ -653,6 +656,7 @@ Item {
 
         Reveal {
             delay: 165
+            visible: !Nav.mobile   // Discord shows the status of its desktop app
             ColumnLayout {
                 width: parent.width
                 spacing: 8
@@ -765,6 +769,7 @@ Item {
 
         Reveal {
             delay: 240
+            visible: !Nav.mobile
             ColumnLayout {
                 width: parent.width
                 spacing: 12

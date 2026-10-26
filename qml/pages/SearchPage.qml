@@ -315,6 +315,7 @@ Item {
                 InputField {
                     id: field
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 100   // the placeholder doesn't widen the page
                     implicitHeight: 56
                     icon: "search"
                     font.pixelSize: 16
@@ -323,10 +324,21 @@ Item {
                     Keys.onEscapePressed: text = ""
                 }
 
-                SegmentedTabs {
-                    model: [qsTr("All"), qsTr("Local"), "YouTube Music", "SoundCloud", qsTr("Radio")]
-                    currentIndex: page.filter
-                    onActivated: i => page.filter = i
+                // Phone: the filters scroll sideways
+                Flickable {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: filters.implicitHeight
+                    contentWidth: filters.implicitWidth
+                    interactive: contentWidth > width
+                    boundsBehavior: Flickable.StopAtBounds
+                    flickableDirection: Flickable.HorizontalFlick
+                    clip: interactive
+                    SegmentedTabs {
+                        id: filters
+                        model: [qsTr("All"), qsTr("Local"), "YouTube Music", "SoundCloud", qsTr("Radio")]
+                        currentIndex: page.filter
+                        onActivated: i => page.filter = i
+                    }
                 }
             }
         }

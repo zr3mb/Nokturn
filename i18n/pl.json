@@ -983,5 +983,12 @@
     "Dodano do %1 — pominięto %n bez wersji w YouTube Music",
     "Dodano do %1 — pominięto %n bez wersji w YouTube Music",
     "Dodano do %1 — pominięto %n bez wersji w YouTube Music"
-  ]
+  ],
+  "Room": "Pokój",
+  "More": "Więcej",
+  "On the phone you sign in by pasting the cookies of a YouTube Music session from a browser on your computer.": "Na telefonie logujesz się, wklejając ciasteczka sesji YouTube Music z przeglądarki na komputerze.",
+  "Playback through the Nokturn server": "Odtwarzanie przez serwer Nokturna",
+  "Phones can't run yt-dlp, so %1 finds the YouTube tracks and passes their audio on.": "Telefon nie uruchomi yt-dlp, więc %1 wyszukuje utwory z YouTube i przekazuje ich dźwięk.",
+  "Can't reach the Nokturn server": "Brak połączenia z serwerem Nokturna",
+  "Nokturn server": "serwer Nokturna"
 }

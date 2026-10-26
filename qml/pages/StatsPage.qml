@@ -63,9 +63,11 @@ Item {
         spacing: 26
 
         Reveal {
-            RowLayout {
+            GridLayout {
                 width: parent.width
-                spacing: 18
+                columns: Nav.mobile ? 1 : 2   // phone: the periods below the title
+                columnSpacing: 18
+                rowSpacing: 12
                 Text {
                     Layout.fillWidth: true
                     text: qsTr("Your stats")

@@ -243,10 +243,12 @@ Item {
                     font.weight: Font.Bold
                 }
                 Text {
+                    Layout.fillWidth: true
                     text: Theme.cat ? qsTr("Back for more music? ♡")
                                        : qsTr("Your music from disk, YouTube Music and radio — in one place.")
                     color: Theme.textDim
                     font.pixelSize: 15
+                    wrapMode: Text.WordWrap
                 }
             }
         }

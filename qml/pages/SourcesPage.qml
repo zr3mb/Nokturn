@@ -236,7 +236,8 @@ Item {
                             spacing: 12
 
                             Hint {
-                                text: YouTube.browserName !== ""
+                                text: Nav.mobile ? qsTr("On the phone you sign in by pasting the cookies of a YouTube Music session from a browser on your computer.")
+                                      : YouTube.browserName !== ""
                                       ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to your Google account there as usual. When YouTube Music appears, the window closes by itself and Nokturn downloads your liked tracks and playlists.").arg(YouTube.browserName)
                                       : qsTr("Chrome, Edge or Brave was not found. You can paste the cookies manually.")
                             }
@@ -244,6 +245,7 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: 10
                                 PillButton {
+                                    visible: !Nav.mobile
                                     icon: "person"
                                     text: qsTr("Sign in with the browser")
                                     enabled: YouTube.browserName !== ""
@@ -453,14 +455,15 @@ Item {
                                 spacing: 2
                                 Text {
                                     Layout.fillWidth: true
-                                    text: qsTr("Playback engine (yt-dlp)")
+                                    text: Nav.mobile ? qsTr("Playback through the Nokturn server") : qsTr("Playback engine (yt-dlp)")
                                     color: Theme.text
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
                                 }
                                 Text {
                                     Layout.fillWidth: true
-                                    text: YouTube.engineDownloading ? qsTr("Downloading… %1%").arg(Math.round(YouTube.engineProgress * 100))
+                                    text: Nav.mobile ? qsTr("Phones can't run yt-dlp, so %1 finds the YouTube tracks and passes their audio on.").arg(Online.serverUrl)
+                                        : YouTube.engineDownloading ? qsTr("Downloading… %1%").arg(Math.round(YouTube.engineProgress * 100))
                                         : YouTube.engineReady ? qsTr("Ready") + (YouTube.engineVersion ? " · " + qsTr("version %1").arg(YouTube.engineVersion) : "")
                                         : qsTr("Needed to play tracks from YouTube — we'll download the official release from GitHub.")
                                     color: Theme.textDim
@@ -469,6 +472,7 @@ Item {
                                 }
                             }
                             PillButton {
+                                visible: !Nav.mobile
                                 kind: YouTube.engineReady ? "ghost" : "primary"
                                 icon: YouTube.engineReady ? "refresh" : "add"
                                 text: YouTube.engineReady ? qsTr("Update") : qsTr("Download")

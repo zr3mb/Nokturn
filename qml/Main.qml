@@ -5,14 +5,37 @@ import Nokturn
 
 ApplicationWindow {
     id: win
-    width: 1420
-    height: 900
-    minimumWidth: 1120
-    minimumHeight: 720
+    readonly property bool mobile: Qt.platform.os === "android" || Qt.application.arguments.indexOf("--mobile") >= 0
+    width: mobile ? 412 : 1420
+    height: mobile ? 892 : 900
+    minimumWidth: mobile ? 320 : 1120
+    minimumHeight: mobile ? 480 : 720
     visible: true
     title: "Nokturn"
     color: Theme.bg
-    flags: Qt.Window | Qt.FramelessWindowHint
+    flags: mobile ? Qt.Window : Qt.Window | Qt.FramelessWindowHint
+    Component.onCompleted: {
+        Nav.mobile = mobile
+        // The first-run wizard is about the desktop window (layout, panels, integrations).
+        if (mobile && Nav.onboarding)
+            Nav.finishOnboarding()
+    }
+
+    // Android's back button: the full-screen player first, then the page history.
+    onClosing: close => {
+        if (!mobile)
+            return
+        if (moreSheet.opened) {
+            moreSheet.close()
+            close.accepted = false
+        } else if (Nav.immersive) {
+            Nav.immersive = false
+            close.accepted = false
+        } else if (Nav.canGoBack) {
+            Nav.back()
+            close.accepted = false
+        }
+    }
 
     readonly property bool maximized: visibility === Window.Maximized || visibility === Window.FullScreen
     onVisibilityChanged: visibility => { if (visibility === Window.Minimized) Memory.trimSoon(500) }
@@ -46,25 +69,31 @@ ApplicationWindow {
         TitleBar {
             id: titleBar
             anchors { top: parent.top; left: parent.left; right: parent.right }
-            height: 56
+            height: win.mobile ? 0 : 56
+            visible: !win.mobile
         }
 
         Sidebar {
             id: sidebar
             anchors {
                 top: titleBar.bottom; left: parent.left; bottom: playerBar.top
-                leftMargin: 10; bottomMargin: 2
+                leftMargin: win.mobile ? 0 : 10; bottomMargin: 2
             }
-            width: Nav.sidebarCompact ? 76 : 252
-            Behavior on width { NumberAnimation { duration: 460; easing.type: Easing.OutQuint } }
+            width: win.mobile ? 0 : Nav.sidebarCompact ? 76 : 252
+            visible: !win.mobile
+            Behavior on width { enabled: !win.mobile; NumberAnimation { duration: 460; easing.type: Easing.OutQuint } }
         }
 
         Panel {
             id: content
             anchors {
-                top: titleBar.bottom; left: sidebar.right; right: queuePanel.left; bottom: playerBar.top
-                leftMargin: 10; rightMargin: 10; bottomMargin: 2
+                top: titleBar.bottom; left: sidebar.right; right: queuePanel.left
+                bottom: win.mobile ? (mobilePlayer.visible ? mobilePlayer.top : mobileNav.top) : playerBar.top
+                leftMargin: win.mobile ? 0 : 10; rightMargin: win.mobile ? 0 : 10; bottomMargin: win.mobile ? 6 : 2
             }
+            radius: win.mobile ? 0 : 20
+            roundedClip: !win.mobile
+            tint: win.mobile ? "transparent" : Theme.alpha(Theme.surface, 0.66)
 
             StackView {
                 id: stack
@@ -93,7 +122,8 @@ ApplicationWindow {
                 top: titleBar.bottom; right: parent.right; bottom: playerBar.top
                 rightMargin: Nav.queueOpen ? 10 : 0; bottomMargin: 2
             }
-            width: Nav.queueOpen ? 344 : 0
+            width: Nav.queueOpen && !win.mobile ? 344 : 0
+            visible: !win.mobile
             Behavior on width { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
             Behavior on anchors.rightMargin { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
         }
@@ -101,7 +131,23 @@ ApplicationWindow {
         PlayerBar {
             id: playerBar
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: 104
+            height: win.mobile ? 0 : 104
+            visible: !win.mobile
+        }
+
+        MobilePlayerBar {
+            id: mobilePlayer
+            anchors { left: parent.left; right: parent.right; bottom: mobileNav.top; bottomMargin: 6 }
+            height: 60
+            visible: win.mobile && Player.hasTrack
+        }
+
+        MobileNav {
+            id: mobileNav
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: win.mobile ? 64 : 0
+            visible: win.mobile
+            onMoreRequested: Nav.moreRequested(true)
         }
 
         ImmersiveView {
@@ -142,12 +188,77 @@ ApplicationWindow {
 
         Toast {
             id: toast
-            bottomOffset: playerBar.height + 22
+            bottomOffset: win.mobile ? mobileNav.height + (mobilePlayer.visible ? 72 : 12) : playerBar.height + 22
         }
 
         WindowResizer {
             anchors.fill: parent
-            enabled: !win.maximized
+            enabled: !win.maximized && !win.mobile
+        }
+
+        // Phone layout: the pages that have no place in the bottom bar.
+        Drawer {
+            id: moreSheet
+            edge: Qt.BottomEdge
+            width: parent.width
+            height: moreColumn.height + 24
+            background: Rectangle {
+                color: Theme.surface
+                radius: 18
+                Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 18; color: parent.color }
+            }
+
+            Column {
+                id: moreColumn
+                y: 12
+                width: parent.width
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 36; height: 4; radius: 2
+                    color: Theme.alpha(Theme.text, 0.2)
+                }
+                Item { width: 1; height: 10 }
+                Repeater {
+                    model: [
+                        { key: "sources", label: qsTr("Sources"), icon: "sources" },
+                        { key: "equalizer", label: qsTr("Equalizer"), icon: "equalizer" },
+                        { key: "stats", label: qsTr("Stats"), icon: "chart" },
+                        { key: "settings", label: qsTr("Settings"), icon: "tune" }
+                    ]
+                    Item {
+                        id: entry
+                        required property var modelData
+                        width: moreColumn.width
+                        height: 54
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10; anchors.rightMargin: 10
+                            radius: 12
+                            color: Nav.page === entry.modelData.key ? Theme.alpha(Theme.accent, 0.14)
+                                                                    : entryMouse.pressed ? Theme.alpha(Theme.text, 0.06) : "transparent"
+                        }
+                        Icon {
+                            x: 28
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: entry.modelData.icon
+                            size: 22
+                            color: Nav.page === entry.modelData.key ? Theme.accent : Theme.textDim
+                        }
+                        Text {
+                            x: 68
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: entry.modelData.label
+                            color: Theme.text
+                            font.pixelSize: 16
+                        }
+                        MouseArea {
+                            id: entryMouse
+                            anchors.fill: parent
+                            onClicked: { moreSheet.close(); Nav.navigate(entry.modelData.key) }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -212,6 +323,9 @@ ApplicationWindow {
         }
         function onPlaylistDialogRequested(mode, index, rows) {
             playlistDialog.show(mode, index, rows)
+        }
+        function onMoreRequested(open) {
+            open ? moreSheet.open() : moreSheet.close()
         }
     }
 

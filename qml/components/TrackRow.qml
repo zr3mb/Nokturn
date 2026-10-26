@@ -26,7 +26,7 @@ Item {
 
     // Track menu: add to a playlist, remove from this one, share links and the listening room,
     // the YouTube Music match of a Spotify track.
-    readonly property int menuWidth: 320
+    readonly property int menuWidth: Nav.mobile ? Math.min(320, (Window.window ? Window.window.width : 360) - 24) : 320
     function openMenu(px, py) {
         if (t.demo)
             return false
@@ -71,7 +71,14 @@ Item {
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onClicked: mouse => { if (mouse.button === Qt.RightButton) root.openMenu(mouse.x, mouse.y) }
+        // Touch: a tap plays the track, a long press opens its menu.
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton)
+                root.openMenu(mouse.x, mouse.y)
+            else if (Nav.mobile)
+                root.current ? Player.play() : root.play()
+        }
+        onPressAndHold: mouse => { if (Nav.mobile) root.openMenu(Math.max(0, root.width - root.menuWidth), mouse.y) }
         onDoubleClicked: mouse => { if (mouse.button === Qt.LeftButton) root.current ? Player.play() : root.play() }
     }
 
@@ -86,11 +93,12 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 14
-        anchors.rightMargin: 10
-        spacing: root.compact ? 10 : 14
+        anchors.leftMargin: Nav.mobile ? 6 : 14
+        anchors.rightMargin: Nav.mobile ? 0 : 10
+        spacing: root.compact || Nav.mobile ? 10 : 14
 
         Item {
+            visible: !Nav.mobile   // the cover shows the playing track instead
             Layout.preferredWidth: 26
             Layout.fillHeight: true
 
@@ -132,6 +140,16 @@ Item {
             colorB: root.t.colorB
             seed: root.t.seed
             source: root.t.cover || ""
+
+            Loader {
+                anchors.centerIn: parent
+                active: Nav.mobile && root.current
+                sourceComponent: Rectangle {
+                    width: 42; height: 42; radius: 8
+                    color: "#99000000"
+                    EqualizerIcon { anchors.centerIn: parent; running: Player.playing }
+                }
+            }
         }
 
         ColumnLayout {
@@ -167,7 +185,7 @@ Item {
         }
 
         Item {
-            visible: !root.compact && root.width > 560
+            visible: !root.compact && !Nav.mobile && root.width > 560
             Layout.preferredWidth: 132
             Layout.fillHeight: true
             SourceBadge {
@@ -179,8 +197,8 @@ Item {
         Loader {
             Layout.preferredWidth: 38
             Layout.preferredHeight: 38
-            active: root.t.liked || root.hovered
-            visible: !root.compact || active   // compact rows keep the room for the title
+            active: root.t.liked || (root.hovered && !Nav.mobile)
+            visible: Nav.mobile ? root.t.liked === true : !root.compact || active   // compact rows keep the room for the title
             sourceComponent: IconButton {
                 icon: root.t.liked ? "heart" : "heartOutline"
                 iconSize: 18
@@ -195,7 +213,7 @@ Item {
 
         Text {
             visible: !root.compact || !root.hovered   // the buttons take its place
-            Layout.preferredWidth: 52
+            Layout.preferredWidth: Nav.mobile ? 40 : 52
             horizontalAlignment: Text.AlignRight
             text: root.t.durationText
             color: root.t.duration > 0 ? Theme.textDim : Theme.warning
@@ -209,7 +227,7 @@ Item {
             visible: !root.compact || active
             Layout.preferredWidth: 38
             Layout.preferredHeight: 38
-            active: root.hovered
+            active: root.hovered || Nav.mobile   // no hover on a touch screen: always there
             sourceComponent: IconButton {
                 icon: "more"
                 iconSize: 18

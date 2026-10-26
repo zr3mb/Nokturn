@@ -15,6 +15,8 @@ QtObject {
     property string panelTab: "queue"      // "Now playing" panel: "queue" | "lyrics"
     property bool immersiveLyrics: Prefs.boolValue("ui/immersiveLyrics", true)   // lyrics next to the cover in full-screen mode
     property bool immersive: false
+    // Phone layout (Android, or --mobile on the desktop): bottom navigation, mini player, no side panels.
+    property bool mobile: false
     property bool sidebarCompact: Prefs.boolValue("ui/sidebarCompact", false)
     onQueueOpenChanged: Prefs.setValue("ui/queueOpen", queueOpen)
     onImmersiveLyricsChanged: Prefs.setValue("ui/immersiveLyrics", immersiveLyrics)
@@ -41,6 +43,7 @@ QtObject {
     signal addFolderRequested()
     signal matchPickerRequested(var track)
     signal playlistDialogRequested(string mode, int index, var rows)
+    signal moreRequested(bool open)   // phone layout: the sheet with the pages the bottom bar has no room for
 
     // New playlist (optionally with tracks — rows of Library.tracks) / editing an existing one (PlaylistDialog).
     function createPlaylist(rows) {

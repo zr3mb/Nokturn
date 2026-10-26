@@ -474,6 +474,43 @@ Item {
     // Online features against a server (--tour-online "<room code>;<playlist id>;<share code>", with
     // NOKTURN_SERVER and NOKTURN_ONLINE_DEBUG): a share link, joining a shared playlist and a room,
     // the player's buttons going to the room, the dialogs, leaving.
+    // Phone layout (run with --mobile): the pages the base tour skips, the "More" sheet, a track's
+    // menu, and a YouTube track played through the server (with NOKTURN_SERVER_STREAMS=1).
+    readonly property bool withMobile: Qt.application.arguments.indexOf("--tour-mobile") >= 0
+    function findTrackRow(item) {
+        if (item.openMenu && item.t && item.t.title && item.visible && item.opacity > 0.5)
+            return item
+        for (let i = 0; i < item.children.length; ++i) {
+            const found = root.findTrackRow(item.children[i])
+            if (found)
+                return found
+        }
+        return null
+    }
+    readonly property var mobileSteps: {
+        if (!withMobile)
+            return []
+        const query = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-mobile") + 1]
+        return [
+            { name: "P1-room", run: () => Nav.navigate("room") },
+            { name: "P2-equalizer", run: () => Nav.navigate("equalizer") },
+            { name: "P3-stats", run: () => Nav.navigate("stats") },
+            { name: "P4-more", run: () => { Nav.navigate("home"); Nav.moreRequested(true) } },
+            { name: "P5-search", run: () => { Nav.moreRequested(false); Nav.navigate("search", { query: query, filter: 2 }) } },
+            { name: "P6-results", run: () => {} },
+            { name: "P7-menu", run: () => { const row = root.findTrackRow(root.target); if (row) row.openMenu(row.width - row.menuWidth, row.height) } },
+            { name: "P8-play", run: () => { const r = Library.onlineResults(); if (r.length > 0) Player.playFrom(r, r[0]) } },
+            { name: "P8b-wait", run: () => {} },
+            { name: "P8c-wait", run: () => {} },
+            { name: "P8d-wait", run: () => {} },
+            { name: "P9-playing", run: () => console.log("tour: playing", Player.playing, "position", Player.position.toFixed(1), "duration", Player.duration) },
+            { name: "P10-later", run: () => console.log("tour: playing", Player.playing, "position", Player.position.toFixed(1)) },
+            { name: "P11-mini", run: () => Nav.navigate("library") },
+            { name: "P12-immersive", run: () => Nav.immersive = true },
+            { name: "P13-artist", run: () => { Nav.immersive = false; Nav.openArtist(Player.artist, Player.artistId) } },
+            { name: "P14-artist-loaded", run: () => {} }
+        ]
+    }
     readonly property bool withOnline: Qt.application.arguments.indexOf("--tour-online") >= 0
     readonly property var onlineSteps: {
         if (!withOnline)
@@ -712,7 +749,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

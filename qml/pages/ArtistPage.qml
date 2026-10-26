@@ -98,14 +98,19 @@ Item {
 
         // ---- header ----
         Reveal {
-            RowLayout {
+            // Phone: the photo above the name
+            GridLayout {
                 width: parent.width
-                spacing: 30
+                columns: Nav.mobile ? 1 : 2
+                columnSpacing: 30
+                rowSpacing: 16
 
                 ArtCover {
-                    Layout.preferredWidth: 210
-                    Layout.preferredHeight: 210
-                    radius: 105
+                    readonly property real side: Nav.mobile ? 160 : 210
+                    Layout.preferredWidth: side
+                    Layout.preferredHeight: side
+                    Layout.alignment: Qt.AlignHCenter
+                    radius: side / 2
                     colorA: Theme.accent
                     colorB: Theme.accent2
                     seed: 0
@@ -144,7 +149,8 @@ Item {
                         text: page.displayName
                         color: Theme.text
                         font.family: Theme.fontDisplay
-                        font.pixelSize: page.displayName.length > 18 ? 48 : 64
+                        font.pixelSize: Nav.mobile ? (page.displayName.length > 18 ? 28 : 36)
+                                                   : page.displayName.length > 18 ? 48 : 64
                         font.weight: Font.Bold
                         wrapMode: Text.WordWrap
                         maximumLineCount: 2

@@ -2,7 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 import Nokturn
 
-// Settings row: title + description on the left, the control on the right.
+// Settings row: title + description on the left, the control on the right
+// (below them in the phone layout).
 Item {
     id: root
     property string title: ""
@@ -11,7 +12,7 @@ Item {
     default property alias control: slot.data
 
     Layout.fillWidth: true
-    implicitHeight: Math.max(64, texts.implicitHeight + 28)
+    implicitHeight: Math.max(64, grid.implicitHeight + 28)
 
     Rectangle {
         anchors.fill: parent
@@ -21,11 +22,14 @@ Item {
     }
     HoverHandler { id: hover }
 
-    RowLayout {
+    GridLayout {
+        id: grid
         anchors.fill: parent
-        anchors.leftMargin: 18
-        anchors.rightMargin: 18
-        spacing: 16
+        anchors.leftMargin: Nav.mobile ? 14 : 18
+        anchors.rightMargin: Nav.mobile ? 14 : 18
+        columns: Nav.mobile ? 2 : 3
+        columnSpacing: Nav.mobile ? 12 : 16
+        rowSpacing: 10
 
         Icon {
             visible: root.icon !== ""
@@ -57,6 +61,10 @@ Item {
 
         Item {
             id: slot
+            Layout.columnSpan: Nav.mobile ? 2 : 1
+            Layout.leftMargin: Nav.mobile && root.icon !== "" ? 32 : 0
+            Layout.maximumWidth: Nav.mobile ? root.width - 28 : Number.POSITIVE_INFINITY
+            visible: children.length > 0
             Layout.preferredWidth: childrenRect.width
             Layout.preferredHeight: childrenRect.height
         }
