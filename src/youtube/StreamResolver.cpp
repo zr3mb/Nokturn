@@ -1,6 +1,7 @@
 #include "StreamResolver.h"
 
 #include "AppPaths.h"
+#include "online/OnlineService.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -68,6 +69,11 @@ void hideConsole(QProcess *process)
 StreamResolver::StreamResolver(QObject *parent)
     : QObject(parent)
 {
+#ifdef Q_OS_ANDROID
+    m_remote = true;
+#else
+    m_remote = qEnvironmentVariableIsSet("NOKTURN_SERVER_STREAMS");
+#endif
 }
 
 QString StreamResolver::toolsDir() const
@@ -79,6 +85,11 @@ QString StreamResolver::toolsDir() const
 
 void StreamResolver::detect()
 {
+    if (m_remote) {
+        m_version = tr("Nokturn server");
+        emit engineChanged();
+        return;
+    }
     const QStringList candidates = {
 #ifdef Q_OS_WIN
         toolsDir() + QStringLiteral("/yt-dlp/") + engineFileName(),
@@ -219,6 +230,22 @@ void StreamResolver::runExternal(const QString &id)
 
 void StreamResolver::run(const QString &videoId, bool withCookies)
 {
+    if (m_remote) {
+        m_running.insert(videoId, nullptr);
+        OnlineService::instance()->resolveStream(videoId, [this, videoId](const QUrl &url, const QString &error) {
+            m_running.remove(videoId);
+            if (!url.isValid()) {
+                emit failed(videoId, error);
+                return;
+            }
+            const qint64 expire = QUrlQuery(url).queryItemValue(QStringLiteral("e")).toLongLong();
+            const QDateTime expires = expire > 0 ? QDateTime::fromSecsSinceEpoch(expire, QTimeZone::UTC)
+                                                 : QDateTime::currentDateTimeUtc().addSecs(1800);
+            m_cache.insert(videoId, { url, expires });
+            emit resolved(videoId, url);
+        });
+        return;
+    }
     QStringList args = baseArguments();
 
     // Account cookies (fallback: age-restricted tracks, bot checks).
@@ -276,7 +303,7 @@ void StreamResolver::run(const QString &videoId, bool withCookies)
 
 void StreamResolver::download()
 {
-    if (m_downloading)
+    if (m_remote || m_downloading)
         return;
     m_downloading = true;
     m_progress = 0;

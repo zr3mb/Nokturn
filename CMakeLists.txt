@@ -6,8 +6,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Multimedia Concurrent Network WebSockets)
+if(ANDROID)
+    find_package(ZLIB REQUIRED)   # the static TagLib links the NDK's zlib
+endif()
 find_package(TagLib 2 REQUIRED)
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT ANDROID)
     find_package(Qt6 6.8 REQUIRED COMPONENTS DBus)   # MPRIS (media keys, system panel)
 endif()
 
@@ -130,6 +133,8 @@ qt_add_qml_module(Nokturn
         qml/layout/PlayerBar.qml
         qml/layout/NowPlayingPanel.qml
         qml/layout/ImmersiveView.qml
+        qml/layout/MobilePlayerBar.qml
+        qml/layout/MobileNav.qml
 
         qml/pages/HomePage.qml
         qml/pages/SearchPage.qml
@@ -173,7 +178,7 @@ set_target_properties(Nokturn PROPERTIES
 )
 
 # On Linux the program is called "nokturn" (convention + no clash with the "Nokturn" QML module directory).
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT ANDROID)
     set_target_properties(Nokturn PROPERTIES OUTPUT_NAME nokturn)
 endif()
 
@@ -188,11 +193,11 @@ target_compile_definitions(Nokturn PRIVATE
     NOKTURN_VERSION="${PROJECT_VERSION}"
     NOKTURN_SPOTIFY_CLIENT_ID="${NOKTURN_SPOTIFY_CLIENT_ID}")
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT ANDROID)
     target_sources(Nokturn PRIVATE src/platform/Mpris.h src/platform/Mpris.cpp
                                    src/platform/ShortcutPortal.h src/platform/ShortcutPortal.cpp)
     target_link_libraries(Nokturn PRIVATE Qt6::DBus)
-    target_compile_definitions(Nokturn PRIVATE NOKTURN_MPRIS)
+    target_compile_definitions(Nokturn PRIVATE NOKTURN_MPRIS NOKTURN_DESKTOP_LINUX)
     # The in-game overlay as a layer-shell surface (KDE Plasma, Hyprland, Sway). Optional: without it
     # the overlay is a full-screen window.
     find_package(LayerShellQt 6 QUIET)
@@ -214,7 +219,30 @@ if(WIN32)
     target_compile_definitions(Nokturn PRIVATE NOKTURN_SMTC)
 endif()
 
-if(WIN32)
+if(ANDROID)
+    # Manifest (permissions, nokturn:// and https link handling) and the launcher icons.
+    set_property(TARGET Nokturn APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/packaging/android)
+    math(EXPR NOKTURN_VERSION_CODE "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}")
+    set_target_properties(Nokturn PROPERTIES
+        QT_ANDROID_MIN_SDK_VERSION 28
+        QT_ANDROID_TARGET_SDK_VERSION 34
+        QT_ANDROID_VERSION_NAME ${PROJECT_VERSION}
+        QT_ANDROID_VERSION_CODE ${NOKTURN_VERSION_CODE})
+    target_sources(Nokturn PRIVATE src/platform/AndroidSupport.h src/platform/AndroidSupport.cpp)
+    target_link_libraries(Nokturn PRIVATE Qt6::CorePrivate)
+    target_compile_definitions(Nokturn PRIVATE NOKTURN_MOBILE)
+    # Qt loads OpenSSL at run time and Android has none for apps: HTTPS needs a bundled copy
+    # (prebuilt libssl_3.so / libcrypto_3.so for arm64-v8a, e.g. from github.com/KDAB/android_openssl).
+    if(NOKTURN_ANDROID_OPENSSL)
+        set_property(TARGET Nokturn APPEND PROPERTY QT_ANDROID_EXTRA_LIBS
+            ${NOKTURN_ANDROID_OPENSSL}/libcrypto_3.so ${NOKTURN_ANDROID_OPENSSL}/libssl_3.so)
+    else()
+        message(WARNING "NOKTURN_ANDROID_OPENSSL is not set: the app will have no HTTPS")
+    endif()
+endif()
+
+if(ANDROID)
+elseif(WIN32)
     install(TARGETS Nokturn RUNTIME DESTINATION .)
 else()
     include(GNUInstallDirs)

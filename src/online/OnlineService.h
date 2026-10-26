@@ -70,6 +70,9 @@ public:
     QString displayName() const { return m_name; }
     void setDisplayName(const QString &name);
     bool registered() const { return !m_token.isEmpty(); }
+    // A YouTube video's audio relayed by the server (the Android app can't run yt-dlp itself):
+    // a URL the player fetches in chunks, or an error.
+    void resolveStream(const QString &videoId, std::function<void(const QUrl &url, const QString &error)> done);
     bool connected() const { return m_connected; }
     bool busy() const { return m_busy > 0; }
     bool inRoom() const { return !m_roomCode.isEmpty() && !m_roomState.isEmpty(); }
@@ -82,6 +85,7 @@ public:
     // nokturn://t|r|p/<code>, the same as an https link to the server, or a room code alone.
     // False when the text isn't a Nokturn link.
     Q_INVOKABLE bool openLink(const QString &link);
+    Q_INVOKABLE void openUrl(const QUrl &url) { openLink(url.toString()); }   // QDesktopServices handler
     static bool isLink(const QString &text);
 
     // ---- listening rooms ----

@@ -24,7 +24,7 @@
 #  include <xinput.h>
 #endif
 
-#ifdef Q_OS_LINUX
+#ifdef NOKTURN_DESKTOP_LINUX
 #  include "ShortcutPortal.h"
 #  include <cerrno>
 #  include <fcntl.h>
@@ -212,7 +212,7 @@ XInputGetStateFn xinputGetState()
 }
 #endif
 
-#ifdef Q_OS_LINUX
+#ifdef NOKTURN_DESKTOP_LINUX
 // The XDG shortcut syntax ("CTRL+SHIFT+m") for the trigger the portal is asked for.
 QString portalTrigger(int key, int modifiers)
 {
@@ -351,7 +351,7 @@ GameOverlay::~GameOverlay()
 
 bool GameOverlay::supported() const
 {
-#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
+#if defined(Q_OS_WIN) || defined(NOKTURN_DESKTOP_LINUX)
     return true;
 #else
     return false;
@@ -421,14 +421,16 @@ QString GameOverlay::hotkeyMode() const
 {
 #ifdef Q_OS_WIN
     return QStringLiteral("native");
-#else
+#elif defined(NOKTURN_DESKTOP_LINUX)
     return m_portal && m_portal->available() ? QStringLiteral("portal") : QStringLiteral("command");
+#else
+    return QStringLiteral("command");
 #endif
 }
 
 QString GameOverlay::hotkey() const
 {
-#ifdef Q_OS_LINUX
+#ifdef NOKTURN_DESKTOP_LINUX
     return m_portal ? m_portal->trigger() : QString();
 #else
     return QKeySequence(QKeyCombination(Qt::KeyboardModifiers(m_modifiers), Qt::Key(m_key))).toString(QKeySequence::NativeText);
@@ -437,7 +439,7 @@ QString GameOverlay::hotkey() const
 
 QString GameOverlay::lyricsHotkey() const
 {
-#ifdef Q_OS_LINUX
+#ifdef NOKTURN_DESKTOP_LINUX
     return QString();
 #else
     return QKeySequence(QKeyCombination(Qt::KeyboardModifiers(m_lyricsModifiers), Qt::Key(m_lyricsKey))).toString(QKeySequence::NativeText);
@@ -446,7 +448,7 @@ QString GameOverlay::lyricsHotkey() const
 
 bool GameOverlay::canConfigureHotkey() const
 {
-#ifdef Q_OS_LINUX
+#ifdef NOKTURN_DESKTOP_LINUX
     return m_portal && m_portal->canConfigure();
 #else
     return false;
@@ -455,7 +457,7 @@ bool GameOverlay::canConfigureHotkey() const
 
 void GameOverlay::configureHotkey()
 {
-#ifdef Q_OS_LINUX
+#ifdef NOKTURN_DESKTOP_LINUX
     if (m_portal)
         m_portal->configure();
 #endif
@@ -633,7 +635,7 @@ void GameOverlay::registerHotkey()
 
     if ((m_enabled || m_lyricsEnabled) && !g_hookThread)
         CloseHandle(CreateThread(nullptr, 0, hookThread, nullptr, 0, &g_hookThread));
-#elif defined(Q_OS_LINUX)
+#elif defined(NOKTURN_DESKTOP_LINUX)
     // Once per run: the desktop keeps the binding (and may ask the user about it the first time).
     if (!m_enabled || m_portal || QGuiApplication::platformName() == QLatin1String("offscreen"))
         return;
@@ -763,7 +765,7 @@ void GameOverlay::prepare(QWindow *window)
         quick->setPersistentGraphics(true);
         quick->setPersistentSceneGraph(true);
     }
-#if defined(Q_OS_LINUX) && defined(NOKTURN_LAYERSHELL)
+#if defined(NOKTURN_DESKTOP_LINUX) && defined(NOKTURN_LAYERSHELL)
     // A layer surface above everything, full games included, with the keyboard while it's shown.
     // The compositor puts it on the output it chooses (the focused one).
     if (QGuiApplication::platformName().startsWith(QLatin1String("wayland")) && !window->handle()) {
@@ -833,7 +835,7 @@ void GameOverlay::setView(QQuickItem *view)
 
 void GameOverlay::closePad()
 {
-#ifdef Q_OS_LINUX
+#ifdef NOKTURN_DESKTOP_LINUX
     if (m_padFd >= 0)
         ::close(m_padFd);
     m_padFd = -1;
@@ -845,7 +847,7 @@ void GameOverlay::closePad()
 
 void GameOverlay::findPadAsync()
 {
-#ifdef Q_OS_LINUX
+#ifdef NOKTURN_DESKTOP_LINUX
     if (!m_inputWatcher) {
         m_inputWatcher = new QFileSystemWatcher(this);
         // A pad plugged in shows up as a new /dev/input/event*: looked for then, and once more a moment
@@ -921,7 +923,7 @@ bool GameOverlay::readPad(unsigned &buttons, int &x, int &y)
     x = state.Gamepad.sThumbLX;
     y = state.Gamepad.sThumbLY;
     return true;
-#elif defined(Q_OS_LINUX)
+#elif defined(NOKTURN_DESKTOP_LINUX)
     if (m_padFd < 0) {
         // Looked for in the background, when /dev/input changes (and now and then as a fallback) —
         // doing it here every few seconds froze the whole app, music included, for a moment.

@@ -1,14 +1,21 @@
 #include "Language.h"
+#include "Library.h"
 #include "online/OnlineService.h"
 #include "platform/GameOverlay.h"
 
+#include <QDesktopServices>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QStandardPaths>
 #include <QTimer>
+
+#ifdef Q_OS_ANDROID
+#  include "platform/AndroidSupport.h"
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -64,6 +71,20 @@ int main(int argc, char *argv[])
     QObject::connect(GameOverlay::instance(), &GameOverlay::linkReceived, OnlineService::instance(), &OnlineService::openLink);
     if (!link.isEmpty())
         QTimer::singleShot(1200, OnlineService::instance(), [link] { OnlineService::instance()->openLink(link); });
+#ifdef Q_OS_ANDROID
+    // nokturn:// links from a browser or a chat app come as intents, through QDesktopServices.
+    QDesktopServices::setUrlHandler(QStringLiteral("nokturn"), OnlineService::instance(), "openUrl");
+    // The local library: the system Music folder once the storage permission is granted.
+    AndroidSupport::requestAudioPermission([](bool granted) {
+        if (!granted)
+            return;
+        Library *library = Library::instance();
+        if (library->folders().isEmpty())
+            library->addFolder(QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::MusicLocation)));
+        else
+            library->rescan(false);
+    });
+#endif
     if (overlayRequest)
         QTimer::singleShot(1500, GameOverlay::instance(), &GameOverlay::show);
     else if (lyricsOverlayRequest)

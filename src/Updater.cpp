@@ -36,6 +36,8 @@ QNetworkRequest githubRequest(const QUrl &url)
 // The release asset this platform installs from.
 #ifdef Q_OS_WIN
 const char *kAssetSuffix = "-setup.exe";
+#elif defined(Q_OS_ANDROID)
+const char *kAssetSuffix = "-arm64.apk";
 #else
 const char *kAssetSuffix = "-x86_64.AppImage";
 #endif
@@ -176,7 +178,12 @@ void Updater::install()
     if (!available() || m_state != QLatin1String("idle"))
         return;
     if (!canInstall() || !m_installerUrl.isValid()) {
+        // Android: the browser downloads the APK and the system installer takes it from there.
+#ifdef Q_OS_ANDROID
+        QDesktopServices::openUrl(m_installerUrl.isValid() ? m_installerUrl : m_page);
+#else
         QDesktopServices::openUrl(m_page);
+#endif
         later();
         return;
     }

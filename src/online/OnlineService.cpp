@@ -258,6 +258,33 @@ void OnlineService::ensureAccount(std::function<void(bool ok)> then)
     });
 }
 
+void OnlineService::resolveStream(const QString &videoId, std::function<void(const QUrl &, const QString &)> done)
+{
+    ensureAccount([this, videoId, done = std::move(done)](bool ok) {
+        if (!ok) {
+            done({}, tr("Can't reach the Nokturn server"));
+            return;
+        }
+        // Not through request(): resolving tracks shouldn't show the online features as busy.
+        QNetworkRequest req(QUrl(m_server + QStringLiteral("/api/v1/stream/") + videoId));
+        req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Nokturn/" NOKTURN_VERSION));
+        req.setRawHeader("Authorization", "Bearer " + m_token.toUtf8());
+        req.setTransferTimeout(70'000);   // the server runs yt-dlp, which can take a while
+        QNetworkReply *reply = m_net.get(req);
+        connect(reply, &QNetworkReply::finished, this, [reply, done] {
+            reply->deleteLater();
+            const QJsonObject o = QJsonDocument::fromJson(reply->readAll()).object();
+            const QUrl url(o.value("url").toString());
+            if (reply->error() == QNetworkReply::NoError && url.isValid()) {
+                done(url, {});
+                return;
+            }
+            QString error = o.value("message").toString();
+            done({}, error.isEmpty() ? reply->errorString() : error);
+        });
+    });
+}
+
 void OnlineService::forgetAccount()
 {
     if (inRoom() || joiningRoom())
@@ -1288,7 +1315,7 @@ void OnlineService::registerUrlScheme()
     key.setValue(QStringLiteral("URL Protocol"), QString());
     key.setValue(QStringLiteral("DefaultIcon/Default"), QStringLiteral("\"%1\",0").arg(exe));
     key.setValue(QStringLiteral("shell/open/command/Default"), command);
-#elif defined(Q_OS_LINUX)
+#elif defined(NOKTURN_DESKTOP_LINUX)
     // An AppImage has no installed .desktop file: a hidden one for the links points at it.
     // (Installed from source, packaging/linux/nokturn.desktop handles nokturn:// itself.)
     const QString appImage = qEnvironmentVariable("APPIMAGE");

@@ -10,6 +10,9 @@
 #include "soundcloud/SoundCloudService.h"
 #include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
+#ifdef Q_OS_ANDROID
+#  include "platform/AndroidSupport.h"
+#endif
 
 #include <QCollator>
 #include <QCoreApplication>
@@ -251,7 +254,11 @@ QString Library::scanStatus() const
 
 void Library::addFolder(const QUrl &url)
 {
+#ifdef Q_OS_ANDROID
+    const QString path = QDir::cleanPath(AndroidSupport::folderPath(url));
+#else
     const QString path = QDir::cleanPath(url.isLocalFile() ? url.toLocalFile() : url.toString());
+#endif
     if (path.isEmpty() || !QDir(path).exists())
         return;
     for (const QString &f : std::as_const(m_folders)) {

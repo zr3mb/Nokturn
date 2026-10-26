@@ -20,8 +20,11 @@ Grab the latest version from [Releases](https://github.com/zr3mb/Nokturn/release
 - **Windows** — `Nokturn-<version>-setup.exe` (a small installer that downloads the app from the release).
 - **Linux** — `Nokturn-<version>-x86_64.AppImage`: `chmod +x Nokturn-*.AppImage` and run it (put it somewhere
   you can write to, e.g. `~/Applications`, so it can update itself). Needs `fuse2` (Arch: `sudo pacman -S fuse2`).
+- **Android** (9+, arm64) — `Nokturn-<version>-arm64.apk`: open it on the phone and allow installing from
+  that app. See [Android](#android).
 
-Both update themselves — see [Installer and updates](#installer-and-updates).
+The desktop versions update themselves — see [Installer and updates](#installer-and-updates); on Android the
+update dialog downloads the new APK in the browser.
 
 ## Building (Windows, MSYS2 UCRT64)
 
@@ -140,6 +143,42 @@ On Linux:
 
 Developer tool: `Nokturn.exe --tour <folder>` (Linux: `nokturn --tour <folder>`) walks through every screen and
 saves PNG screenshots of them.
+
+## Android
+
+The same app with a phone layout: a bottom bar (Home, Search, Library, Room, More → Sources, Equalizer, Stats,
+Settings), a mini player above it that opens the full-screen player, one-column pages, a tap to play a track and
+a long press for its menu. The back button closes the full-screen player, then goes back through the pages.
+`nokturn --mobile` shows the same layout on the desktop in a phone-sized window.
+
+What differs from the desktop:
+- **YouTube** plays through the Nokturn server: Android doesn't let apps run downloaded programs, so the server
+  resolves the track with yt-dlp and relays its audio (see [Server (VPS)](#server-vps)). Live streams don't
+  play on the phone.
+- **Local files**: after the storage permission is granted, the system Music folder is added and scanned;
+  "Add folder" takes other folders on the internal storage or an SD card.
+- **Signing in** to YouTube Music / SoundCloud works by pasting cookies (there's no separate browser window to
+  drive); Spotify and the online features work as on the desktop.
+- Not on the phone: the in-game overlay, Discord, global shortcuts and automatic lyric timing.
+- `nokturn://` invite and share links open the app.
+- Music keeps playing in the background, but there's no media notification yet, so a system that saves battery
+  aggressively may stop it after a while.
+
+Building: Qt 6.8 for Android (`android_arm64_v8a`) plus the desktop Qt of the same version, the Android SDK with
+NDK 26.1 and JDK 17:
+
+```bash
+QT_ANDROID=~/Qt/6.8.3/android_arm64_v8a QT_HOST=~/Qt/6.8.3/gcc_64 ANDROID_SDK_ROOT=~/Android/Sdk \
+    scripts/build-android.sh      # → build/android/Nokturn-<version>-arm64.apk
+```
+
+The script builds TagLib for Android, fetches KDAB's prebuilt OpenSSL (Qt needs it for HTTPS) and signs the APK:
+with `NOKTURN_KEYSTORE`, `NOKTURN_KEYSTORE_PASS` and `NOKTURN_KEY_ALIAS` set it uses that key, otherwise a debug
+key made in `build/android/`. The GitHub workflow `android-apk.yml` attaches the APK to every published release;
+give it the secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS` so every
+release is signed with the same key, or phones won't accept it as an update. A key is made once with
+`keytool -genkeypair -keystore nokturn.keystore -alias nokturn -keyalg RSA -keysize 2048 -validity 10000`
+and turned into the secret with `base64 -w0 nokturn.keystore`.
 
 ## First run
 
@@ -365,6 +404,15 @@ memory. Behind nginx with a Let's Encrypt certificate it takes a few MB of RAM.
    the site (the data stays).
 3. Update: `git pull && sudo ./server/install.sh` (the database is kept).
 
+Audio for the Android app: the script also installs yt-dlp (in the venv, updated daily by the
+`nokturn-server-ytdlp.timer`) and Deno for YouTube's JavaScript challenge. `GET /api/v1/stream/<videoId>` resolves
+a video and returns a signed link of the server's own, valid for a few hours; requests to it are forwarded to
+YouTube with their `Range` header, so the audio passes through the VPS (about 1 MB per minute of music). When
+YouTube answers the server with "Sign in to confirm you're not a bot", export the cookies of a spare Google
+account from a browser (Netscape format) to `/var/lib/nokturn/youtube-cookies.txt`
+(`sudo chown nokturn: /var/lib/nokturn/youtube-cookies.txt`), or point `NOKTURN_YTDLP_COOKIES` at another file.
+Behind Caddy nothing else is needed; the nginx site from the script passes the stream through unbuffered.
+
 Logs: `journalctl -u nokturn-server -f`. Backup: `sqlite3 /var/lib/nokturn/nokturn.db ".backup /root/nokturn.db"`.
 Locally: `cd server && pip install -r requirements.txt && python3 -m nokturn_server --db /tmp/n.db --public-url http://127.0.0.1:8710`
 (then `NOKTURN_SERVER=http://127.0.0.1:8710` for the app). Tests: `cd server && python3 -m unittest discover -s tests`.
@@ -372,7 +420,8 @@ Locally: `cd server && pip install -r requirements.txt && python3 -m nokturn_ser
 API (`/api/v1`, JSON, `Authorization: Bearer <token>`): `POST /register`, `GET|PATCH|DELETE /me`,
 `POST /shares`, `GET /shares/<code>`, `GET|POST /playlists`, `GET|PATCH|DELETE /playlists/<id>`,
 `POST /playlists/<id>/join|leave|tracks`, `DELETE /playlists/<id>/tracks/<entry>`,
-`POST /playlists/<id>/tracks/<entry>/move`, `GET /rooms/<code>` (preview), `GET /health`. Rooms run over the
+`POST /playlists/<id>/tracks/<entry>/move`, `GET /rooms/<code>` (preview), `GET /stream/<videoId>`,
+`GET /health`. Rooms run over the
 WebSocket `/api/v1/ws`: `room.create`, `room.join`, `room.leave`, `room.add`, `room.remove`, `room.move`,
 `room.play`, `room.pause`, `room.resume`, `room.seek`, `room.next`, `room.previous`, `room.ended`, `room.mode`,
 `room.host`, `room.rename`, `room.kick`, `ping`; the server answers with the whole room (`room`), `room.left`,
@@ -448,6 +497,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `src/platform/DiscordPresence.*` | `Discord` singleton: Discord IPC (Rich Presence), "Listening" status |
 | `src/platform/WindowsMediaControls.*`, `WinRtMedia.h` | Windows: SMTC (media flyout, lock screen) and media keys |
 | `src/platform/Mpris.*` | MPRIS 2 on Linux (D-Bus): media keys, system panel controls |
+| `src/platform/AndroidSupport.*` | Android: the storage permission, folder picker URIs |
 | `src/TagLibPath.h` | File path for TagLib (wchar_t on Windows, file system bytes on Linux) |
 | `src/Prefs.*` | `Prefs` singleton for QML: typed reading/writing of `settings.ini` (appearance, wizard) |
 | `src/MemoryTrim.*` | `Memory` singleton: gives freed memory back to the system after a page closes, the library is rebuilt or the window is minimized |
@@ -456,11 +506,12 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `server/` | The online server: `nokturn_server/` (aiohttp app, SQLite, rooms, link pages), `install.sh` for Ubuntu, tests |
 | `packaging/linux/` | `.desktop` file, SVG icon, metainfo (AppStream) |
 | `packaging/windows/` | The setup (`setup/`), the package it downloads (`make_payload.py`), the icon |
+| `packaging/android/` | Android manifest (permissions, `nokturn://` links, background playback) and launcher icons |
 | `qml/onboarding/` | First-run wizard: steps, animated layout thumbnails (`LayoutPreview`), transition preview |
 | `qml/Theme.qml` | Palette, fonts, animation timings; the accent smoothly follows the cover |
 | `qml/Nav.qml` | Navigation (back/forward history), panel state, notifications |
 | `qml/Icons.qml` | Vector icons (SVG paths) |
-| `qml/layout/` | Title bar, sidebar, player bar, "Now playing" panel, full-screen mode |
+| `qml/layout/` | Title bar, sidebar, player bar, "Now playing" panel, full-screen mode; the phone layout's bottom bar and mini player |
 | `qml/pages/` | Home, Search, Library, Playlist/Album/Artist, Sources, Settings, Equalizer, Stats, Listening room |
 | `qml/components/` | Reusable components (covers, buttons, sliders, visualizer, cards…) |
 

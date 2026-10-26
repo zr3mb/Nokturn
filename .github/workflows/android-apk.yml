@@ -1,0 +1,101 @@
+# Builds the Android app (arm64 APK) and attaches it to the GitHub release.
+# Runs when a release is published; can also be started by hand (Actions → Android APK → Run workflow) —
+# without a tag it only keeps the APK as a workflow artifact.
+#
+# Signing: add the repository secrets ANDROID_KEYSTORE_BASE64 (base64 of a .jks/.keystore file),
+# ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS. Without them every run signs with a new throwaway
+# key, and a phone then refuses to update the installed app (uninstall it first).
+name: Android APK
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and upload to (e.g. v0.18.0); empty = build main, artifact only"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  QT_VERSION: "6.8.3"
+  NDK_VERSION: "26.1.10909125"
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Pick the tag
+        id: tag
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "ref=${tag:-main}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build libgl1-mesa-dev libxkbcommon-dev
+
+      - name: Qt ${{ env.QT_VERSION }} for Android and the desktop host
+        run: |
+          pip install aqtinstall
+          aqt install-qt linux desktop "$QT_VERSION" linux_gcc_64 -O "$RUNNER_TEMP/Qt" \
+            -m qtmultimedia qtwebsockets qtimageformats qtshadertools
+          aqt install-qt all_os android "$QT_VERSION" android_arm64_v8a -O "$RUNNER_TEMP/Qt" \
+            -m qtmultimedia qtwebsockets qtimageformats qtshadertools
+
+      - name: Android NDK ${{ env.NDK_VERSION }}
+        run: |
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [[ -n "$KEYSTORE" ]]; then
+            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            {
+              echo "NOKTURN_KEYSTORE=$RUNNER_TEMP/release.keystore"
+              echo "NOKTURN_KEYSTORE_PASS=$PASSWORD"
+              echo "NOKTURN_KEY_ALIAS=$ALIAS"
+            } >> "$GITHUB_ENV"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — the APK is signed with a throwaway key."
+          fi
+
+      - name: Build the APK
+        env:
+          QT_ANDROID: ${{ runner.temp }}/Qt/${{ env.QT_VERSION }}/android_arm64_v8a
+          QT_HOST: ${{ runner.temp }}/Qt/${{ env.QT_VERSION }}/gcc_64
+        run: |
+          apk="$(scripts/build-android.sh | tail -n1)"
+          sha256sum "$apk" | sed 's#  .*/#  #' > "$apk.sha256"
+          mkdir -p dist && cp "$apk" "$apk.sha256" dist/
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nokturn-android
+          path: dist/*
+
+      - name: Attach to the release
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.tag.outputs.tag }}" dist/* --clobber

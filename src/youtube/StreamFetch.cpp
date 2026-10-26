@@ -42,7 +42,10 @@ StreamFetch::~StreamFetch()
 
 bool StreamFetch::suits(const QUrl &url)
 {
-    return url.host().endsWith(QLatin1String("googlevideo.com")) && declaredLength(url) <= kMaxSize;
+    // googlevideo.com directly, or the Nokturn server relaying it (the Android app)
+    const bool youtube = url.host().endsWith(QLatin1String("googlevideo.com"))
+                         || url.path().startsWith(QLatin1String("/api/v1/stream/"));
+    return youtube && declaredLength(url) <= kMaxSize;
 }
 
 void StreamFetch::next()
