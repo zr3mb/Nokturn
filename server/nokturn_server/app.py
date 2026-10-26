@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 import unicodedata
 from collections import defaultdict, deque
@@ -12,6 +13,7 @@ from aiohttp import WSMsgType, web
 from . import pages
 from .db import Database, LimitError
 from .rooms import RoomError, Rooms, server_time
+from .stream import VIDEO_ID, StreamError, Streams, find_ytdlp, load_secret
 from .tracks import TrackError, clean_track
 
 log = logging.getLogger("nokturn")
@@ -31,16 +33,18 @@ def _request_key(name):
     return web.RequestKey(name, object) if hasattr(web, "RequestKey") else name
 
 
-CONFIG, DB, ROOMS, HUB, LIMITS, HOUSEKEEPING = (_app_key(n) for n in
-                                                 ("config", "db", "rooms", "hub", "limits", "housekeeping"))
+CONFIG, DB, ROOMS, HUB, LIMITS, HOUSEKEEPING, STREAMS = (
+    _app_key(n) for n in ("config", "db", "rooms", "hub", "limits", "housekeeping", "streams"))
 USER = _request_key("user")
 
 
 class Config:
-    def __init__(self, db_path, public_url, trust_proxy=True):
+    def __init__(self, db_path, public_url, trust_proxy=True, ytdlp=None, streaming=True):
         self.db_path = db_path
         self.public_url = public_url.rstrip("/")
         self.trust_proxy = trust_proxy
+        self.ytdlp = ytdlp
+        self.streaming = streaming
 
 
 # ---- helpers ------------------------------------------------------------------
@@ -196,7 +200,8 @@ class Hub:
 
 
 async def health(request):
-    return web.json_response({"ok": True, "rooms": len(request.app[ROOMS].rooms), "time": server_time()})
+    return web.json_response({"ok": True, "rooms": len(request.app[ROOMS].rooms), "time": server_time(),
+                              "streaming": request.app[STREAMS].available})
 
 
 async def register(request):
@@ -625,6 +630,42 @@ async def home(request):
     return _html(pages.home_page(pages.language(request), request.app[CONFIG].public_url))
 
 
+# ---- audio for the Android app ---------------------------------------------------
+
+
+@require_user
+async def stream_link(request):
+    streams = request.app[STREAMS]
+    video_id = request.match_info["id"]
+    if not VIDEO_ID.match(video_id):
+        return error(400, "bad_request", "not a YouTube video id")
+    if not streams.available:
+        return error(503, "unavailable", "this server doesn't stream audio")
+    if not request.app[LIMITS]["stream"].allow(request[USER]["id"]):
+        return error(429, "rate_limited", "too many tracks, try again later")
+    try:
+        entry = await streams.resolve(video_id)
+    except StreamError as e:
+        log.warning("stream %s: %s", video_id, e)
+        return error(502, "resolve_failed", str(e))
+    url, expires = streams.link(request.app[CONFIG].public_url, video_id, entry)
+    return web.json_response({"url": url, "expires": expires})
+
+
+async def stream_audio(request):
+    streams = request.app[STREAMS]
+    video_id = request.match_info["id"]
+    if not VIDEO_ID.match(video_id) or not streams.verify(video_id, request.query.get("e"), request.query.get("s")):
+        return error(403, "forbidden", "the link is invalid or expired")
+    try:
+        return await streams.forward(request, video_id)
+    except StreamError as e:
+        log.warning("stream %s: %s", video_id, e)
+        return error(502, "stream_failed", str(e))
+    except ConnectionResetError:
+        raise web.HTTPServiceUnavailable()
+
+
 # ---- the app ------------------------------------------------------------------
 
 
@@ -657,6 +698,7 @@ async def _stop_background(app):
     for conns in list(app[HUB].by_user.values()):
         for c in list(conns):
             await c.ws.close(code=1001, message=b"server shutdown")
+    await app[STREAMS].close()
     app[DB].close()
 
 
@@ -676,11 +718,17 @@ def create_app(config):
     app[DB] = Database(config.db_path)
     app[ROOMS] = Rooms()
     app[HUB] = Hub(app[DB], app[ROOMS])
+    ytdlp = (config.ytdlp or find_ytdlp()) if config.streaming else None
+    cookies = os.environ.get("NOKTURN_YTDLP_COOKIES") or (
+        os.path.join(os.path.dirname(os.path.abspath(config.db_path)), "youtube-cookies.txt")
+        if config.db_path != ":memory:" else None)
+    app[STREAMS] = Streams(load_secret(config.db_path), ytdlp, cookies)
     app[LIMITS] = {
         "register": RateLimiter(20, 3600),
         "share": RateLimiter(120, 3600),
         "playlist": RateLimiter(30, 3600),
         "room": RateLimiter(30, 3600),
+        "stream": RateLimiter(600, 3600),
     }
     r = app.router
     r.add_get(f"{API}/health", health)
@@ -702,6 +750,8 @@ def create_app(config):
     r.add_post(f"{API}/playlists/{{id}}/tracks/{{entry}}/move", move_playlist_track)
     r.add_get(f"{API}/rooms/{{code}}", get_room)
     r.add_get(f"{API}/ws", websocket)
+    r.add_get(f"{API}/stream/{{id}}", stream_link)
+    r.add_get(f"{API}/stream/{{id}}/audio", stream_audio)
     r.add_get("/", home)
     r.add_get("/t/{code}", track_page)
     r.add_get("/r/{code}", room_page)

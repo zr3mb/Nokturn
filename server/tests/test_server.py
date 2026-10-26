@@ -4,11 +4,13 @@ import asyncio
 import os
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from aiohttp.test_utils import AioHTTPTestCase  # noqa: E402
+from aiohttp import web  # noqa: E402
+from aiohttp.test_utils import AioHTTPTestCase, TestServer  # noqa: E402
 
 from nokturn_server import app as app_module  # noqa: E402
 from nokturn_server import rooms as rooms_module  # noqa: E402
@@ -342,6 +344,60 @@ class RoomLogicTest(unittest.TestCase):
         r.leave("b")
         self.assertFalse(r.is_expired())
         self.assertTrue(r.is_expired(now=r.empty_since + rooms_module.EMPTY_ROOM_TTL + 1))
+
+
+class StreamTest(AioHTTPTestCase):
+    """The audio relay for the Android app, with a stand-in for yt-dlp and for YouTube."""
+
+    AUDIO = bytes(range(256)) * 40
+
+    async def get_application(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        upstream = web.Application()
+        upstream.router.add_get("/audio", self.fake_youtube)
+        self.upstream = TestServer(upstream)
+        await self.upstream.start_server()
+        script = os.path.join(self.tmp.name, "yt-dlp")
+        url = str(self.upstream.make_url("/audio")) + f"?expire={int(time.time()) + 3600}&clen={len(self.AUDIO)}"
+        with open(script, "w") as f:
+            f.write(f"#!/bin/sh\necho '{url}'\n")
+        os.chmod(script, 0o755)
+        return create_app(Config(os.path.join(self.tmp.name, "test.db"), "https://nokturn.example", ytdlp=script))
+
+    async def fake_youtube(self, request):
+        start, end = 0, len(self.AUDIO) - 1
+        if "Range" in request.headers:
+            a, b = request.headers["Range"].removeprefix("bytes=").split("-")
+            start, end = int(a), min(int(b), end)
+            return web.Response(status=206, body=self.AUDIO[start:end + 1], content_type="audio/mp4",
+                                headers={"Content-Range": f"bytes {start}-{end}/{len(self.AUDIO)}"})
+        return web.Response(body=self.AUDIO, content_type="audio/mp4")
+
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
+        await self.upstream.close()
+        self.tmp.cleanup()
+
+    async def test_relay(self):
+        r = await self.client.post("/api/v1/register", json={"name": "Ala"})
+        token = (await r.json())["token"]
+        r = await self.client.get("/api/v1/stream/dQw4w9WgXcQ")
+        self.assertEqual(r.status, 401)
+        r = await self.client.get("/api/v1/stream/bad", headers={"Authorization": "Bearer " + token})
+        self.assertEqual(r.status, 400)
+        r = await self.client.get("/api/v1/stream/dQw4w9WgXcQ", headers={"Authorization": "Bearer " + token})
+        self.assertEqual(r.status, 200)
+        link = (await r.json())["url"]
+        self.assertIn(f"clen={len(self.AUDIO)}", link)
+        path = link.removeprefix("https://nokturn.example")
+        r = await self.client.get(path, headers={"Range": "bytes=10-19"})
+        self.assertEqual(r.status, 206)
+        self.assertEqual(await r.read(), self.AUDIO[10:20])
+        self.assertEqual(r.headers["Content-Range"], f"bytes 10-19/{len(self.AUDIO)}")
+        r = await self.client.get(path.replace("s=", "s=0"))
+        self.assertEqual(r.status, 403)
+        r = await self.client.get(path.replace("dQw4w9WgXcQ", "aaaaaaaaaaa"))
+        self.assertEqual(r.status, 403)
 
 
 if __name__ == "__main__":

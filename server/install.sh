@@ -50,8 +50,9 @@ die() { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 
 if [[ $UNINSTALL -eq 1 ]]; then
     say "Removing the service and the nginx site (the data in $DATA_DIR stays)"
-    systemctl disable --now "$SERVICE" 2>/dev/null || true
-    rm -f "/etc/systemd/system/$SERVICE.service" /etc/nginx/sites-enabled/nokturn "$NGINX_SITE"
+    systemctl disable --now "$SERVICE" "$SERVICE-ytdlp.timer" 2>/dev/null || true
+    rm -f "/etc/systemd/system/$SERVICE.service" "/etc/systemd/system/$SERVICE-ytdlp.service" \
+          "/etc/systemd/system/$SERVICE-ytdlp.timer" /etc/nginx/sites-enabled/nokturn "$NGINX_SITE"
     systemctl daemon-reload
     if command -v nginx >/dev/null && nginx -t 2>/dev/null; then systemctl reload nginx; fi
     rm -rf "$APP_DIR"
@@ -71,7 +72,7 @@ fi
 say "Installing packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-packages=(python3 python3-venv nginx curl sqlite3)
+packages=(python3 python3-venv nginx curl sqlite3 unzip)
 [[ $TLS -eq 1 ]] && packages+=(certbot python3-certbot-nginx)
 apt-get install -y -q "${packages[@]}"
 
@@ -94,6 +95,28 @@ if [[ ! -x "$APP_DIR/venv/bin/python" ]]; then
 fi
 "$APP_DIR/venv/bin/pip" install -q --upgrade pip
 "$APP_DIR/venv/bin/pip" install -q -r "$APP_DIR/requirements.txt"
+
+# The Android app plays YouTube through the server: yt-dlp resolves the tracks and Deno solves
+# YouTube's JavaScript challenge for it. yt-dlp is kept up to date by a daily timer.
+say "yt-dlp and Deno (audio for the Android app)"
+"$APP_DIR/venv/bin/pip" install -q --upgrade "yt-dlp[default]"
+install -d -m 0755 "$APP_DIR/bin"
+case "$(uname -m)" in
+    x86_64) DENO_ARCH="x86_64" ;;
+    aarch64) DENO_ARCH="aarch64" ;;
+    *) DENO_ARCH="" ;;
+esac
+if [[ -n "$DENO_ARCH" && ! -x "$APP_DIR/bin/deno" ]]; then
+    tmp="$(mktemp -d)"
+    if curl -fsSL -o "$tmp/deno.zip" "https://github.com/denoland/deno/releases/latest/download/deno-$DENO_ARCH-unknown-linux-gnu.zip"; then
+        unzip -q -o "$tmp/deno.zip" -d "$APP_DIR/bin"
+        chmod 0755 "$APP_DIR/bin/deno"
+    else
+        warn "Couldn't download Deno; some YouTube tracks may not play in the Android app."
+    fi
+    rm -rf "$tmp"
+fi
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 "$DATA_DIR/cache"
 
 PUBLIC_URL="https://$DOMAIN"
 [[ $TLS -eq 0 ]] && PUBLIC_URL="http://$DOMAIN"
@@ -118,6 +141,9 @@ Type=simple
 User=$SERVICE_USER
 Group=$SERVICE_USER
 EnvironmentFile=$ENV_FILE
+Environment=PATH=$APP_DIR/bin:$APP_DIR/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=XDG_CACHE_HOME=$DATA_DIR/cache
+Environment=DENO_DIR=$DATA_DIR/cache/deno
 WorkingDirectory=$APP_DIR
 ExecStart=$APP_DIR/venv/bin/python -m nokturn_server
 Restart=on-failure
@@ -139,8 +165,30 @@ ReadWritePaths=$DATA_DIR
 [Install]
 WantedBy=multi-user.target
 EOF
+cat > "/etc/systemd/system/$SERVICE-ytdlp.service" <<EOF
+[Unit]
+Description=Update yt-dlp for the Nokturn server
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$APP_DIR/venv/bin/pip install -q --upgrade yt-dlp[default]
+EOF
+cat > "/etc/systemd/system/$SERVICE-ytdlp.timer" <<EOF
+[Unit]
+Description=Daily yt-dlp update for the Nokturn server
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
 systemctl daemon-reload
 systemctl enable "$SERVICE" >/dev/null
+systemctl enable --now "$SERVICE-ytdlp.timer" >/dev/null
 systemctl restart "$SERVICE"
 
 say "nginx"
@@ -171,6 +219,14 @@ proxy_block() {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 1h;
         proxy_send_timeout 1h;
+    }
+
+    location /api/v1/stream/ {
+        proxy_pass http://127.0.0.1:$PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_buffering off;
+        proxy_read_timeout 2m;
     }
 
     location / {
