@@ -279,6 +279,11 @@ void OnlineService::resolveStream(const QString &videoId, std::function<void(con
                 done(url, {});
                 return;
             }
+            // An older server has no audio relay at all.
+            if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 404) {
+                done({}, tr("The Nokturn server doesn't relay audio yet; update it (server/install.sh)"));
+                return;
+            }
             QString error = o.value("message").toString();
             done({}, error.isEmpty() ? reply->errorString() : error);
         });

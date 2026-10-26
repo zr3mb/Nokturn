@@ -992,5 +992,6 @@
   "Nokturn server": "serwer Nokturna",
   "Sign in to %1": "Logowanie do %1",
   "Sign in to your Google account on the page that opens. When YouTube Music appears, Nokturn takes over and downloads your liked tracks and playlists.": "Zaloguj się na konto Google na stronie, która się otworzy. Gdy pojawi się YouTube Music, Nokturn przejmie sesję i pobierze polubione utwory oraz playlisty.",
-  "Sign in to SoundCloud on the page that opens; Nokturn takes over once you're signed in.": "Zaloguj się do SoundCloud na stronie, która się otworzy; po zalogowaniu Nokturn przejmie sesję."
+  "Sign in to SoundCloud on the page that opens; Nokturn takes over once you're signed in.": "Zaloguj się do SoundCloud na stronie, która się otworzy; po zalogowaniu Nokturn przejmie sesję.",
+  "The Nokturn server doesn't relay audio yet; update it (server/install.sh)": "Serwer Nokturna nie przekazuje jeszcze dźwięku; zaktualizuj go (server/install.sh)"
 }
