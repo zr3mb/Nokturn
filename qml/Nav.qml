@@ -43,7 +43,8 @@ QtObject {
     signal addFolderRequested()
     signal matchPickerRequested(var track)
     signal playlistDialogRequested(string mode, int index, var rows)
-    signal moreRequested(bool open)   // phone layout: the sheet with the pages the bottom bar has no room for
+    signal moreRequested(bool open)
+    signal webLoginRequested(string service)   // Android: "youtube" | "soundcloud" in the in-app browser   // phone layout: the sheet with the pages the bottom bar has no room for
 
     // New playlist (optionally with tracks — rows of Library.tracks) / editing an existing one (PlaylistDialog).
     function createPlaylist(rows) {

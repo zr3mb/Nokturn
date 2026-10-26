@@ -76,6 +76,9 @@ public:
     Q_INVOKABLE void login();
     Q_INVOKABLE void cancelLogin();
     Q_INVOKABLE void loginWithCookies(const QString &cookieHeader);
+    // Android: the cookies of the in-app sign-in page (qml/mobile/WebLogin.qml); empty elsewhere.
+    Q_INVOKABLE QString browserCookies(const QString &url) const;
+    Q_INVOKABLE void clearBrowserCookies();
     Q_INVOKABLE void logout();
     Q_INVOKABLE void selectIdentity(int index);
     Q_INVOKABLE void refresh();

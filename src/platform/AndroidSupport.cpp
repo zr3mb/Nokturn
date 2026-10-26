@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QFutureWatcher>
+#include <QJniObject>
 #include <QOperatingSystemVersion>
 #include <QtCore/private/qandroidextras_p.h>
 
@@ -40,6 +41,33 @@ QString folderPath(const QUrl &url)
     const QString base = volume == QLatin1String("primary") ? QStringLiteral("/storage/emulated/0")
                                                             : QStringLiteral("/storage/") + volume;
     return relative.isEmpty() ? base : base + QLatin1Char('/') + relative;
+}
+
+namespace {
+
+QJniObject cookieManager()
+{
+    return QJniObject::callStaticObjectMethod("android/webkit/CookieManager", "getInstance",
+                                              "()Landroid/webkit/CookieManager;");
+}
+
+} // namespace
+
+QString webCookies(const QString &url)
+{
+    const QJniObject manager = cookieManager();
+    if (!manager.isValid())
+        return {};
+    const QJniObject cookies = manager.callObjectMethod("getCookie", "(Ljava/lang/String;)Ljava/lang/String;",
+                                                        QJniObject::fromString(url).object<jstring>());
+    return cookies.isValid() ? cookies.toString() : QString();
+}
+
+void clearWebCookies()
+{
+    QJniObject manager = cookieManager();
+    if (manager.isValid())
+        manager.callMethod<void>("removeAllCookies", "(Landroid/webkit/ValueCallback;)V", nullptr);
 }
 
 } // namespace AndroidSupport

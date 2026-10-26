@@ -15,6 +15,7 @@
 
 #ifdef Q_OS_ANDROID
 #  include "platform/AndroidSupport.h"
+#  include <QtWebView/QtWebView>
 #endif
 
 int main(int argc, char *argv[])
@@ -27,6 +28,9 @@ int main(int argc, char *argv[])
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_SIZE_LIMIT"))
         qputenv("QSG_ATLAS_SIZE_LIMIT", "1");
 
+#ifdef Q_OS_ANDROID
+    QtWebView::initialize();   // the in-app sign-in page (before the application object)
+#endif
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("Nokturn"));
     QGuiApplication::setApplicationDisplayName(QStringLiteral("Nokturn"));

@@ -236,7 +236,7 @@ Item {
                             spacing: 12
 
                             Hint {
-                                text: Nav.mobile ? qsTr("On the phone you sign in by pasting the cookies of a YouTube Music session from a browser on your computer.")
+                                text: Nav.mobile ? qsTr("Sign in to your Google account on the page that opens. When YouTube Music appears, Nokturn takes over and downloads your liked tracks and playlists.")
                                       : YouTube.browserName !== ""
                                       ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to your Google account there as usual. When YouTube Music appears, the window closes by itself and Nokturn downloads your liked tracks and playlists.").arg(YouTube.browserName)
                                       : qsTr("Chrome, Edge or Brave was not found. You can paste the cookies manually.")
@@ -245,11 +245,10 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: 10
                                 PillButton {
-                                    visible: !Nav.mobile
                                     icon: "person"
                                     text: qsTr("Sign in with the browser")
-                                    enabled: YouTube.browserName !== ""
-                                    onClicked: YouTube.login()
+                                    enabled: Nav.mobile || YouTube.browserName !== ""
+                                    onClicked: Nav.mobile ? Nav.webLoginRequested("youtube") : YouTube.login()
                                 }
                                 PillButton {
                                     kind: "ghost"
@@ -653,7 +652,8 @@ Item {
                             }
                             Hint {
                                 visible: !soundcloudSignIn.manual
-                                text: YouTube.browserName !== ""
+                                text: Nav.mobile ? qsTr("Sign in to SoundCloud on the page that opens; Nokturn takes over once you're signed in.")
+                                      : YouTube.browserName !== ""
                                       ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to SoundCloud there as usual; once your feed appears, the window closes by itself.").arg(YouTube.browserName)
                                       : qsTr("Signing in needs Google Chrome, Microsoft Edge or Brave.")
                             }
@@ -664,8 +664,8 @@ Item {
                                 PillButton {
                                     icon: "person"
                                     text: qsTr("Sign in with the browser")
-                                    enabled: YouTube.browserName !== ""
-                                    onClicked: SoundCloud.login()
+                                    enabled: Nav.mobile || YouTube.browserName !== ""
+                                    onClicked: Nav.mobile ? Nav.webLoginRequested("soundcloud") : SoundCloud.login()
                                 }
                                 PillButton {
                                     kind: "ghost"

@@ -1,6 +1,9 @@
 #include "YouTubeService.h"
 
 #include "AppPaths.h"
+#ifdef Q_OS_ANDROID
+#  include "platform/AndroidSupport.h"
+#endif
 
 #include <QCoreApplication>
 #include <QDir>
@@ -167,6 +170,23 @@ void YouTubeService::login()
 void YouTubeService::cancelLogin()
 {
     m_login.cancel();
+}
+
+QString YouTubeService::browserCookies(const QString &url) const
+{
+#ifdef Q_OS_ANDROID
+    return AndroidSupport::webCookies(url);
+#else
+    Q_UNUSED(url)
+    return {};
+#endif
+}
+
+void YouTubeService::clearBrowserCookies()
+{
+#ifdef Q_OS_ANDROID
+    AndroidSupport::clearWebCookies();
+#endif
 }
 
 void YouTubeService::loginWithCookies(const QString &cookieHeader)

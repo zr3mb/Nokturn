@@ -15,4 +15,8 @@ void requestAudioPermission(std::function<void(bool granted)> done);
 // Folders on the shared storage map to /storage/emulated/0/…, other volumes to /storage/<id>/….
 QString folderPath(const QUrl &url);
 
+// Cookies the system WebView holds for a URL ("a=b; c=d", HttpOnly ones included), and dropping them all.
+QString webCookies(const QString &url);
+void clearWebCookies();
+
 } // namespace AndroidSupport

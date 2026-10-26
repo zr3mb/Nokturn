@@ -229,7 +229,10 @@ if(ANDROID)
         QT_ANDROID_VERSION_NAME ${PROJECT_VERSION}
         QT_ANDROID_VERSION_CODE ${NOKTURN_VERSION_CODE})
     target_sources(Nokturn PRIVATE src/platform/AndroidSupport.h src/platform/AndroidSupport.cpp)
-    target_link_libraries(Nokturn PRIVATE Qt6::CorePrivate)
+    # Signing in to YouTube Music / SoundCloud in the system WebView (qml/mobile/WebLogin.qml)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS WebView)
+    qt_target_qml_sources(Nokturn QML_FILES qml/mobile/WebLogin.qml)
+    target_link_libraries(Nokturn PRIVATE Qt6::CorePrivate Qt6::WebView)
     target_compile_definitions(Nokturn PRIVATE NOKTURN_MOBILE)
     # Qt loads OpenSSL at run time and Android has none for apps: HTTPS needs a bundled copy
     # (prebuilt libssl_3.so / libcrypto_3.so for arm64-v8a, e.g. from github.com/KDAB/android_openssl).

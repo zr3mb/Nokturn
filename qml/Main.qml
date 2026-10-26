@@ -186,6 +186,20 @@ ApplicationWindow {
             }
         }
 
+        // Android: signing in inside the app (built only for the Android package)
+        Loader {
+            id: webLogin
+            property string service: "youtube"
+            anchors.fill: parent
+            active: false
+            source: "mobile/WebLogin.qml"
+            onLoaded: item.service = service
+            Connections {
+                target: webLogin.item
+                function onClosed() { webLogin.active = false }
+            }
+        }
+
         Toast {
             id: toast
             bottomOffset: win.mobile ? mobileNav.height + (mobilePlayer.visible ? 72 : 12) : playerBar.height + 22
@@ -323,6 +337,10 @@ ApplicationWindow {
         }
         function onPlaylistDialogRequested(mode, index, rows) {
             playlistDialog.show(mode, index, rows)
+        }
+        function onWebLoginRequested(service) {
+            webLogin.service = service
+            webLogin.active = true
         }
         function onMoreRequested(open) {
             open ? moreSheet.open() : moreSheet.close()

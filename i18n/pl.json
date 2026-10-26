@@ -986,9 +986,11 @@
   ],
   "Room": "Pokój",
   "More": "Więcej",
-  "On the phone you sign in by pasting the cookies of a YouTube Music session from a browser on your computer.": "Na telefonie logujesz się, wklejając ciasteczka sesji YouTube Music z przeglądarki na komputerze.",
   "Playback through the Nokturn server": "Odtwarzanie przez serwer Nokturna",
   "Phones can't run yt-dlp, so %1 finds the YouTube tracks and passes their audio on.": "Telefon nie uruchomi yt-dlp, więc %1 wyszukuje utwory z YouTube i przekazuje ich dźwięk.",
   "Can't reach the Nokturn server": "Brak połączenia z serwerem Nokturna",
-  "Nokturn server": "serwer Nokturna"
+  "Nokturn server": "serwer Nokturna",
+  "Sign in to %1": "Logowanie do %1",
+  "Sign in to your Google account on the page that opens. When YouTube Music appears, Nokturn takes over and downloads your liked tracks and playlists.": "Zaloguj się na konto Google na stronie, która się otworzy. Gdy pojawi się YouTube Music, Nokturn przejmie sesję i pobierze polubione utwory oraz playlisty.",
+  "Sign in to SoundCloud on the page that opens; Nokturn takes over once you're signed in.": "Zaloguj się do SoundCloud na stronie, która się otworzy; po zalogowaniu Nokturn przejmie sesję."
 }
