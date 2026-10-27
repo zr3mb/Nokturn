@@ -722,7 +722,7 @@ Item {
                 SettingRow {
                     icon: "heart"
                     title: qsTr("Same library on every device")
-                    description: qsTr("YouTube Music likes and what you play go to your Nokturn account, so the phone app and the browser version show the same Liked and Recently played.")
+                    description: qsTr("YouTube Music likes and what you play go to your Nokturn account, so every device signed in to it — computer, phone, browser — shows the same Liked and Recently played.")
                     Toggle { checked: Online.librarySync; onToggled: c => Online.librarySync = c }
                 }
                 SettingRow {
@@ -732,8 +732,8 @@ Item {
                     icon: "link"
                     title: qsTr("Link another device")
                     description: pairRow.minutesLeft > 0
-                                 ? qsTr("Enter this code on the other device (phone app or browser version). Valid for %1 more min.").arg(pairRow.minutesLeft)
-                                 : qsTr("Show a code and enter it on your phone or in the browser version: it gets this account, with its library, playlists and rooms.")
+                                 ? qsTr("Enter this code on the other device. Valid for %1 more min.").arg(pairRow.minutesLeft)
+                                 : qsTr("Show a code and enter it on another device (the app on a computer or phone, or the browser version): it gets this account, with its library, playlists and rooms.")
                     Timer {
                         id: clock
                         property double now: Date.now()

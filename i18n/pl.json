@@ -985,10 +985,10 @@
     "Dodano do %1 — pominięto %n bez wersji w YouTube Music"
   ],
   "Same library on every device": "Ta sama biblioteka na każdym urządzeniu",
-  "YouTube Music likes and what you play go to your Nokturn account, so the phone app and the browser version show the same Liked and Recently played.": "Polubione w YouTube Music i to, czego słuchasz, trafia na Twoje konto Nokturna, więc aplikacja na telefon i wersja w przeglądarce pokazują te same Polubione i Ostatnio słuchane.",
+  "YouTube Music likes and what you play go to your Nokturn account, so every device signed in to it — computer, phone, browser — shows the same Liked and Recently played.": "Polubione w YouTube Music i to, czego słuchasz, trafia na Twoje konto Nokturna, więc każde połączone z nim urządzenie — komputer, telefon, przeglądarka — pokazuje te same Polubione i Ostatnio słuchane.",
   "Link another device": "Połącz inne urządzenie",
-  "Enter this code on the other device (phone app or browser version). Valid for %1 more min.": "Wpisz ten kod na drugim urządzeniu (w aplikacji na telefon albo w wersji w przeglądarce). Ważny jeszcze %1 min.",
-  "Show a code and enter it on your phone or in the browser version: it gets this account, with its library, playlists and rooms.": "Pokaż kod i wpisz go na telefonie albo w wersji w przeglądarce — dostanie to konto razem z biblioteką, playlistami i pokojami.",
+  "Enter this code on the other device. Valid for %1 more min.": "Wpisz ten kod na drugim urządzeniu. Ważny jeszcze %1 min.",
+  "Show a code and enter it on another device (the app on a computer or phone, or the browser version): it gets this account, with its library, playlists and rooms.": "Pokaż kod i wpisz go na innym urządzeniu (w aplikacji na komputerze lub telefonie albo w wersji w przeglądarce) — dostanie to konto razem z biblioteką, playlistami i pokojami.",
   "Show a code": "Pokaż kod",
   "I have a code": "Mam kod",
   "From another device: this one switches to that device's Nokturn account. Your likes here are added to it.": "Z innego urządzenia: to urządzenie przejdzie na tamto konto Nokturna. Twoje polubione stąd zostaną do niego dodane.",
