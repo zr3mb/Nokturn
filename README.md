@@ -261,13 +261,16 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
   are summed by `AudioEngine` — before the equalizer, so the equalizer, limiter and visualizer work on what you
   hear. The envelope starts only when the first samples of the new track arrive, so a delayed start leaves no gap.
   Seeking, "next" or pause during a transition are handled (the transition ends at once).
-- Samples pass through the GUI thread on their way to the ring buffer (~200 ms cushion), so the UI must not
-  block for longer: search results, artist songs and opened collections are appended to the track model instead
+- The sound never waits for the GUI thread: the decoders' samples are mixed and equalized on the decoders' own
+  threads (connected directly), and the audio sink pulls from the ring buffer (~200 ms cushion) on a thread of its
+  own — dragging the window's edge, which re-lays the interface out for every step, used to cut the sound. The UI
+  still stays light: search results, artist songs and opened collections are appended to the track model instead
   of rebuilding it, and lists create their rows' hover-only controls and cover motifs on demand. The playback
   position (lyrics, progress bar) is corrected by what still waits in the buffers.
 - Diagnostics: `NOKTURN_AUDIO_DEBUG=1` prints the sample rate and the number of buffer underruns every 3 s;
   `NOKTURN_PERF_DEBUG=1` reports every GUI thread stall over 60 ms and how long model rebuilds take
-  (`Nokturn.exe --tour <dir> --tour-perf` plays a track while searching and opening artists).
+  (`Nokturn.exe --tour <dir> --tour-perf` plays a track while searching and opening artists;
+  `--tour-resize "<query>"` plays one while the window's width changes every frame and the GUI thread stalls).
 
 ## Discord status
 

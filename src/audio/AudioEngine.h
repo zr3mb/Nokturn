@@ -1,17 +1,22 @@
 #pragma once
 
 #include <QAudioFormat>
+#include <QMutex>
 #include <QObject>
+#include <QThread>
 
 #include <array>
+#include <atomic>
 #include <vector>
 
 class QAudioBuffer;
 class QAudioSink;
 
 // Custom output path: decoded samples (from QAudioBufferOutput) go through the equalizer
-// into a ring buffer that QAudioSink reads from. The buffer keeps a "cushion" of
-// ~200 ms so short UI hiccups don't cause crackles.
+// into a ring buffer that QAudioSink reads from. The buffer keeps a "cushion" of ~200 ms.
+// Nothing of it runs on the GUI thread: the samples are mixed on the decoders' threads (push() is
+// connected directly), and the sink has a thread of its own — so a busy interface (dragging the
+// window's edge re-lays it out for every pixel) can't starve the sound. The state is under m_lock.
 // Samples that were actually played are kept for the spectrum analyzer — so the visualizer
 // shows what you hear (after EQ), at the right moment.
 //
@@ -45,7 +50,7 @@ public:
     void flush();                        // clears everything (user changes track, seeks)
     void dropDeck(int deck);             // drops a deck's samples (e.g. a stopped one)
     void setActiveDeck(int deck);
-    int activeDeck() const { return m_active; }
+    int activeDeck() const;
     void setPaused(bool paused);
     void setVolume(float linear);
     double latency() const;              // seconds between a decoded sample and hearing it
@@ -55,7 +60,7 @@ public:
     void beginTransition(int from, int to, const Transition &t);
     void finishTransitionNow();          // e.g. a seek during the transition — the old deck goes silent at once
     void setDeckEnded(int deck);         // the deck reached the end of the file: no samples = silence, don't wait
-    bool inTransition() const { return m_tr.active; }
+    bool inTransition() const;
     double transitionProgress() const;
 
     // Deck loudness (dBFS): short-term (~0.1 s) and the average since the start of the track — to detect
@@ -66,6 +71,8 @@ public:
 
     // Played samples (mono) since the last call — for the spectrum analyzer.
     void takePlayed(std::vector<float> &mono);
+
+    // Everything below may be called from any thread.
 
 signals:
     void transitionFinished(int fromDeck);
@@ -114,8 +121,12 @@ private:
     void finishTransition();
 
     QAudioFormat m_format;
-    QAudioSink *m_sink = nullptr;
+    QThread m_outputThread;               // the sink and its timers
+    QObject *m_output = nullptr;          // lives in m_outputThread: invokeMethod's target there
+    QAudioSink *m_sink = nullptr;         // used only on m_outputThread
     Ring *m_ring = nullptr;
+    std::atomic<qint64> m_deviceQueuedUs { 0 };   // what the device holds (for latency())
+    mutable QRecursiveMutex m_lock;      // the decks' queues, the transition, the levels
     std::vector<float> m_scratch;
     std::vector<float> m_out;
     std::array<Stage, kDecks> m_stage;

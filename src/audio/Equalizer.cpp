@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <utility>
 
 namespace {
 
@@ -103,6 +104,23 @@ Equalizer::Equalizer(QObject *parent)
     for (int b = 0; b < kBands; ++b)
         rebuild(b);
     updateCurves();
+    publish();
+}
+
+void Equalizer::publish()
+{
+    Dsp d;
+    d.enabled = m_enabled;
+    d.limiter = m_limiter;
+    d.preamp = m_preamp;
+    d.rate = m_rate;
+    d.coeffs = m_coeffs;
+    for (int b = 0; b < kBands; ++b) {
+        d.on[b] = active(m_bands[b]);
+        d.stages[b] = stages(m_bands[b]);
+    }
+    QMutexLocker lock(&m_dspLock);
+    m_dsp = d;
 }
 
 // ---- parameters ---------------------------------------------------------------
@@ -150,7 +168,10 @@ void Equalizer::setLimiter(bool on)
     if (on == m_limiter)
         return;
     m_limiter = on;
-    m_limGain = 1.0;
+    {
+        QMutexLocker lock(&m_dspLock);
+        m_limGain = 1.0;
+    }
     touch(true);
 }
 
@@ -253,6 +274,7 @@ void Equalizer::touch(bool keepPreset)
     if (!keepPreset)
         m_preset = QStringLiteral("Custom");
     ++m_revision;
+    publish();
     updateCurves();
     save();
     emit changed();
@@ -390,6 +412,7 @@ void Equalizer::setSampleRate(int rate)
     m_rate = rate;
     for (int b = 0; b < kBands; ++b)
         rebuild(b);
+    publish();
     resetState();
     updateCurves();
     emit changed();
@@ -397,28 +420,31 @@ void Equalizer::setSampleRate(int rate)
 
 void Equalizer::resetState()
 {
-    for (auto &band : m_state)
-        for (auto &stage : band)
-            stage.fill(State {});
-    m_limGain = 1.0;
+    // done by process() itself before its next block
+    QMutexLocker lock(&m_dspLock);
+    m_resetPending = true;
 }
 
 void Equalizer::process(float *interleaved, qsizetype frames, int channels)
 {
-    if (!m_enabled || channels <= 0)
+    QMutexLocker lock(&m_dspLock);
+    if (m_resetPending) {
+        for (auto &band : m_state)
+            for (auto &stage : band)
+                stage.fill(State {});
+        m_limGain = 1.0;
+        m_resetPending = false;
+    }
+    const Dsp &d = m_dsp;
+    if (!d.enabled || channels <= 0)
         return;   // bypass — the signal is unchanged
 
     const int ch = std::min(channels, kMaxChannels);
-    const double pre = std::pow(10.0, m_preamp / 20.0);
-    const double threshold = 0.966;                                   // -0.3 dBFS
-    const double release = 1.0 - std::exp(-1.0 / (0.15 * m_rate));   // ~150 ms
-
-    std::array<bool, kBands> on {};
-    std::array<int, kBands> nStages {};
-    for (int b = 0; b < kBands; ++b) {
-        on[b] = active(m_bands[b]);
-        nStages[b] = stages(m_bands[b]);
-    }
+    const double pre = std::pow(10.0, d.preamp / 20.0);
+    const double threshold = 0.966;                                    // -0.3 dBFS
+    const double release = 1.0 - std::exp(-1.0 / (0.15 * d.rate));    // ~150 ms
+    const auto &on = d.on;
+    const auto &nStages = d.stages;
 
     float blockPeak = 0.0f;
     double minGain = 1.0;
@@ -432,7 +458,7 @@ void Equalizer::process(float *interleaved, qsizetype frames, int channels)
             for (int b = 0; b < kBands; ++b) {
                 if (!on[b])
                     continue;
-                const Coeffs &k = m_coeffs[b];
+                const Coeffs &k = d.coeffs[b];
                 for (int s = 0; s < nStages[b]; ++s) {
                     State &st = m_state[b][s][c];
                     const double y = k.b0 * x + k.b1 * st.x1 + k.b2 * st.x2 - k.a1 * st.y1 - k.a2 * st.y2;
@@ -449,7 +475,7 @@ void Equalizer::process(float *interleaved, qsizetype frames, int channels)
 
         // Peak limiter (instant attack, gentle release, linked channels).
         double g = 1.0;
-        if (m_limiter) {
+        if (d.limiter) {
             const double target = framePeak > threshold ? threshold / framePeak : 1.0;
             if (target < m_limGain)
                 m_limGain = target;
@@ -465,8 +491,8 @@ void Equalizer::process(float *interleaved, qsizetype frames, int channels)
 
     m_blockPeak = std::max(m_blockPeak, blockPeak);
     m_blockReduction = std::max(m_blockReduction, -20.0 * std::log10(minGain));
-    if (!m_limiter && blockPeak > 1.0f)
-        m_clipHold = 1.2;
+    if (!d.limiter && blockPeak > 1.0f)
+        m_blockClipped = true;
 }
 
 void Equalizer::tickMeters(double dt)
@@ -474,12 +500,19 @@ void Equalizer::tickMeters(double dt)
     const double oldPeak = m_peakDb, oldRed = m_reductionDb;
     const bool oldClip = clipping();
 
-    const double peakNow = 20.0 * std::log10(std::max<double>(m_blockPeak, 1e-5));
+    float blockPeak;
+    double blockReduction;
+    bool clipped;
+    {
+        QMutexLocker lock(&m_dspLock);
+        blockPeak = std::exchange(m_blockPeak, 0.0f);
+        blockReduction = std::exchange(m_blockReduction, 0.0);
+        clipped = std::exchange(m_blockClipped, false);
+    }
+    const double peakNow = 20.0 * std::log10(std::max<double>(blockPeak, 1e-5));
     m_peakDb = peakNow > m_peakDb ? peakNow : std::max(-60.0, m_peakDb - 30.0 * dt);
-    m_reductionDb = m_blockReduction > m_reductionDb ? m_blockReduction : std::max(0.0, m_reductionDb - 20.0 * dt);
-    m_clipHold = std::max(0.0, m_clipHold - dt);
-    m_blockPeak = 0.0f;
-    m_blockReduction = 0.0;
+    m_reductionDb = blockReduction > m_reductionDb ? blockReduction : std::max(0.0, m_reductionDb - 20.0 * dt);
+    m_clipHold = clipped ? 1.2 : std::max(0.0, m_clipHold - dt);
 
     if (std::abs(oldPeak - m_peakDb) > 0.05 || std::abs(oldRed - m_reductionDb) > 0.05 || oldClip != clipping())
         emit metersChanged();

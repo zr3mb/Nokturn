@@ -452,6 +452,51 @@ Item {
         } })
         return s
     }
+    // Dragging the window's edge while music plays (--tour-resize "<query>", with NOKTURN_AUDIO_DEBUG and
+    // NOKTURN_PERF_DEBUG): the width changes every frame for a while; the log shows buffer underruns.
+    readonly property bool withResize: Qt.application.arguments.indexOf("--tour-resize") >= 0
+    Timer {
+        id: resizer
+        property int n: 0
+        property int baseWidth: 0
+        interval: 16
+        repeat: true
+        onTriggered: {
+            const w = root.Window.window
+            if (!baseWidth)
+                baseWidth = w.width
+            ++n
+            w.width = baseWidth - 300 + Math.round(300 * Math.abs(Math.sin(n / 25)))
+            // a long layout pass, like a heavy frame while the edge is dragged: the GUI thread is busy
+            if (n % 20 === 0) {
+                const until = Date.now() + 400
+                while (Date.now() < until) {}
+            }
+        }
+    }
+    readonly property var resizeSteps: {
+        if (!withResize)
+            return []
+        const q = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-resize") + 1].replace(/_/g, " ")
+        const log = what => console.log("tour: " + what, "|", Player.title, "| pos", Player.position.toFixed(1), "| playing", Player.playing)
+        const s = [
+            { name: "Z0", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("search", { query: q, filter: 2 }) } },
+            { name: "Z1-wait", run: () => {} },
+            { name: "Z2-play", run: () => { const r = Library.onlineResults(); if (r.length) Player.playFrom(r, r[0], "search"); Nav.navigate("home") } },
+            { name: "Z3-steady", run: () => log("before") },
+            { name: "Z4-steady", run: () => log("before") },
+            { name: "Z5-resize", run: () => { log("resizing"); resizer.start() } }
+        ]
+        for (let i = 0; i < 4; ++i)
+            s.push({ name: "Z6-" + i, run: () => log("resizing") })
+        s.push({ name: "Z7-stop", run: () => { resizer.stop(); log("after") } })
+        s.push({ name: "Z8-after", run: () => log("after") })
+        // and a transition into the next track, mixed off the GUI thread too
+        s.push({ name: "Z9-mix", run: () => { Player.crossfade = 5; Player.seek(Math.max(0, Player.duration - 9)); log("near the end") } })
+        for (let i = 0; i < 6; ++i)
+            s.push({ name: "Z10-" + i, run: () => log("mixing") })
+        return s
+    }
     // Listening to a few tracks muted, with the lyrics open (--tour-listen "<q1>;<q2>", "_" = space):
     // with NOKTURN_AUDIO_DEBUG the log shows whether the sound keeps up (buffer underruns).
     readonly property bool withListen: Qt.application.arguments.indexOf("--tour-listen") >= 0
@@ -765,7 +810,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
