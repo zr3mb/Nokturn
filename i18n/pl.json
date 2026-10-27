@@ -997,5 +997,18 @@
   "The code has 8 letters and digits": "Kod ma 8 liter i cyfr",
   "Wrong or expired code": "Zły albo nieważny kod",
   "Couldn't link: %1": "Nie udało się połączyć: %1",
-  "Linked — this device uses the same Nokturn account now": "Połączono — to urządzenie używa teraz tego samego konta Nokturna"
+  "Linked — this device uses the same Nokturn account now": "Połączono — to urządzenie używa teraz tego samego konta Nokturna",
+  "Playlist password": "Hasło playlisty",
+  "This playlist has a password": "Ta playlista ma hasło",
+  "Others need it to join through the link; those already in stay. Leave it empty and save to remove it.": "Inni potrzebują go, żeby dołączyć z linku; kto już jest, zostaje. Zostaw puste i zapisz, żeby je usunąć.",
+  "Others will need it to join through the link; those already in stay.": "Inni będą go potrzebować, żeby dołączyć z linku; kto już jest, zostaje.",
+  "Wrong password — try again.": "Złe hasło — spróbuj jeszcze raz.",
+  "Ask the person who shared it.": "Zapytaj osobę, która ją udostępniła.",
+  "Password": "Hasło",
+  "Too many wrong passwords — try again in a few minutes": "Za dużo złych haseł — spróbuj za kilka minut",
+  "Couldn't change the password: %1": "Nie udało się zmienić hasła: %1",
+  "Password removed — anyone with the link can join": "Hasło usunięte — każdy z linkiem może dołączyć",
+  "Password set — others need it to join": "Hasło ustawione — inni potrzebują go, żeby dołączyć",
+  "Change or remove the password": "Zmień albo usuń hasło",
+  "Set a password": "Ustaw hasło"
 }

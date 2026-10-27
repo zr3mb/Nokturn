@@ -67,6 +67,7 @@ public:
         QStringList trackIds;
         QHash<QString, QString> entryOf;   // track id -> the server's entry id (for removing)
         int version = 0;
+        bool locked = false;               // joining it needs a password
     };
 
     static OnlineService *instance();
@@ -125,7 +126,9 @@ public:
     Q_INVOKABLE void copyPlaylistLink(const QString &id);
     Q_INVOKABLE void refreshPlaylists();
     Q_INVOKABLE bool isPlaylistOwner(const QString &id) const;
-    Q_INVOKABLE QVariantMap playlistInfo(const QString &id) const;   // { owner, members, url, isOwner }
+    Q_INVOKABLE QVariantMap playlistInfo(const QString &id) const;   // { owner, members, url, isOwner, protected }
+    Q_INVOKABLE void setPlaylistPassword(const QString &id, const QString &password);   // empty removes it
+    Q_INVOKABLE void joinWithPassword(const QString &id, const QString &password);
     const QList<SharedPlaylist> &playlists() const { return m_playlists; }
     QStringList playlistTrackIds(const QString &id) const;
 
@@ -147,6 +150,7 @@ signals:
     void playlistOpened(const QString &id);          // QML shows a shared playlist
     void activateRequested();                        // a link came from outside — bring the window up
     void pairChanged();
+    void passwordNeeded(const QString &playlistId, bool wrong);   // QML asks for it (PasswordDialog)
 
 private:
     explicit OnlineService(QObject *parent = nullptr);
@@ -197,7 +201,7 @@ private:
     // shared playlists
     void applyPlaylist(const QJsonObject &o);
     void fetchPlaylist(const QString &id);
-    void joinPlaylist(const QString &id);
+    void joinPlaylist(const QString &id, const QString &password = {});
     void openShare(const QString &code);
     SharedPlaylist *findPlaylist(const QString &id);
     void loadPlaylists();

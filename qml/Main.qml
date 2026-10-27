@@ -140,6 +140,21 @@ ApplicationWindow {
             }
         }
 
+        // A shared playlist's password (joining one that has it, or the owner setting it)
+        Loader {
+            id: passwordDialog
+            active: false
+            sourceComponent: PasswordDialog { onClosed: passwordDialog.active = false }
+            function ask(id, wrong) {
+                active = true
+                item.ask(id, wrong)
+            }
+            function edit(id) {
+                active = true
+                item.edit(id)
+            }
+        }
+
         Toast {
             id: toast
             bottomOffset: playerBar.height + 22
@@ -210,6 +225,7 @@ ApplicationWindow {
         function onMatchPickerRequested(track) {
             matchDialog.show(track)
         }
+        function onPasswordDialogRequested(playlistId) { passwordDialog.edit(playlistId) }
         function onPlaylistDialogRequested(mode, index, rows) {
             playlistDialog.show(mode, index, rows)
         }
@@ -257,6 +273,7 @@ ApplicationWindow {
         function onNotice(text, icon) { toast.show(text, icon) }
         function onRoomOpened() { Nav.navigate("room") }
         function onPlaylistOpened(id) { Nav.openPlaylist("shared", id) }
+        function onPasswordNeeded(id, wrong) { passwordDialog.ask(id, wrong) }
         // A nokturn:// link opened from a browser or a chat app
         function onActivateRequested() {
             if (win.visibility === Window.Minimized || win.visibility === Window.Hidden)
