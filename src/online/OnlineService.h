@@ -30,7 +30,7 @@ class QQmlEngine;
 // so nothing is sent anywhere until one of these features is used. Once there is an account, the YouTube
 // Music likes and the plays go to it too (unless turned off), so every device signed in to it (paired with
 // an 8-character code: the phone app, the browser version) has the same "Liked" and "Recently played".
-// The YouTube Music and Spotify playlists go there as copies too (shared playlists with an "origin", kept in
+// The YouTube Music, Spotify and SoundCloud playlists go there as copies too (shared playlists with an "origin", kept in
 // step with their source by whichever signed-in device sees a change; Spotify tracks as their YouTube Music
 // matches, found slowly in the background), so devices without those sign-ins have them as well; here they
 // aren't listed twice. The playlists' folders and the hidden ones (Library::organizer) live on the account too.

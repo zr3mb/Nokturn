@@ -386,9 +386,9 @@ features is used.
   device signed in to the account shows the same *Liked* and *Recently played*; a change reaches the others at
   once over the WebSocket. Plays from other devices show in *Recently played* but not in the statistics, which
   count only what was heard on this one. Likes waiting for a connection are kept in `library-sync-<server>.json`.
-- **YouTube Music and Spotify playlists on the account:** a device signed in to YouTube Music or Spotify keeps a
-  copy of each of its playlists on the account — a playlist with the origin `ytmusic:<id>` / `spotify:<id>`
-  (`spotify:liked` for the liked tracks), replaced whenever the original changes and deleted with it — so devices
+- **YouTube Music, Spotify and SoundCloud playlists on the account:** a device signed in to one of them keeps a
+  copy of each of its playlists on the account — a playlist with the origin `ytmusic:<id>` / `spotify:<id>` /
+  `soundcloud:<id>` (`spotify:liked`, `soundcloud:liked` for the liked tracks), replaced whenever the original changes and deleted with it — so devices
   without those sign-ins have them too. Spotify tracks go as their YouTube Music matches, found in the background
   one every 1.5 s; an unfinished copy goes up once it has a track and grows as they come. The app that made the
   copies shows the originals and hides the copies. Likes keep YouTube Music's order on the account: each one goes
