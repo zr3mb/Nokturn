@@ -276,6 +276,28 @@ class ServerTest(AioHTTPTestCase):
         self.assertEqual((await self.client.get("/r/ZZZZZZ")).status, 404)
         await wa.close()
 
+    async def test_likes_in_order_and_mirrored_playlists(self):
+        a, _ = await self.register("Ala")
+        items = [{"track": YT, "at": 1000}, {"track": YT2, "at": 2000}]
+        r = await self.client.post("/api/v1/library/liked", json={"items": items}, headers=self.auth(a))
+        self.assertEqual(r.status, 200)
+        lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
+        self.assertEqual([t["id"] for t in lib["liked"]], [YT2["id"], YT["id"]])
+        # moved: the same like with a newer time comes first
+        await self.client.post("/api/v1/library/liked", json={"track": YT, "at": 3000}, headers=self.auth(a))
+        lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
+        self.assertEqual([t["id"] for t in lib["liked"]], [YT["id"], YT2["id"]])
+
+        r = await self.client.post("/api/v1/playlists", json={"name": "Copy", "tracks": [YT], "origin": "ytmusic:PL1"},
+                                   headers=self.auth(a))
+        p = await r.json()
+        self.assertEqual(p["origin"], "ytmusic:PL1")
+        r = await self.client.put(f'/api/v1/playlists/{p["id"]}/tracks', json={"tracks": [YT2, YT]}, headers=self.auth(a))
+        self.assertEqual([e["track"]["id"] for e in (await r.json())["tracks"]], [YT2["id"], YT["id"]])
+        b, _ = await self.register("Ola")
+        r = await self.client.put(f'/api/v1/playlists/{p["id"]}/tracks', json={"tracks": []}, headers=self.auth(b))
+        self.assertEqual(r.status, 403)
+
     async def test_library_and_pairing(self):
         a, _ = await self.register("Ala")
         r = await self.client.get("/api/v1/library", headers=self.auth(a))
