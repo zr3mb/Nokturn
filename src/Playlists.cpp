@@ -267,6 +267,37 @@ void Playlists::removeRow(int index, int row)
     });
 }
 
+bool Playlists::canReorder(int index) const
+{
+    const QString kind = entry(index).value("kind").toString();
+    return kind == QLatin1String("user") || kind == QLatin1String("shared");
+}
+
+bool Playlists::moveRow(int index, int row, int beforeRow)
+{
+    const QVariantMap p = entry(index);
+    const QString kind = p.value("kind").toString();
+    const TrackModel *model = Library::instance()->tracks();
+    if (!model->isValidRow(row) || row == beforeRow)
+        return false;
+    const QString id = model->at(row).id;
+    const QString before = model->isValidRow(beforeRow) ? model->at(beforeRow).id : QString();
+    if (kind == QLatin1String("user")) {
+        Local *local = findLocal(p.value("userId").toString());
+        if (!local || !local->trackIds.contains(id))
+            return false;
+        local->trackIds.removeAll(id);
+        const int at = before.isEmpty() ? -1 : local->trackIds.indexOf(before);
+        local->trackIds.insert(at < 0 ? local->trackIds.size() : at, id);
+        save();
+        emit changed();
+        return true;
+    }
+    if (kind == QLatin1String("shared"))
+        return OnlineService::instance()->moveInPlaylist(p.value("sharedId").toString(), id, before);
+    return false;
+}
+
 void Playlists::edit(int index, const QString &name, const QString &description)
 {
     const QVariantMap p = entry(index);

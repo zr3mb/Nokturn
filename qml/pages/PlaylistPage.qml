@@ -105,6 +105,33 @@ Item {
         sortKey = key
         Prefs.setValue("playlist/sort/" + context, key)
     }
+    // Ctrl + drag a track: the user's own and shared playlists, in their own order (not sorted).
+    readonly property bool reorderable: info.playlistIndex !== undefined && info.playlistIndex >= 0
+                                        && Playlists.canReorder(info.playlistIndex) && sortKey === ""
+    property int dragRow: -1          // the track being dragged (a row of the track model)
+    property int dropBefore: -1       // in front of this one (-1 = the end)
+    property real dropY: -1           // the line, in the list's content
+    function trackDragOver(y) {
+        const i = flick.indexAt(flick.width / 2, y)
+        if (i < 0)
+            return
+        const item = flick.itemAtIndex(i)
+        const lower = y > item.y + item.height / 2
+        dropBefore = lower ? (i + 1 < rows.length ? rows[i + 1] : -1) : rows[i]
+        dropY = lower ? item.y + item.height : item.y
+        // near the edges the list scrolls along
+        const inView = y - flick.contentY
+        if (inView < 60)
+            flick.contentY = Math.max(flick.originY - flick.topMargin, flick.contentY - 24)
+        else if (inView > flick.height - 60)
+            flick.contentY = Math.min(flick.contentHeight + flick.originY - flick.height, flick.contentY + 24)
+    }
+    function finishTrackDrag() {
+        if (dragRow >= 0 && dropY >= 0 && dropBefore !== dragRow)
+            Playlists.moveRow(info.playlistIndex, dragRow, dropBefore)
+        dragRow = -1; dropBefore = -1; dropY = -1
+    }
+
     readonly property var rows: {
         const rows = info.rows
         if (sortKey === "")
@@ -366,10 +393,45 @@ Item {
             }
         }
 
+        // where a dragged track lands
+        Rectangle {
+            parent: flick.contentItem
+            visible: page.dragRow >= 0 && page.dropY >= 0
+            z: 5
+            x: 0
+            y: page.dropY - 1
+            width: flick.width - page.pad * 2
+            height: 2
+            radius: 1
+            color: Theme.accent
+        }
+
         delegate: TrackRow {
+            id: trackRow
             required property var modelData
             required property int index
             width: flick.width - page.pad * 2
+            opacity: page.dragRow === modelData ? 0.4 : 1
+            DragHandler {
+                target: null
+                acceptedModifiers: Qt.ControlModifier
+                cursorShape: Qt.ClosedHandCursor
+                enabled: page.info.playlistIndex !== undefined && page.info.playlistIndex >= 0
+                onActiveChanged: {
+                    if (!active) {
+                        page.finishTrackDrag()
+                        return
+                    }
+                    if (page.reorderable) {
+                        page.dragRow = trackRow.modelData
+                        return
+                    }
+                    Nav.toast(page.sortKey !== "" ? qsTr("Turn the sorting off to put the tracks in your order")
+                                                  : qsTr("This playlist keeps its source's order — change it there"), "queue")
+                }
+                onCentroidChanged: if (active && page.dragRow >= 0)
+                                       page.trackDragOver(trackRow.mapToItem(flick.contentItem, centroid.position.x, centroid.position.y).y)
+            }
             trackIndex: modelData
             number: index + 1
             showAlbum: page.info.label !== "ALBUM"

@@ -1039,5 +1039,8 @@
   "Shared playlists": "Wspólne playlisty",
   "Hidden playlists": "Ukryte playlisty",
   "A playlist can move within its source's group or into your folders": "Playlistę można przesunąć w obrębie jej źródła albo do własnego folderu",
-  "Hold Ctrl and drag playlists to put them in order": "Przytrzymaj Ctrl i przeciągnij playlistę, żeby ułożyć je po swojemu"
+  "Hold Ctrl and drag playlists to put them in order": "Przytrzymaj Ctrl i przeciągnij playlistę, żeby ułożyć je po swojemu",
+  "Turn the sorting off to put the tracks in your order": "Wyłącz sortowanie, żeby ułożyć utwory po swojemu",
+  "This playlist keeps its source's order — change it there": "Ta playlista ma kolejność ze swojego źródła — zmień ją tam",
+  "Couldn't move it in %1: %2": "Nie udało się przesunąć w %1: %2"
 }
