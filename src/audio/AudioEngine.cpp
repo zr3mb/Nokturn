@@ -9,6 +9,7 @@
 #include <QIODevice>
 #include <QMediaDevices>
 #include <QMutex>
+#include <QTimer>
 
 #include <utility>
 
@@ -16,7 +17,7 @@
 #include <cmath>
 #include <cstring>
 
-// Ring buffer read by QAudioSink (on the audio thread) and written from the GUI thread.
+// Ring buffer read by QAudioSink (on the output thread) and written on the decoders' threads.
 class AudioEngine::Ring : public QIODevice
 {
 public:
@@ -172,17 +173,41 @@ AudioEngine::AudioEngine(QObject *parent)
 
     Equalizer::instance()->setSampleRate(m_format.sampleRate());
 
-    m_ring = new Ring(m_format, this);
+    m_ring = new Ring(m_format, nullptr);
     m_ring->open(QIODevice::ReadOnly);
-    m_sink = new QAudioSink(device, m_format, this);
-    m_sink->setBufferSize(m_format.bytesForDuration(80000));   // 80 ms device buffer
-    m_sink->start(m_ring);
+
+    // The sink is made on its own thread, so its timers (it pulls from the ring with them) run there.
+    m_outputThread.setObjectName(QStringLiteral("Nokturn audio output"));
+    m_outputThread.start(QThread::TimeCriticalPriority);
+    m_output = new QObject;
+    m_output->moveToThread(&m_outputThread);
+    m_ring->moveToThread(&m_outputThread);
+    QMetaObject::invokeMethod(m_output, [this, device] {
+        m_sink = new QAudioSink(device, m_format, m_output);
+        m_sink->setBufferSize(m_format.bytesForDuration(80000));   // 80 ms device buffer
+        m_sink->start(m_ring);
+        auto *probe = new QTimer(m_output);   // what the device holds, for latency() on other threads
+        probe->setInterval(20);
+        QObject::connect(probe, &QTimer::timeout, m_output, [this] {
+            const qint64 queued = std::max<qint64>(0, m_sink->bufferSize() - m_sink->bytesFree());
+            m_deviceQueuedUs = m_format.durationForBytes(qint32(queued));
+        });
+        probe->start();
+    }, Qt::BlockingQueuedConnection);
 }
 
 AudioEngine::~AudioEngine()
 {
-    if (m_sink)
-        m_sink->stop();
+    QMetaObject::invokeMethod(m_output, [this] {
+        if (m_sink)
+            m_sink->stop();
+        delete m_output;   // the sink and the probe with it
+        m_output = nullptr;
+        m_sink = nullptr;
+    }, Qt::BlockingQueuedConnection);
+    m_outputThread.quit();
+    m_outputThread.wait();
+    delete m_ring;
 }
 
 QAudioFormat AudioEngine::bufferFormat() const
@@ -198,6 +223,7 @@ void AudioEngine::push(int deck, const QAudioBuffer &buffer)
 {
     if (!buffer.isValid() || deck < 0 || deck >= kDecks)
         return;
+    QMutexLocker lock(&m_lock);
     const QAudioFormat in = buffer.format();
     const int outCh = m_format.channelCount();
     const qsizetype frames = buffer.frameCount();
@@ -431,6 +457,7 @@ void AudioEngine::mix(size_t n)
 
 void AudioEngine::beginTransition(int from, int to, const Transition &t)
 {
+    QMutexLocker lock(&m_lock);
     if (from == to || from < 0 || to < 0 || from >= kDecks || to >= kDecks)
         return;
     m_tr = TransitionState {};
@@ -456,14 +483,28 @@ void AudioEngine::finishTransition()
 
 void AudioEngine::finishTransitionNow()
 {
+    QMutexLocker lock(&m_lock);
     if (!m_tr.active)
         return;
     finishTransition();
     pump();
 }
 
+bool AudioEngine::inTransition() const
+{
+    QMutexLocker lock(&m_lock);
+    return m_tr.active;
+}
+
+int AudioEngine::activeDeck() const
+{
+    QMutexLocker lock(&m_lock);
+    return m_active;
+}
+
 double AudioEngine::transitionProgress() const
 {
+    QMutexLocker lock(&m_lock);
     return m_tr.active && m_tr.length > 0 ? double(m_tr.pos) / double(m_tr.length) : 0.0;
 }
 
@@ -471,35 +512,41 @@ void AudioEngine::setDeckEnded(int deck)
 {
     if (deck < 0 || deck >= kDecks)
         return;
+    QMutexLocker lock(&m_lock);
     m_stage[deck].ended = true;
     pump();
 }
 
 void AudioEngine::dropDeck(int deck)
 {
+    QMutexLocker lock(&m_lock);
     if (deck >= 0 && deck < kDecks)
         m_stage[deck].clear();
 }
 
 void AudioEngine::setActiveDeck(int deck)
 {
+    QMutexLocker lock(&m_lock);
     if (deck >= 0 && deck < kDecks)
         m_active = deck;
 }
 
 double AudioEngine::shortLevelDb(int deck) const
 {
+    QMutexLocker lock(&m_lock);
     return toDb(m_levels[deck].shortEnergy);
 }
 
 double AudioEngine::averageLevelDb(int deck) const
 {
+    QMutexLocker lock(&m_lock);
     const Levels &l = m_levels[deck];
     return l.frames > 0 ? toDb(l.sumEnergy / l.frames) : -120.0;
 }
 
 void AudioEngine::resetLevels(int deck)
 {
+    QMutexLocker lock(&m_lock);
     if (deck >= 0 && deck < kDecks)
         m_levels[deck] = Levels {};
 }
@@ -508,6 +555,7 @@ void AudioEngine::resetLevels(int deck)
 
 void AudioEngine::flush()
 {
+    QMutexLocker lock(&m_lock);
     m_ring->clear();
     for (Stage &s : m_stage)
         s.clear();
@@ -517,27 +565,25 @@ void AudioEngine::flush()
 
 void AudioEngine::setPaused(bool paused)
 {
-    if (paused && m_sink->state() == QAudio::ActiveState)
-        m_sink->suspend();
-    else if (!paused && m_sink->state() == QAudio::SuspendedState)
-        m_sink->resume();
+    QMetaObject::invokeMethod(m_output, [this, paused] {
+        if (paused && m_sink->state() == QAudio::ActiveState)
+            m_sink->suspend();
+        else if (!paused && m_sink->state() == QAudio::SuspendedState)
+            m_sink->resume();
+    });
 }
 
 void AudioEngine::setVolume(float linear)
 {
-    m_sink->setVolume(linear);
+    QMetaObject::invokeMethod(m_output, [this, linear] { m_sink->setVolume(linear); });
 }
 
 double AudioEngine::latency() const
 {
     // What is decoded but not heard yet: the ring buffer plus the audio device's own buffer.
     const double rate = m_format.sampleRate();
-    double seconds = rate > 0 ? double(m_ring->buffered()) / rate : 0.0;
-    if (m_sink) {
-        const qint64 queued = std::max<qint64>(0, m_sink->bufferSize() - m_sink->bytesFree());
-        seconds += m_format.durationForBytes(qint32(queued)) / 1e6;
-    }
-    return seconds;
+    const double seconds = rate > 0 ? double(m_ring->buffered()) / rate : 0.0;
+    return seconds + double(m_deviceQueuedUs.load()) / 1e6;
 }
 
 void AudioEngine::takePlayed(std::vector<float> &mono)

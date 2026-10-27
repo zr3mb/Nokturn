@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QMutex>
 #include <QObject>
 #include <QStringList>
 #include <QVariantList>
@@ -12,8 +13,9 @@ class QJSEngine;
 
 // Parametric equalizer in the style of "Fruity Parametric EQ": 7 bands (RBJ biquad filters),
 // a preamp and a limiter that protects against clipping.
-// Parameters are changed from QML (GUI thread); audio processing also runs on the GUI thread,
-// in AudioEngine::push(), so no locks are needed.
+// Parameters are changed from QML (GUI thread); the audio is processed on the decoders' threads
+// (AudioEngine::push()), so every change publishes a copy of what processing needs (publish()) under a lock,
+// and the filters' state is touched only by process().
 class Equalizer : public QObject
 {
     Q_OBJECT
@@ -116,6 +118,19 @@ private:
     void save() const;
     void load();
     void setBands(const std::array<Band, kBands> &bands);
+    void publish();
+
+    // What process() works with: a copy of the parameters, taken under m_dspLock.
+    struct Dsp
+    {
+        bool enabled = false;
+        bool limiter = true;
+        double preamp = 0.0;
+        double rate = 48000.0;
+        std::array<bool, kBands> on {};
+        std::array<int, kBands> stages {};
+        std::array<Coeffs, kBands> coeffs {};
+    };
 
     std::array<Band, kBands> m_bands;
     std::array<Coeffs, kBands> m_coeffs;
@@ -129,10 +144,14 @@ private:
     QVariantList m_curve;
     QVariantList m_bandCurves;
 
-    // limiter and meters
+    // processing (under m_dspLock): its parameters, the limiter and what the meters read
+    mutable QMutex m_dspLock;
+    Dsp m_dsp;
+    bool m_resetPending = false;
     double m_limGain = 1.0;
     float m_blockPeak = 0.0f;
     double m_blockReduction = 0.0;
+    bool m_blockClipped = false;
     double m_peakDb = -90.0;
     double m_reductionDb = 0.0;
     double m_clipHold = 0.0;

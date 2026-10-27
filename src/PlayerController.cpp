@@ -1,5 +1,8 @@
 #include "PlayerController.h"
 
+#include <QCoreApplication>
+#include <QThread>
+
 #include "AppPaths.h"
 #include "Language.h"
 #include "Library.h"
@@ -175,8 +178,17 @@ void PlayerController::setupDeck(int d)
     deck.player->setAudioOutput(deck.clock);
     deck.buffers = new QAudioBufferOutput(m_engine.bufferFormat(), this);
     deck.player->setAudioBufferOutput(deck.buffers);
-    connect(deck.buffers, &QAudioBufferOutput::audioBufferReceived, this,
-            [this, d](const QAudioBuffer &buffer) { m_engine.push(d, buffer); });
+    // Straight to the mixer, on the decoder's thread: a busy GUI thread mustn't hold the sound up.
+    connect(deck.buffers, &QAudioBufferOutput::audioBufferReceived, deck.buffers,
+            [this, d](const QAudioBuffer &buffer) { m_engine.push(d, buffer); }, Qt::DirectConnection);
+    if (qEnvironmentVariableIsSet("NOKTURN_AUDIO_DEBUG")) {
+        connect(deck.buffers, &QAudioBufferOutput::audioBufferReceived, deck.buffers, [](const QAudioBuffer &) {
+            static bool told = false;
+            if (!std::exchange(told, true))
+                qInfo("audio: buffers are emitted on %s thread",
+                      QThread::currentThread() == QCoreApplication::instance()->thread() ? "the GUI" : "another");
+        }, Qt::DirectConnection);
+    }
 
     connect(deck.player, &QMediaPlayer::playbackStateChanged, this, [this, d] {
         if (d != m_active)
