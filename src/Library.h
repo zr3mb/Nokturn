@@ -4,6 +4,7 @@
 #include "TrackModel.h"
 
 #include <QFutureWatcher>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QSet>
@@ -33,6 +34,13 @@ class Library : public QObject
     Q_PROPERTY(qreal scanProgress READ scanProgress NOTIFY scanChanged)
     Q_PROPERTY(QString scanStatus READ scanStatus NOTIFY scanChanged)
     Q_PROPERTY(int genresRevision READ genresRevision NOTIFY genresChanged)   // artist genres came in
+    // The playlists laid out: [{ key, name, folderId, collapsed, items: [Library.playlists index] }] — the
+    // built-in lists first ("builtin", no header), the user's folders, then one per source; hidden ones
+    // only with showHidden (their own group at the end). Kept on the account too (OnlineService).
+    Q_PROPERTY(QVariantList playlistGroups READ playlistGroups NOTIFY playlistsChanged)
+    Q_PROPERTY(QVariantList playlistFolders READ playlistFolders NOTIFY playlistsChanged)   // [{ id, name }]
+    Q_PROPERTY(bool showHidden READ showHidden WRITE setShowHidden NOTIFY playlistsChanged)
+    Q_PROPERTY(int hiddenCount READ hiddenCount NOTIFY playlistsChanged)
 
 public:
     static Library *instance();
@@ -50,6 +58,22 @@ public:
     qreal scanProgress() const;
     QString scanStatus() const;
     int genresRevision() const { return m_genresChanges; }
+    QVariantList playlistGroups() const { return m_groups; }
+    QVariantList playlistFolders() const;
+    bool showHidden() const { return m_showHidden; }
+    void setShowHidden(bool on);
+    int hiddenCount() const { return m_hiddenCount; }
+
+    // ---- folders and hidden playlists ----
+    Q_INVOKABLE QString createPlaylistFolder(const QString &name, int moveIndex = -1);
+    Q_INVOKABLE void renamePlaylistFolder(const QString &id, const QString &name);
+    Q_INVOKABLE void deletePlaylistFolder(const QString &id);   // its playlists go back to their source's group
+    Q_INVOKABLE void movePlaylistToFolder(int index, const QString &folderId);   // "" = no folder
+    Q_INVOKABLE void setPlaylistHidden(int index, bool hidden);
+    Q_INVOKABLE void setGroupCollapsed(const QString &key, bool collapsed);
+    // { folders, assign: { playlist key: folder id }, hidden: [playlist key], updated (ms) } — what the account keeps
+    QJsonObject organizer() const { return m_org; }
+    void applyOrganizer(const QJsonObject &org);   // from the account (newer than ours)
 
     Q_INVOKABLE void addFolder(const QUrl &url);
     Q_INVOKABLE void removeFolder(const QString &path);
@@ -101,6 +125,7 @@ signals:
     void sourcesChanged();
     void genresChanged();
     void notice(const QString &text, const QString &icon);
+    void organizerChanged();   // changed here: the account gets it
 
 public:
     // The track's genres in the interface language: its tags, or its artist's genre (streaming).
@@ -117,6 +142,9 @@ private:
     void buildSources();
     void rebuildCollections();
     void rebuildPlaylists();
+    void loadOrganizer();
+    void organizerEdited();     // saved, laid out again, announced
+    void layOutPlaylists();     // the hidden / folder marks and m_groups
     QVariantList rowsOfIds(const QStringList &ids) const;
     static QString coverKey(const QVariantMap &playlist);
     void applyPlaylistCover(QVariantMap &playlist) const;
@@ -134,6 +162,11 @@ private:
     QVariantList m_recentAlbums;
     QVariantList m_artists;
     QVariantList m_playlists;
+    QJsonObject m_org;
+    QVariantList m_groups;
+    QSet<QString> m_collapsed;   // groups folded on this device
+    bool m_showHidden = false;
+    int m_hiddenCount = 0;
     QVariantList m_sources;
     mutable QVariantList m_genres;        // genres(), built when asked
     mutable int m_genresRevision = -1;

@@ -452,6 +452,29 @@ Item {
         } })
         return s
     }
+    // Playlist folders and hidden playlists (--tour-folders "<pair code or ->", with NOKTURN_SERVER): links the
+    // account (to see the layout reach it), makes a folder with a playlist in it, hides one, shows the hidden.
+    readonly property bool withFolders: Qt.application.arguments.indexOf("--tour-folders") >= 0
+    readonly property var folderSteps: {
+        if (!withFolders)
+            return []
+        const code = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-folders") + 1]
+        const find = kind => Library.playlists.findIndex(p => p.kind === kind)
+        const groups = () => JSON.stringify(Library.playlistGroups.map(g => g.key + ":" + g.items.length))
+        return [
+            { name: "F1-link", run: () => { Nav.finishOnboarding(); Player.muted = true; if (code !== "-") Online.redeemPairCode(code) } },
+            { name: "F2-before", run: () => console.log("tour: groups", groups()) },
+            { name: "F3-folder", run: () => { const i = find("shared") >= 0 ? find("shared") : find("history")
+                                             console.log("tour: folder", Library.createPlaylistFolder("Na wieczór", i)) } },
+            { name: "F4-hide", run: () => { Library.setPlaylistHidden(find("recent"), true); console.log("tour: groups", groups(), "hidden", Library.hiddenCount) } },
+            { name: "F6-shown", run: () => { Library.showHidden = true; console.log("tour: groups", groups()) } },
+            { name: "F6b-wait", run: () => {} },
+            { name: "F7-home", run: () => root.scrollPage(1400) },
+            { name: "F7b-wait", run: () => {} },
+            { name: "F8-account", run: () => console.log("tour: organizer", JSON.stringify(Library.playlistFolders)) },
+            { name: "F9-pick", run: () => Nav.moveToFolder(find("history")) }
+        ]
+    }
     // Dragging the window's edge while music plays (--tour-resize "<query>", with NOKTURN_AUDIO_DEBUG and
     // NOKTURN_PERF_DEBUG): the width changes every frame for a while; the log shows buffer underruns.
     readonly property bool withResize: Qt.application.arguments.indexOf("--tour-resize") >= 0
@@ -810,7 +833,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

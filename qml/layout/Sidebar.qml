@@ -149,6 +149,7 @@ Panel {
                         Behavior on opacity { NumberAnimation { duration: 200 } }
                     }
                     IconButton {
+                        id: newPlaylist
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         width: 28; height: 28
                         icon: "add"
@@ -157,45 +158,138 @@ Panel {
                         visible: !root.compact
                         onClicked: Nav.createPlaylist([])
                     }
+                    IconButton {
+                        anchors { right: newPlaylist.left; verticalCenter: parent.verticalCenter }
+                        width: 28; height: 28
+                        icon: "folder"
+                        iconSize: 16
+                        showDot: false
+                        visible: !root.compact
+                        onClicked: Nav.createFolder(-1)
+                    }
                 }
 
+                // The playlists in their groups: the built-in lists, the user's folders, one group per source
+                // (Library.playlistGroups); a group's header folds it away.
                 Repeater {
-                    model: Library.playlists
-
-                    SidebarItem {
-                        id: plItem
-                        required property var modelData
-                        required property int index
-                        cover: true
-                        compact: root.compact
-                        label: modelData.name
-                        subtitle: {
-                            if (Library.tracks.revision < 0)   // never: re-run when the tracks change
-                                return ""
-                            if (modelData.kind === "ytplaylist")
-                                return "YouTube Music" + (modelData.count >= 0 ? " · " + qsTr("%n tracks", "", modelData.count) : "")
-                            if (modelData.kind === "spplaylist" || modelData.kind === "spotifyliked")
-                                return "Spotify · " + qsTr("%n tracks", "", Library.playlistRows(index).length)
-                            if (modelData.kind === "scplaylist")
-                                return "SoundCloud" + (modelData.count >= 0 ? " · " + qsTr("%n tracks", "", modelData.count) : "")
-                            if (modelData.kind === "scliked")
-                                return "SoundCloud · " + qsTr("%n tracks", "", Library.playlistRows(index).length)
-                            if (modelData.kind === "shared")
-                                return qsTr("Shared · %n tracks", "", modelData.count)
-                            const n = Library.playlistRows(index).length
-                            return qsTr("Playlist · %n tracks", "", n)
-                        }
-                        colorA: modelData.colorA
-                        colorB: modelData.colorB
-                        seed: modelData.seed
-                        coverIcon: modelData.icon
-                        coverSource: modelData.cover || ""
-                        coverMosaic: modelData.mosaic || []
-                        selected: root.isPlaylist(index)
-                        onSelectedChanged: if (selected) root.selectedItem = plItem
-                        Component.onCompleted: if (selected) root.selectedItem = plItem
-                        onClicked: Nav.navigate("playlist", { kind: "playlist", index: index })
+                    model: {
+                        const out = []
+                        Library.playlistGroups.forEach(g => {
+                            if (g.key !== "builtin" && !root.compact)
+                                out.push({ header: true, group: g })
+                            if (!g.collapsed || root.compact || g.key === "builtin")
+                                g.items.forEach(i => out.push({ header: false, index: i }))
+                        })
+                        return out
                     }
+
+                    Item {
+                        id: row
+                        required property var modelData
+                        readonly property bool selected: plItem.selected
+                        width: col.width
+                        height: modelData.header ? 30 : plItem.height
+
+                        // a group's header
+                        Item {
+                            anchors.fill: parent
+                            visible: row.modelData.header === true
+                            readonly property var group: row.modelData.group || ({})
+                            HoverHandler { id: headerHover }
+                            TapHandler { onTapped: Library.setGroupCollapsed(parent.group.key, !parent.group.collapsed) }
+                            Icon {
+                                id: chevron
+                                anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                                name: parent.group.folderId ? "folder" : "chevronRight"
+                                size: parent.group.folderId ? 13 : 14
+                                rotation: !parent.group.folderId && !parent.group.collapsed ? 90 : 0
+                                color: Theme.textFaint
+                                Behavior on rotation { NumberAnimation { duration: 160 } }
+                            }
+                            Text {
+                                anchors { left: chevron.right; leftMargin: 7; right: folderTools.left; rightMargin: 4; verticalCenter: parent.verticalCenter }
+                                text: (parent.group.name || "").toUpperCase() + (parent.group.collapsed ? "  ·  " + (parent.group.items || []).length : "")
+                                color: Theme.textFaint
+                                font.pixelSize: 11
+                                font.weight: Font.DemiBold
+                                font.letterSpacing: 1.3
+                                elide: Text.ElideRight
+                            }
+                            Row {
+                                id: folderTools
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                opacity: headerHover.hovered ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: 140 } }
+                                IconButton {
+                                    visible: !!parent.parent.group.folderId
+                                    width: 24; height: 24
+                                    icon: "edit"
+                                    iconSize: 14
+                                    showDot: false
+                                    onClicked: Nav.editFolder(parent.parent.group.folderId)
+                                }
+                                IconButton {
+                                    visible: !!parent.parent.group.folderId
+                                    width: 24; height: 24
+                                    icon: parent.parent.group.collapsed ? "chevronRight" : "expandMore"
+                                    iconSize: 14
+                                    showDot: false
+                                    onClicked: Library.setGroupCollapsed(parent.parent.group.key, !parent.parent.group.collapsed)
+                                }
+                            }
+                        }
+
+                        SidebarItem {
+                            id: plItem
+                            readonly property int plIndex: row.modelData.index ?? -1
+                            readonly property var pl: Library.playlists[plIndex] || ({})
+                            visible: !row.modelData.header
+                            width: parent.width
+                            opacity: pl.hidden ? 0.55 : 1
+                            cover: true
+                            compact: root.compact
+                            label: pl.name || ""
+                            subtitle: {
+                                if (Library.tracks.revision < 0 || plIndex < 0)   // never / a header: re-run when the tracks change
+                                    return ""
+                                if (pl.kind === "ytplaylist")
+                                    return "YouTube Music" + (pl.count >= 0 ? " · " + qsTr("%n tracks", "", pl.count) : "")
+                                if (pl.kind === "spplaylist" || pl.kind === "spotifyliked")
+                                    return "Spotify · " + qsTr("%n tracks", "", Library.playlistRows(plIndex).length)
+                                if (pl.kind === "scplaylist")
+                                    return "SoundCloud" + (pl.count >= 0 ? " · " + qsTr("%n tracks", "", pl.count) : "")
+                                if (pl.kind === "scliked")
+                                    return "SoundCloud · " + qsTr("%n tracks", "", Library.playlistRows(plIndex).length)
+                                if (pl.kind === "shared")
+                                    return qsTr("Shared · %n tracks", "", pl.count)
+                                return qsTr("Playlist · %n tracks", "", Library.playlistRows(plIndex).length)
+                            }
+                            colorA: pl.colorA || "#888888"
+                            colorB: pl.colorB || "#444444"
+                            seed: pl.seed || 0
+                            coverIcon: pl.icon || ""
+                            coverSource: pl.cover || ""
+                            coverMosaic: pl.mosaic || []
+                            selected: !row.modelData.header && root.isPlaylist(plIndex)
+                            onSelectedChanged: if (selected) root.selectedItem = row
+                            Component.onCompleted: if (selected) root.selectedItem = row
+                            onClicked: Nav.navigate("playlist", { kind: "playlist", index: plIndex })
+                        }
+                    }
+                }
+
+                // the hidden playlists, on request
+                Text {
+                    visible: Library.hiddenCount > 0 && !root.compact
+                    width: parent.width
+                    height: 30
+                    leftPadding: 14
+                    verticalAlignment: Text.AlignVCenter
+                    text: Library.showHidden ? qsTr("Hide hidden playlists") : qsTr("Show hidden playlists (%1)").arg(Library.hiddenCount)
+                    color: hiddenHover.hovered ? Theme.textDim : Theme.textFaint
+                    font.pixelSize: 12
+                    HoverHandler { id: hiddenHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: Library.showHidden = !Library.showHidden }
                 }
             }
         }

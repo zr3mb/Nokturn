@@ -30,9 +30,10 @@ class QQmlEngine;
 // so nothing is sent anywhere until one of these features is used. Once there is an account, the YouTube
 // Music likes and the plays go to it too (unless turned off), so every device signed in to it (paired with
 // an 8-character code: the phone app, the browser version) has the same "Liked" and "Recently played".
-// The YouTube Music playlists go there as copies too (shared playlists with an "origin", kept in step with
-// their source by whichever signed-in device sees a change), so devices without the YouTube Music sign-in
-// have them as well; here they aren't listed twice.
+// The YouTube Music and Spotify playlists go there as copies too (shared playlists with an "origin", kept in
+// step with their source by whichever signed-in device sees a change; Spotify tracks as their YouTube Music
+// matches, found slowly in the background), so devices without those sign-ins have them as well; here they
+// aren't listed twice. The playlists' folders and the hidden ones (Library::organizer) live on the account too.
 class OnlineService : public QObject
 {
     Q_OBJECT
@@ -221,6 +222,8 @@ private:
     void scheduleMirrors();
     void syncMirrors();
     void pushMirror(const QString &origin, const QString &name, const QList<Track> &tracks, const QString &signature);
+    void matchNext();
+    void pushOrganizer();
 
     void copyToClipboard(const QString &text, const QString &message);
     void registerUrlScheme();
@@ -277,4 +280,8 @@ private:
     bool m_mirrorsListed = false;            // the account's playlists were listed this session
     bool m_mirrorBusy = false;
     QTimer m_mirrorTimer;
+    QStringList m_matchQueue;                // Spotify tracks waiting for their YouTube Music match
+    QSet<QString> m_matchQueued;
+    QTimer m_matchTimer;
+    QTimer m_orgTimer;                       // the folders / hidden playlists go up a moment after a change
 };

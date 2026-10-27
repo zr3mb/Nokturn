@@ -1010,5 +1010,22 @@
   "Password removed — anyone with the link can join": "Hasło usunięte — każdy z linkiem może dołączyć",
   "Password set — others need it to join": "Hasło ustawione — inni potrzebują go, żeby dołączyć",
   "Change or remove the password": "Zmień albo usuń hasło",
-  "Set a password": "Ustaw hasło"
+  "Set a password": "Ustaw hasło",
+  "Your playlists": "Twoje playlisty",
+  "Hide hidden playlists": "Schowaj ukryte playlisty",
+  "Show hidden playlists (%1)": "Pokaż ukryte playlisty (%1)",
+  "Move to a folder": "Przenieś do folderu",
+  "Move to a folder…": "Przenieś do folderu…",
+  "Folder": "Folder",
+  "New folder": "Nowy folder",
+  "New folder…": "Nowy folder…",
+  "No folder (with its source)": "Bez folderu (przy swoim źródle)",
+  "Folder name": "Nazwa folderu",
+  "Delete the folder": "Usuń folder",
+  "Show the playlist again": "Pokaż playlistę z powrotem",
+  "Hide the playlist": "Ukryj playlistę",
+  "The playlist is back in the list": "Playlista wróciła na listę",
+  "Hidden — “Show hidden playlists” at the end of the list brings it back": "Ukryta — „Pokaż ukryte playlisty” na końcu listy ją przywróci",
+  "Shared playlists": "Wspólne playlisty",
+  "Hidden playlists": "Ukryte playlisty"
 }

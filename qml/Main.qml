@@ -140,6 +140,22 @@ ApplicationWindow {
             }
         }
 
+        // Playlist folders: a new one, renaming / deleting one, a playlist's folder
+        Loader {
+            id: playlistFolderDialog
+            active: false
+            sourceComponent: PlaylistFolderDialog { onClosed: playlistFolderDialog.active = false }
+            function show(mode, folderId, playlistIndex) {
+                active = true
+                if (mode === "edit")
+                    item.edit(folderId)
+                else if (mode === "pick")
+                    item.pick(playlistIndex)
+                else
+                    item.create(playlistIndex)
+            }
+        }
+
         // A shared playlist's password (joining one that has it, or the owner setting it)
         Loader {
             id: passwordDialog
@@ -226,6 +242,7 @@ ApplicationWindow {
             matchDialog.show(track)
         }
         function onPasswordDialogRequested(playlistId) { passwordDialog.edit(playlistId) }
+        function onFolderDialogRequested(mode, folderId, playlistIndex) { playlistFolderDialog.show(mode, folderId, playlistIndex) }
         function onPlaylistDialogRequested(mode, index, rows) {
             playlistDialog.show(mode, index, rows)
         }

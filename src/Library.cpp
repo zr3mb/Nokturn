@@ -128,6 +128,7 @@ Library::Library(QObject *parent)
             m_folders << QDir::cleanPath(music);
         saveFolders();
     }
+    loadOrganizer();
     const QStringList liked = settings->value("library/liked").toStringList();
     m_liked = QSet<QString>(liked.cbegin(), liked.cend());
 
@@ -535,6 +536,222 @@ void Library::rebuildPlaylists()
         applyPlaylistCover(p);
         v = p;
     }
+    layOutPlaylists();
+}
+
+// ---- folders and hidden playlists --------------------------------------------------
+
+namespace {
+
+// The automatic groups: the source a playlist comes from.
+QString sourceGroup(const QString &kind)
+{
+    if (kind == QLatin1String("liked") || kind == QLatin1String("recent") || kind == QLatin1String("history")
+        || kind == QLatin1String("youtube"))
+        return QStringLiteral("builtin");
+    if (kind == QLatin1String("user"))
+        return QStringLiteral("own");
+    if (kind == QLatin1String("shared"))
+        return QStringLiteral("shared");
+    if (kind == QLatin1String("ytplaylist"))
+        return QStringLiteral("ytmusic");
+    if (kind == QLatin1String("spplaylist") || kind == QLatin1String("spotifyliked"))
+        return QStringLiteral("spotify");
+    return QStringLiteral("soundcloud");
+}
+
+} // namespace
+
+void Library::loadOrganizer()
+{
+    auto settings = AppPaths::settings();
+    m_org = QJsonDocument::fromJson(settings->value("playlists/organizer").toByteArray()).object();
+    const QStringList collapsed = settings->value("playlists/collapsed").toStringList();
+    m_collapsed = QSet<QString>(collapsed.cbegin(), collapsed.cend());
+}
+
+void Library::layOutPlaylists()
+{
+    const QJsonObject assign = m_org.value("assign").toObject();
+    QSet<QString> hidden;
+    for (const QJsonValue &v : m_org.value("hidden").toArray())
+        hidden.insert(v.toString());
+    QSet<QString> folderIds;
+    for (const QJsonValue &f : m_org.value("folders").toArray())
+        folderIds.insert(f.toObject().value("id").toString());
+
+    QHash<QString, QVariantList> byGroup;
+    QVariantList hiddenItems;
+    m_hiddenCount = 0;
+    for (int i = 0; i < m_playlists.size(); ++i) {
+        QVariantMap p = m_playlists.at(i).toMap();
+        const QString key = p.value("coverKey").toString();
+        const bool isHidden = hidden.contains(key);
+        QString folder = assign.value(key).toString();
+        if (!folderIds.contains(folder))
+            folder.clear();
+        p.insert("hidden", isHidden);
+        p.insert("folder", folder);
+        m_playlists[i] = p;
+        if (isHidden) {
+            ++m_hiddenCount;
+            hiddenItems << i;
+            continue;
+        }
+        byGroup[folder.isEmpty() ? sourceGroup(p.value("kind").toString()) : QStringLiteral("folder:") + folder] << i;
+    }
+
+    auto group = [this](const QString &key, const QString &name, const QString &folderId, const QVariantList &items) {
+        return QVariantMap { { "key", key }, { "name", name }, { "folderId", folderId },
+                             { "collapsed", m_collapsed.contains(key) }, { "items", items } };
+    };
+    m_groups.clear();
+    m_groups << group(QStringLiteral("builtin"), QString(), QString(), byGroup.value(QStringLiteral("builtin")));
+    for (const QJsonValue &v : m_org.value("folders").toArray()) {
+        const QJsonObject f = v.toObject();
+        const QString key = QStringLiteral("folder:") + f.value("id").toString();
+        m_groups << group(key, f.value("name").toString(), f.value("id").toString(), byGroup.value(key));
+    }
+    const std::pair<const char *, QString> sources[] = {
+        { "own", tr("Your playlists") }, { "shared", tr("Shared playlists") }, { "ytmusic", QStringLiteral("YouTube Music") },
+        { "spotify", QStringLiteral("Spotify") }, { "soundcloud", QStringLiteral("SoundCloud") },
+    };
+    for (const auto &[key, name] : sources) {
+        const QVariantList items = byGroup.value(QLatin1String(key));
+        if (!items.isEmpty())
+            m_groups << group(QLatin1String(key), name, QString(), items);
+    }
+    if (m_showHidden && !hiddenItems.isEmpty())
+        m_groups << group(QStringLiteral("hidden"), tr("Hidden playlists"), QString(), hiddenItems);
+}
+
+void Library::organizerEdited()
+{
+    m_org.insert("updated", double(QDateTime::currentMSecsSinceEpoch()));
+    AppPaths::settings()->setValue("playlists/organizer", QJsonDocument(m_org).toJson(QJsonDocument::Compact));
+    layOutPlaylists();
+    emit playlistsChanged();
+    emit organizerChanged();
+}
+
+void Library::applyOrganizer(const QJsonObject &org)
+{
+    m_org = org;
+    AppPaths::settings()->setValue("playlists/organizer", QJsonDocument(m_org).toJson(QJsonDocument::Compact));
+    layOutPlaylists();
+    emit playlistsChanged();
+}
+
+QVariantList Library::playlistFolders() const
+{
+    QVariantList out;
+    for (const QJsonValue &v : m_org.value("folders").toArray())
+        out << v.toObject().toVariantMap();
+    return out;
+}
+
+void Library::setShowHidden(bool on)
+{
+    if (on == m_showHidden)
+        return;
+    m_showHidden = on;
+    layOutPlaylists();
+    emit playlistsChanged();
+}
+
+QString Library::createPlaylistFolder(const QString &name, int moveIndex)
+{
+    const QString clean = name.simplified().left(60);
+    if (clean.isEmpty())
+        return {};
+    const QString id = QString::number(QDateTime::currentMSecsSinceEpoch(), 36)
+                       + QString::number(QRandomGenerator::global()->bounded(1296), 36);
+    QJsonArray folders = m_org.value("folders").toArray();
+    folders.append(QJsonObject { { "id", id }, { "name", clean } });
+    m_org.insert("folders", folders);
+    if (moveIndex >= 0 && moveIndex < m_playlists.size()) {
+        QJsonObject assign = m_org.value("assign").toObject();
+        assign.insert(m_playlists.at(moveIndex).toMap().value("coverKey").toString(), id);
+        m_org.insert("assign", assign);
+    }
+    organizerEdited();
+    return id;
+}
+
+void Library::renamePlaylistFolder(const QString &id, const QString &name)
+{
+    const QString clean = name.simplified().left(60);
+    QJsonArray folders = m_org.value("folders").toArray();
+    for (int i = 0; i < folders.size(); ++i) {
+        QJsonObject f = folders.at(i).toObject();
+        if (f.value("id").toString() == id && !clean.isEmpty()) {
+            f.insert("name", clean);
+            folders[i] = f;
+            m_org.insert("folders", folders);
+            organizerEdited();
+            return;
+        }
+    }
+}
+
+void Library::deletePlaylistFolder(const QString &id)
+{
+    QJsonArray folders = m_org.value("folders").toArray();
+    for (int i = 0; i < folders.size(); ++i) {
+        if (folders.at(i).toObject().value("id").toString() != id)
+            continue;
+        folders.removeAt(i);
+        m_org.insert("folders", folders);
+        QJsonObject assign = m_org.value("assign").toObject();
+        for (const QString &key : assign.keys())
+            if (assign.value(key).toString() == id)
+                assign.remove(key);
+        m_org.insert("assign", assign);
+        organizerEdited();
+        return;
+    }
+}
+
+void Library::movePlaylistToFolder(int index, const QString &folderId)
+{
+    if (index < 0 || index >= m_playlists.size())
+        return;
+    const QString key = m_playlists.at(index).toMap().value("coverKey").toString();
+    QJsonObject assign = m_org.value("assign").toObject();
+    if (folderId.isEmpty())
+        assign.remove(key);
+    else
+        assign.insert(key, folderId);
+    m_org.insert("assign", assign);
+    organizerEdited();
+}
+
+void Library::setPlaylistHidden(int index, bool hidden)
+{
+    if (index < 0 || index >= m_playlists.size())
+        return;
+    const QString key = m_playlists.at(index).toMap().value("coverKey").toString();
+    QJsonArray list = m_org.value("hidden").toArray();
+    for (int i = list.size() - 1; i >= 0; --i)
+        if (list.at(i).toString() == key)
+            list.removeAt(i);
+    if (hidden)
+        list.append(key);
+    m_org.insert("hidden", list);
+    organizerEdited();
+}
+
+void Library::setGroupCollapsed(const QString &key, bool collapsed)
+{
+    if (collapsed == m_collapsed.contains(key))
+        return;
+    if (collapsed)
+        m_collapsed.insert(key);
+    else
+        m_collapsed.remove(key);
+    AppPaths::settings()->setValue("playlists/collapsed", QStringList(m_collapsed.cbegin(), m_collapsed.cend()));
+    layOutPlaylists();
+    emit playlistsChanged();
 }
 
 // ---- playlist covers -------------------------------------------------------------
@@ -656,6 +873,8 @@ void Library::refreshPlaylistCover(int index)
 {
     QVariantMap p = m_playlists.at(index).toMap();
     applyPlaylistCover(p);
+    p.insert("hidden", m_playlists.at(index).toMap().value("hidden"));
+    p.insert("folder", m_playlists.at(index).toMap().value("folder"));
     m_playlists[index] = p;
     emit playlistsChanged();
 }

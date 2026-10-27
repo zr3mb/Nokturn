@@ -42,12 +42,16 @@ QtObject {
     signal matchPickerRequested(var track)
     signal playlistDialogRequested(string mode, int index, var rows)
     signal passwordDialogRequested(string playlistId)   // the owner sets a shared playlist's password
+    signal folderDialogRequested(string mode, string folderId, int playlistIndex)   // FolderDialog
 
     // New playlist (optionally with tracks — rows of Library.tracks) / editing an existing one (PlaylistDialog).
     function createPlaylist(rows) {
         playlistDialogRequested("create", -1, rows || [])
     }
     function editPlaylistPassword(playlistId) { passwordDialogRequested(playlistId) }
+    function createFolder(playlistIndex) { folderDialogRequested("create", "", playlistIndex) }
+    function editFolder(folderId) { folderDialogRequested("edit", folderId, -1) }
+    function moveToFolder(playlistIndex) { folderDialogRequested("pick", "", playlistIndex) }
     function editPlaylist(index) {
         playlistDialogRequested("edit", index, [])
     }
