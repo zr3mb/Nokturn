@@ -1,6 +1,7 @@
 """HTTP API, WebSocket hub and link pages."""
 
 import asyncio
+import ipaddress
 import json
 import logging
 import secrets
@@ -85,10 +86,19 @@ class RateLimiter:
 
 
 def client_ip(request):
-    cfg = request.app[CONFIG]
-    if cfg.trust_proxy and request.remote in ("127.0.0.1", "::1"):
-        return request.headers.get("X-Real-IP") or request.remote
-    return request.remote
+    """The address of whoever is asking (rate limits count per address). Behind a proxy on this machine or its
+    private network — nginx on localhost, Caddy in a Docker network — every request comes from the proxy, so its
+    word is taken: X-Real-IP (nginx), else the last X-Forwarded-For entry, the one the proxy itself added."""
+    remote = request.remote or ""
+    if request.app[CONFIG].trust_proxy:
+        try:
+            near = ipaddress.ip_address(remote)
+        except ValueError:
+            near = None
+        if near and (near.is_loopback or near.is_private):
+            forwarded = request.headers.get("X-Forwarded-For", "").split(",")[-1].strip()
+            return request.headers.get("X-Real-IP") or forwarded or remote
+    return remote
 
 
 async def read_json(request):
