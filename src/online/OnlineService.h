@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QSet>
 #include <QTimer>
 #include <QVariantList>
 #include <QWebSocket>
@@ -26,7 +27,9 @@ class QQmlEngine;
 // Only YouTube Music and SoundCloud tracks travel: a Spotify track goes as its YouTube Music match,
 // a local file as the YouTube Music track that matches its tags.
 // The account is anonymous — a display name and a token from the server — and is made on first use,
-// so nothing is sent anywhere until one of these features is used.
+// so nothing is sent anywhere until one of these features is used. Once there is an account, the YouTube
+// Music likes and the plays go to it too (unless turned off), so every device signed in to it (paired with
+// an 8-character code: the phone app, the browser version) has the same "Liked" and "Recently played".
 class OnlineService : public QObject
 {
     Q_OBJECT
@@ -42,6 +45,9 @@ class OnlineService : public QObject
     // { code, name, mode, url, isHost, canControl, playing, finished, members: [{ id, name, online, host, me }],
     //   queue: [{ itemId, row, addedBy, current, played }], currentRow }
     Q_PROPERTY(QVariantMap room READ room NOTIFY roomChanged)
+    Q_PROPERTY(bool librarySync READ librarySync WRITE setLibrarySync NOTIFY settingsChanged)
+    Q_PROPERTY(QString pairCode READ pairCode NOTIFY pairChanged)          // shown for another device to enter
+    Q_PROPERTY(double pairExpires READ pairExpires NOTIFY pairChanged)     // ms since the epoch
 
 public:
     static constexpr const char *kDefaultServer = "https://nokturn.404piwko.wtf";
@@ -78,6 +84,16 @@ public:
     bool inRoom() const { return !m_roomCode.isEmpty() && !m_roomState.isEmpty(); }
     bool joiningRoom() const { return m_creatingRoom || (!m_roomCode.isEmpty() && m_roomState.isEmpty()); }
     QVariantMap room() const { return m_roomView; }
+    bool librarySync() const { return m_librarySync; }
+    void setLibrarySync(bool on);
+    QString pairCode() const { return m_pairCode; }
+    double pairExpires() const { return m_pairExpires; }
+
+    // ---- the account's library and its devices ----
+    Q_INVOKABLE void syncLibrary();
+    Q_INVOKABLE void createPairCode();
+    Q_INVOKABLE void redeemPairCode(const QString &code);   // this device switches to that account
+    void noteLiked(const Track &t, bool liked);             // the heart on a YouTube Music track
 
     // ---- links ----
     Q_INVOKABLE void shareTrack(int row);   // copies the link to the clipboard
@@ -131,6 +147,7 @@ signals:
     void roomOpened();                               // QML shows the room page
     void playlistOpened(const QString &id);          // QML shows a shared playlist
     void activateRequested();                        // a link came from outside — bring the window up
+    void pairChanged();
 
 private:
     explicit OnlineService(QObject *parent = nullptr);
@@ -187,6 +204,18 @@ private:
     void loadPlaylists();
     void savePlaylists() const;
 
+    // the library
+    QString syncFile() const;
+    void loadLibrarySync();
+    void saveLibrarySync() const;
+    void resetLibrarySync();
+    void queueLibraryOp(const QJsonObject &op);
+    void flushLibraryOps(std::function<void()> then);
+    void applyLibrary(const QJsonObject &library);
+    void notePlayed(const Track &t);
+    void libraryVersion(const QJsonObject &reply);
+    void saveToken() const;
+
     void copyToClipboard(const QString &text, const QString &message);
     void registerUrlScheme();
 
@@ -223,4 +252,16 @@ private:
 
     QList<SharedPlaylist> m_playlists;
     QHash<QString, Track> m_tracks;
+
+    bool m_librarySync = true;
+    bool m_libSynced = false;        // this device's likes went up to the account once
+    int m_libVersion = -1;
+    QSet<QString> m_serverLiked;     // the account's YouTube Music likes at the last sync
+    QList<QJsonObject> m_libOps;     // likes and unlikes waiting for the server
+    bool m_libFlushing = false;
+    bool m_libSyncing = false;
+    bool m_libAgain = false;
+    QTimer m_libTimer;
+    QString m_pairCode;
+    double m_pairExpires = 0;
 };

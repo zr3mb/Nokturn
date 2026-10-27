@@ -129,6 +129,9 @@ public:
     static Track trackFromJson(const QJsonObject &o);
     bool isLiked(const QString &trackId) const { return m_likedSet.contains(trackId); }
     void setTrackLiked(const QString &trackId, bool liked);
+    // Likes and unlikes from the account's other devices (OnlineService) — like the heart pressed here,
+    // they go to the YouTube Music account too.
+    void adoptLiked(const QList<Track> &liked, const QStringList &unliked);
     void setTrackColors(const QString &trackId, const QColor &a, const QColor &b);
 
 signals:

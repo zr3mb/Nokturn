@@ -6,6 +6,8 @@
 #include <QObject>
 #include <QTimer>
 #include <QVariantMap>
+
+#include <utility>
 #include <QtQml/qqmlregistration.h>
 
 class QQmlEngine;
@@ -30,17 +32,21 @@ public:
     void notePlay(const Track &t, double secondsSoFar);
     void addListening(const QString &id, double seconds);   // while the counted play goes on
     QStringList recentIds(int limit) const;                 // newest first, each track once
+    // Plays on the account's other devices (OnlineService): they show in "Recently played" but not in
+    // the stats, which only count what was heard here. Plays already known are skipped.
+    void addRemote(const QList<std::pair<Track, qint64>> &plays);
 
     // "month", "year" or "all": totals, top artists / tracks / genres and listening by hour.
     Q_INVOKABLE QVariantMap stats(const QString &period) const;
 
 signals:
     void changed();
+    void playNoted(const Track &t);   // a play that counted, for the account's history
 
 private:
     explicit ListeningHistory(QObject *parent = nullptr);
 
-    struct Event { QString id; qint64 at = 0; double seconds = 0; };
+    struct Event { QString id; qint64 at = 0; double seconds = 0; };   // seconds < 0: played on another device
 
     void load();
     void importPlays();       // the first run: the plays the recommendations had counted

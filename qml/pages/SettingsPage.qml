@@ -724,6 +724,75 @@ Item {
                     }
                 }
                 SettingRow {
+                    icon: "heart"
+                    title: qsTr("Same library on every device")
+                    description: qsTr("YouTube Music likes and what you play go to your Nokturn account, so the phone app and the browser version show the same Liked and Recently played.")
+                    Toggle { checked: Online.librarySync; onToggled: c => Online.librarySync = c }
+                }
+                SettingRow {
+                    id: pairRow
+                    // the code is valid for ten minutes; the row counts down
+                    property int minutesLeft: Online.pairCode === "" ? 0 : Math.ceil((Online.pairExpires - clock.now) / 60000)
+                    icon: "link"
+                    title: qsTr("Link another device")
+                    description: pairRow.minutesLeft > 0
+                                 ? qsTr("Enter this code on the other device (phone app or browser version). Valid for %1 more min.").arg(pairRow.minutesLeft)
+                                 : qsTr("Show a code and enter it on your phone or in the browser version: it gets this account, with its library, playlists and rooms.")
+                    Timer {
+                        id: clock
+                        property double now: Date.now()
+                        interval: 15000
+                        repeat: true
+                        running: Online.pairCode !== ""
+                        triggeredOnStart: true
+                        onTriggered: now = Date.now()
+                    }
+                    Text {
+                        visible: pairRow.minutesLeft > 0
+                        text: Online.pairCode.slice(0, 4) + "-" + Online.pairCode.slice(4)
+                        color: Theme.accent
+                        font.pixelSize: 24
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 2
+                        font.features: { "tnum": 1 }
+                    }
+                    PillButton {
+                        visible: pairRow.minutesLeft <= 0
+                        kind: "ghost"
+                        text: qsTr("Show a code")
+                        fontSize: 13
+                        implicitHeight: 36
+                        onClicked: Online.createPairCode()
+                    }
+                }
+                SettingRow {
+                    icon: "key"
+                    title: qsTr("I have a code")
+                    description: qsTr("From another device: this one switches to that device's Nokturn account. Your likes here are added to it.")
+                    Row {
+                        spacing: 8
+                        InputField {
+                            id: codeField
+                            width: 140
+                            implicitHeight: 38
+                            maximumLength: 9
+                            placeholderText: "XXXX-XXXX"
+                            onAccepted: linkButton.clicked()
+                        }
+                        PillButton {
+                            id: linkButton
+                            text: qsTr("Link")
+                            fontSize: 13
+                            implicitHeight: 38
+                            enabled: codeField.text.replace(/[^A-Za-z0-9]/g, "").length === 8
+                            onClicked: {
+                                Online.redeemPairCode(codeField.text)
+                                codeField.text = ""
+                            }
+                        }
+                    }
+                }
+                SettingRow {
                     visible: Online.registered
                     icon: "close"
                     title: qsTr("Delete the online account")

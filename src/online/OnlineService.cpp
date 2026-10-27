@@ -2,6 +2,7 @@
 
 #include "AppPaths.h"
 #include "Library.h"
+#include "ListeningHistory.h"
 #include "LibraryScanner.h"
 #include "PlayerController.h"
 #include "spotify/SpotifyService.h"
@@ -40,6 +41,30 @@ constexpr int kRoomBatch = 100;   // tracks per room message (the server's limit
 QString cacheFile() { return AppPaths::dataDir() + QStringLiteral("/shared-playlists.json"); }
 
 qint64 nowMs() { return QDateTime::currentMSecsSinceEpoch(); }
+
+constexpr int kFirstUpload = 300;   // likes sent up the first time a device syncs
+
+// A track as the server keeps it (tracks.py).
+Track serverTrack(const QJsonObject &o)
+{
+    Track t;
+    t.id = o.value("id").toString();
+    t.path = o.value("path").toString();
+    t.source = o.value("source").toString();
+    t.title = o.value("title").toString();
+    t.artist = o.value("artist").toString();
+    t.artistId = o.value("artistId").toString();
+    t.album = o.value("album").toString();
+    t.duration = o.value("duration").toInt();
+    t.cover = o.value("cover").toString();
+    t.quality = t.source == QLatin1String("soundcloud") ? QStringLiteral("SoundCloud") : QStringLiteral("YouTube Music");
+    const QString key = TrackModel::albumKey(t);
+    const auto [a, b] = Scanner::fallbackPalette(key);
+    t.colorA = a;
+    t.colorB = b;
+    t.seed = Scanner::stableSeed(key);
+    return t;
+}
 
 // NOKTURN_ONLINE_DEBUG=1: room states, what the player is told and what it reports.
 bool debug()
@@ -113,7 +138,9 @@ OnlineService::OnlineService(QObject *parent)
     while (m_server.endsWith(QLatin1Char('/')))
         m_server.chop(1);
     m_name = settings->value("online/name", defaultName()).toString();
+    m_librarySync = settings->value("online/librarySync", true).toBool();
     loadAccount();
+    loadLibrarySync();
     loadPlaylists();
 
     m_reconnect.setSingleShot(true);
@@ -123,6 +150,9 @@ OnlineService::OnlineService(QObject *parent)
     // While in a room the player is checked against the room's clock every few seconds.
     m_syncTimer.setInterval(2'500);
     connect(&m_syncTimer, &QTimer::timeout, this, &OnlineService::syncPlayer);
+    // The library also comes with every change over the connection; this catches a missed one.
+    m_libTimer.setInterval(10 * 60'000);
+    connect(&m_libTimer, &QTimer::timeout, this, &OnlineService::syncLibrary);
 
     connect(&m_ws, &QWebSocket::connected, this, [this] {
         m_connected = true;
@@ -139,6 +169,8 @@ OnlineService::OnlineService(QObject *parent)
         // Changes made while we were away.
         if (!m_playlists.isEmpty())
             refreshPlaylists();
+        if (m_librarySync)
+            syncLibrary();
     });
     connect(&m_ws, &QWebSocket::disconnected, this, [this] {
         const bool was = m_connected;
@@ -153,15 +185,18 @@ OnlineService::OnlineService(QObject *parent)
     });
     connect(&m_ws, &QWebSocket::textMessageReceived, this, &OnlineService::onSocketMessage);
 
-    // Shared playlists may have changed while Nokturn was closed.
-    if (registered() && !m_playlists.isEmpty())
+    // Shared playlists and the library may have changed while Nokturn was closed.
+    if (registered() && (!m_playlists.isEmpty() || m_librarySync))
         QTimer::singleShot(4'000, this, &OnlineService::connectSocket);
+    if (registered() && m_librarySync)
+        m_libTimer.start();
     QTimer::singleShot(0, this, &OnlineService::registerUrlScheme);
 }
 
 void OnlineService::attach(PlayerController *player)
 {
     m_player = player;
+    connect(ListeningHistory::instance(), &ListeningHistory::playNoted, this, &OnlineService::notePlayed);
 }
 
 // ---- settings ---------------------------------------------------------------------
@@ -180,8 +215,9 @@ void OnlineService::setServerUrl(const QString &url)
     m_ws.close();
     m_server = clean;
     AppPaths::settings()->setValue("online/server", clean == QLatin1String(kDefaultServer) ? QVariant() : QVariant(clean));
-    // Accounts and playlists belong to a server.
+    // Accounts, their libraries and playlists belong to a server.
     loadAccount();
+    loadLibrarySync();
     m_playlists.clear();
     savePlaylists();
     emit playlistsChanged();
@@ -243,12 +279,13 @@ void OnlineService::ensureAccount(std::function<void(bool ok)> then)
         if (ok) {
             m_token = token;
             m_userId = reply.value("user").toObject().value("id").toString();
-            QSaveFile f(tokenFile());
-            if (f.open(QIODevice::WriteOnly)) {
-                f.write(protectSecret(QJsonDocument(QJsonObject { { "token", m_token }, { "id", m_userId } }).toJson(QJsonDocument::Compact)));
-                f.commit();
-            }
+            saveToken();
+            loadLibrarySync();
             emit accountChanged();
+            if (m_librarySync) {
+                m_libTimer.start();
+                QTimer::singleShot(0, this, &OnlineService::syncLibrary);
+            }
         } else {
             emit notice(tr("Can't reach the Nokturn server: %1").arg(error), QStringLiteral("close"));
         }
@@ -290,6 +327,15 @@ void OnlineService::resolveStream(const QString &videoId, std::function<void(con
     });
 }
 
+void OnlineService::saveToken() const
+{
+    QSaveFile f(tokenFile());
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(protectSecret(QJsonDocument(QJsonObject { { "token", m_token }, { "id", m_userId } }).toJson(QJsonDocument::Compact)));
+        f.commit();
+    }
+}
+
 void OnlineService::forgetAccount()
 {
     if (inRoom() || joiningRoom())
@@ -297,8 +343,11 @@ void OnlineService::forgetAccount()
     auto drop = [this] {
         m_ws.close();
         QFile::remove(tokenFile());
+        QFile::remove(syncFile());
         m_token.clear();
         m_userId.clear();
+        loadLibrarySync();
+        m_libTimer.stop();
         m_playlists.clear();
         savePlaylists();
         emit playlistsChanged();
@@ -366,7 +415,7 @@ void OnlineService::endBusy()
 
 bool OnlineService::wantSocket() const
 {
-    return registered() && (!m_roomCode.isEmpty() || !m_outbox.isEmpty() || !m_playlists.isEmpty());
+    return registered() && (!m_roomCode.isEmpty() || !m_outbox.isEmpty() || !m_playlists.isEmpty() || m_librarySync);
 }
 
 void OnlineService::connectSocket()
@@ -425,6 +474,9 @@ void OnlineService::onSocketMessage(const QString &text)
         const SharedPlaylist *p = findPlaylist(id);
         if (!p || p->version != m.value("version").toInt())
             fetchPlaylist(id);
+    } else if (type == QLatin1String("library")) {
+        if (m.value("version").toInt() != m_libVersion)
+            syncLibrary();   // another device liked or played something
     } else if (type == QLatin1String("playlist.removed")) {
         const QString id = m.value("id").toString();
         for (int i = 0; i < m_playlists.size(); ++i) {
@@ -485,23 +537,8 @@ Track OnlineService::storeTrack(const QJsonObject &o)
         return {};
     if (const auto it = m_tracks.constFind(id); it != m_tracks.cend())
         return *it;
-    Track t;
-    t.id = id;
-    t.path = o.value("path").toString();
-    t.source = o.value("source").toString();
-    t.title = o.value("title").toString();
-    t.artist = o.value("artist").toString();
-    t.artistId = o.value("artistId").toString();
-    t.album = o.value("album").toString();
-    t.duration = o.value("duration").toInt();
-    t.cover = o.value("cover").toString();
-    t.quality = t.source == QLatin1String("soundcloud") ? QStringLiteral("SoundCloud") : QStringLiteral("YouTube Music");
+    Track t = serverTrack(o);
     t.transient = true;
-    const QString key = TrackModel::albumKey(t);
-    const auto [a, b] = Scanner::fallbackPalette(key);
-    t.colorA = a;
-    t.colorB = b;
-    t.seed = Scanner::stableSeed(key);
     m_tracks.insert(id, t);
     // The track model may already have it (liked, in the library) — only new ones are appended.
     if (Library::instance()->tracks()->rowOf(id) < 0)
@@ -1301,6 +1338,289 @@ void OnlineService::savePlaylists() const
         f.write(QJsonDocument(QJsonObject { { "server", m_server }, { "playlists", playlists } }).toJson(QJsonDocument::Compact));
         f.commit();
     }
+}
+
+// ---- the account's library: YouTube Music likes and the plays, on every device ---------
+
+void OnlineService::setLibrarySync(bool on)
+{
+    if (on == m_librarySync)
+        return;
+    m_librarySync = on;
+    AppPaths::settings()->setValue("online/librarySync", on);
+    emit settingsChanged();
+    if (on && registered()) {
+        m_libTimer.start();
+        syncLibrary();
+        connectSocket();
+    } else {
+        m_libTimer.stop();
+    }
+}
+
+QString OnlineService::syncFile() const
+{
+    const QByteArray key = QCryptographicHash::hash(m_server.toUtf8(), QCryptographicHash::Sha1).toHex().left(10);
+    return AppPaths::dataDir() + QStringLiteral("/library-sync-") + QString::fromLatin1(key) + QStringLiteral(".json");
+}
+
+void OnlineService::loadLibrarySync()
+{
+    m_libSynced = false;
+    m_libVersion = -1;
+    m_serverLiked.clear();
+    m_libOps.clear();
+    QFile f(syncFile());
+    if (m_userId.isEmpty() || !f.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+    if (o.value("user").toString() != m_userId)
+        return;   // another account's
+    m_libSynced = o.value("synced").toBool();
+    m_libVersion = o.value("version").toInt(-1);
+    for (const QJsonValue &v : o.value("liked").toArray())
+        m_serverLiked.insert(v.toString());
+    for (const QJsonValue &v : o.value("ops").toArray())
+        m_libOps << v.toObject();
+}
+
+void OnlineService::saveLibrarySync() const
+{
+    QJsonArray liked, ops;
+    for (const QString &id : m_serverLiked)
+        liked.append(id);
+    for (const QJsonObject &op : m_libOps)
+        ops.append(op);
+    QSaveFile f(syncFile());
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(QJsonDocument(QJsonObject { { "user", m_userId }, { "synced", m_libSynced }, { "version", m_libVersion },
+                                            { "liked", liked }, { "ops", ops } }).toJson(QJsonDocument::Compact));
+        f.commit();
+    }
+}
+
+void OnlineService::resetLibrarySync()
+{
+    m_libSynced = false;
+    m_libVersion = -1;
+    m_serverLiked.clear();
+    m_libOps.clear();
+    saveLibrarySync();
+}
+
+void OnlineService::noteLiked(const Track &t, bool liked)
+{
+    // Before the first sync this device's likes all go up anyway.
+    if (!m_librarySync || !registered() || !m_libSynced || t.demo || t.source != QLatin1String("youtube"))
+        return;
+    queueLibraryOp(liked ? QJsonObject { { "op", "like" }, { "id", t.id }, { "track", trackJson(t) } }
+                         : QJsonObject { { "op", "unlike" }, { "id", t.id } });
+    flushLibraryOps({});
+}
+
+void OnlineService::queueLibraryOp(const QJsonObject &op)
+{
+    // A later change of the same track replaces one still waiting.
+    const QString id = op.value("id").toString();
+    m_libOps.erase(std::remove_if(m_libOps.begin(), m_libOps.end(),
+                                  [&](const QJsonObject &o) { return o.value("id").toString() == id; }),
+                   m_libOps.end());
+    m_libOps << op;
+    saveLibrarySync();
+}
+
+// The server answers a change with the account's new version: one step on means nothing else changed.
+void OnlineService::libraryVersion(const QJsonObject &reply)
+{
+    const int version = reply.value("version").toInt(-1);
+    if (version >= 0 && m_libVersion >= 0 && version == m_libVersion + 1)
+        m_libVersion = version;
+}
+
+void OnlineService::flushLibraryOps(std::function<void()> then)
+{
+    if (m_libFlushing || m_libOps.isEmpty() || !registered()) {
+        if (then && !m_libFlushing)
+            then();
+        return;
+    }
+    m_libFlushing = true;
+    const QJsonObject op = m_libOps.first();
+    const QString id = op.value("id").toString();
+    auto done = [this, op, id, then](const QJsonObject &reply, const QString &error) {
+        m_libFlushing = false;
+        const bool offline = !error.isEmpty() && (reply.isEmpty() || reply.value("error") == QLatin1String("rate_limited"));
+        if (offline) {   // try again with the next sync
+            if (then)
+                then();
+            return;
+        }
+        if (!m_libOps.isEmpty() && m_libOps.first() == op)
+            m_libOps.removeFirst();
+        if (error.isEmpty()) {
+            if (op.value("op") == QLatin1String("like"))
+                m_serverLiked.insert(id);
+            else
+                m_serverLiked.remove(id);
+            libraryVersion(reply);
+        }
+        saveLibrarySync();
+        flushLibraryOps(then);
+    };
+    if (op.value("op") == QLatin1String("like"))
+        request("POST", QStringLiteral("/library/liked"), { { "track", op.value("track") } }, done);
+    else
+        request("DELETE", QStringLiteral("/library/liked/") + QString::fromUtf8(QUrl::toPercentEncoding(id)), {}, done);
+}
+
+void OnlineService::syncLibrary()
+{
+    if (!m_librarySync || !registered())
+        return;
+    if (m_libSyncing) {
+        m_libAgain = true;
+        return;
+    }
+    m_libSyncing = true;
+    flushLibraryOps([this] {
+        request("GET", QStringLiteral("/library"), {}, [this](const QJsonObject &reply, const QString &error) {
+            if (error.isEmpty() && reply.contains("liked"))
+                applyLibrary(reply);
+            m_libSyncing = false;
+            if (std::exchange(m_libAgain, false))
+                syncLibrary();
+        });
+    });
+}
+
+void OnlineService::applyLibrary(const QJsonObject &library)
+{
+    YouTubeService *yt = YouTubeService::instance();
+    const TrackModel *model = Library::instance()->tracks();
+
+    // Likes: what's on the account and not here was liked elsewhere; what's here and not there was either
+    // unliked elsewhere (it was there at the last sync) or liked here meanwhile (it wasn't).
+    QHash<QString, Track> server;
+    for (const QJsonValue &v : library.value("liked").toArray()) {
+        const Track t = serverTrack(v.toObject());
+        if (t.source == QLatin1String("youtube") && !t.path.isEmpty())
+            server.insert(t.id, t);
+    }
+    const QStringList localIds = yt->likedIds();
+    const QSet<QString> local(localIds.cbegin(), localIds.cend());
+    QList<Track> adopt;
+    for (const Track &t : std::as_const(server))
+        if (!local.contains(t.id))
+            adopt << t;
+    QStringList unlike;
+    int uploads = 0;
+    for (const QString &id : localIds) {
+        if (server.contains(id))
+            continue;
+        const bool pending = std::any_of(m_libOps.cbegin(), m_libOps.cend(),
+                                         [&](const QJsonObject &o) { return o.value("id").toString() == id; });
+        if (pending)
+            continue;
+        if (m_libSynced && m_serverLiked.contains(id)) {
+            unlike << id;
+        } else if (const int row = model->rowOf(id); row >= 0 && (m_libSynced || uploads < kFirstUpload)) {
+            ++uploads;
+            queueLibraryOp({ { "op", "like" }, { "id", id }, { "track", trackJson(model->at(row)) } });
+        }
+    }
+    m_serverLiked = QSet<QString>(server.keyBegin(), server.keyEnd());
+    m_libVersion = library.value("version").toInt();
+    m_libSynced = true;
+    saveLibrarySync();
+    if (!adopt.isEmpty() || !unlike.isEmpty())
+        yt->adoptLiked(adopt, unlike);
+
+    // Plays on the other devices join "Recently played".
+    QList<std::pair<Track, qint64>> plays;
+    for (const QJsonValue &v : library.value("history").toArray()) {
+        const QJsonObject o = v.toObject();
+        const Track t = serverTrack(o);
+        if (!t.id.isEmpty() && (t.source == QLatin1String("youtube") || t.source == QLatin1String("soundcloud")))
+            plays.append({ t, qint64(o.value("at").toDouble()) });
+    }
+    if (!plays.isEmpty())
+        ListeningHistory::instance()->addRemote(plays);
+
+    if (!m_libOps.isEmpty())
+        flushLibraryOps({});
+}
+
+void OnlineService::notePlayed(const Track &t)
+{
+    if (!m_librarySync || !registered() || t.demo
+        || (t.source != QLatin1String("youtube") && t.source != QLatin1String("soundcloud")))
+        return;
+    request("POST", QStringLiteral("/library/history"), { { "track", trackJson(t) } },
+            [this](const QJsonObject &reply, const QString &error) {
+                if (error.isEmpty())
+                    libraryVersion(reply);
+            });
+}
+
+// ---- devices: one account on several -------------------------------------------------
+
+void OnlineService::createPairCode()
+{
+    ensureAccount([this](bool ok) {
+        if (!ok)
+            return;
+        request("POST", QStringLiteral("/me/pair"), {}, [this](const QJsonObject &reply, const QString &error) {
+            if (!error.isEmpty()) {
+                emit notice(tr("Couldn't get a code: %1").arg(error), QStringLiteral("close"));
+                return;
+            }
+            m_pairCode = reply.value("code").toString();
+            m_pairExpires = reply.value("expires").toDouble() * 1000;
+            emit pairChanged();
+        });
+    });
+}
+
+void OnlineService::redeemPairCode(const QString &code)
+{
+    QString clean = code.toUpper();
+    clean.remove(QRegularExpression(QStringLiteral("[^A-Z0-9]")));
+    if (clean.size() != 8) {
+        emit notice(tr("The code has 8 letters and digits"), QStringLiteral("close"));
+        return;
+    }
+    request("POST", QStringLiteral("/pair"), { { "code", clean } }, [this](const QJsonObject &reply, const QString &error) {
+        const QString token = reply.value("token").toString();
+        if (!error.isEmpty() || token.isEmpty()) {
+            emit notice(reply.value("error") == QLatin1String("bad_code") ? tr("Wrong or expired code")
+                                                                           : tr("Couldn't link: %1").arg(error),
+                        QStringLiteral("close"));
+            return;
+        }
+        // This device joins that account: its rooms and playlists are that account's from now on.
+        if (inRoom() || joiningRoom())
+            leaveRoom();
+        m_ws.close();
+        m_token = token;
+        m_userId = reply.value("user").toObject().value("id").toString();
+        saveToken();
+        // The likes here join the account's (nothing is removed from either).
+        loadLibrarySync();
+        resetLibrarySync();
+        m_playlists.clear();
+        savePlaylists();
+        m_pairCode.clear();
+        emit pairChanged();
+        emit playlistsChanged();
+        emit accountChanged();
+        refreshPlaylists();
+        if (m_librarySync) {
+            m_libTimer.start();
+            syncLibrary();
+        }
+        connectSocket();
+        emit notice(tr("Linked — this device uses the same Nokturn account now"), QStringLiteral("check"));
+    });
 }
 
 // ---- nokturn:// links open Nokturn ------------------------------------------------

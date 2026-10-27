@@ -993,5 +993,19 @@
   "Sign in to %1": "Logowanie do %1",
   "Sign in to your Google account on the page that opens. When YouTube Music appears, Nokturn takes over and downloads your liked tracks and playlists.": "Zaloguj się na konto Google na stronie, która się otworzy. Gdy pojawi się YouTube Music, Nokturn przejmie sesję i pobierze polubione utwory oraz playlisty.",
   "Sign in to SoundCloud on the page that opens; Nokturn takes over once you're signed in.": "Zaloguj się do SoundCloud na stronie, która się otworzy; po zalogowaniu Nokturn przejmie sesję.",
-  "The Nokturn server doesn't relay audio yet; update it (server/install.sh)": "Serwer Nokturna nie przekazuje jeszcze dźwięku; zaktualizuj go (server/install.sh)"
+  "The Nokturn server doesn't relay audio yet; update it (server/install.sh)": "Serwer Nokturna nie przekazuje jeszcze dźwięku; zaktualizuj go (server/install.sh)",
+  "Same library on every device": "Ta sama biblioteka na każdym urządzeniu",
+  "YouTube Music likes and what you play go to your Nokturn account, so the phone app and the browser version show the same Liked and Recently played.": "Polubione w YouTube Music i to, czego słuchasz, trafia na Twoje konto Nokturna, więc aplikacja na telefon i wersja w przeglądarce pokazują te same Polubione i Ostatnio słuchane.",
+  "Link another device": "Połącz inne urządzenie",
+  "Enter this code on the other device (phone app or browser version). Valid for %1 more min.": "Wpisz ten kod na drugim urządzeniu (w aplikacji na telefon albo w wersji w przeglądarce). Ważny jeszcze %1 min.",
+  "Show a code and enter it on your phone or in the browser version: it gets this account, with its library, playlists and rooms.": "Pokaż kod i wpisz go na telefonie albo w wersji w przeglądarce — dostanie to konto razem z biblioteką, playlistami i pokojami.",
+  "Show a code": "Pokaż kod",
+  "I have a code": "Mam kod",
+  "From another device: this one switches to that device's Nokturn account. Your likes here are added to it.": "Z innego urządzenia: to urządzenie przejdzie na tamto konto Nokturna. Twoje polubione stąd zostaną do niego dodane.",
+  "Link": "Połącz",
+  "Couldn't get a code: %1": "Nie udało się pobrać kodu: %1",
+  "The code has 8 letters and digits": "Kod ma 8 liter i cyfr",
+  "Wrong or expired code": "Zły albo nieważny kod",
+  "Couldn't link: %1": "Nie udało się połączyć: %1",
+  "Linked — this device uses the same Nokturn account now": "Połączono — to urządzenie używa teraz tego samego konta Nokturna"
 }
