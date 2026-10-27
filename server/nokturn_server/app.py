@@ -327,6 +327,42 @@ async def clear_history(request):
     return await _library_changed(request, request.app[DB].clear_history(request[USER]["id"]))
 
 
+def clean_organizer(body):
+    """{"folders": [{"id", "name"}], "assign": {playlist key: folder id}, "hidden": [playlist key], "updated": ms}
+    — playlist keys as the apps make them ("yt:<id>", "sp:<id>", "shared:<id>", "user:<id>", "liked"…)."""
+    def key(value):
+        return value.strip()[:160] if isinstance(value, str) and value.strip() else None
+    folders, ids = [], set()
+    for f in body.get("folders") if isinstance(body.get("folders"), list) else []:
+        if not isinstance(f, dict) or len(folders) >= 100:
+            continue
+        fid, name = key(f.get("id")), clean_name(f.get("name"), 60)
+        if fid and name and fid not in ids:
+            ids.add(fid)
+            folders.append({"id": fid[:40], "name": name})
+    assign = {}
+    raw = body.get("assign") if isinstance(body.get("assign"), dict) else {}
+    for k, v in list(raw.items())[:3000]:
+        if key(k) and isinstance(v, str) and v[:40] in ids:
+            assign[key(k)] = v[:40]
+    hidden = []
+    for k in (body.get("hidden") if isinstance(body.get("hidden"), list) else [])[:3000]:
+        if key(k) and key(k) not in hidden:
+            hidden.append(key(k))
+    updated = body.get("updated")
+    updated = int(updated) if isinstance(updated, (int, float)) and updated > 0 else int(time.time() * 1000)
+    return {"folders": folders, "assign": assign, "hidden": hidden, "updated": updated}
+
+
+@require_user
+async def put_organizer(request):
+    if not request.app[LIMITS]["library"].allow(request[USER]["id"]):
+        return error(429, "rate_limited", "too many changes, try again later")
+    data = clean_organizer(await read_json(request))
+    version = request.app[DB].set_organizer(request[USER]["id"], data)
+    return await _library_changed(request, version)
+
+
 @require_user
 async def create_pair_code(request):
     if not request.app[LIMITS]["pair"].allow(request[USER]["id"]):
@@ -866,6 +902,7 @@ def create_app(config):
     r.add_post(f"{API}/library/history", add_history)
     r.add_delete(f"{API}/library/history", clear_history)
     r.add_post(f"{API}/me/pair", create_pair_code)
+    r.add_put(f"{API}/library/organizer", put_organizer)
     r.add_post(f"{API}/pair", redeem_pair_code)
     r.add_get("/", home)
     r.add_get("/t/{code}", track_page)

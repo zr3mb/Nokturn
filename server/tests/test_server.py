@@ -320,10 +320,22 @@ class ServerTest(AioHTTPTestCase):
         preview = await (await self.client.get(f'/api/v1/playlists/{p["id"]}', headers=self.auth(b))).json()
         self.assertFalse(preview["protected"])
 
+    async def test_organizer(self):
+        a, _ = await self.register("Ala")
+        lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
+        self.assertIsNone(lib["organizer"])
+        body = {"folders": [{"id": "f1", "name": "Rap"}, {"id": "f1", "name": "dup"}, {"id": "", "name": "x"}],
+                "assign": {"yt:PL1": "f1", "sp:2": "nope"}, "hidden": ["shared:abc", "shared:abc"], "updated": 1234}
+        r = await self.client.put("/api/v1/library/organizer", json=body, headers=self.auth(a))
+        self.assertEqual((await r.json())["version"], 1)
+        lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
+        self.assertEqual(lib["organizer"], {"folders": [{"id": "f1", "name": "Rap"}], "assign": {"yt:PL1": "f1"},
+                                            "hidden": ["shared:abc"], "updated": 1234})
+
     async def test_library_and_pairing(self):
         a, _ = await self.register("Ala")
         r = await self.client.get("/api/v1/library", headers=self.auth(a))
-        self.assertEqual(await r.json(), {"version": 0, "liked": [], "history": []})
+        self.assertEqual(await r.json(), {"version": 0, "liked": [], "history": [], "organizer": None})
         r = await self.client.post("/api/v1/library/liked", json={"track": YT}, headers=self.auth(a))
         self.assertEqual((await r.json())["version"], 1)
         await self.client.post("/api/v1/library/liked", json={"track": YT}, headers=self.auth(a))   # twice: once
