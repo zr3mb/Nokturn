@@ -713,7 +713,8 @@ Item {
         ]
     }
     // The Nokturn account (--tour-account "<login>;<password>", with NOKTURN_SERVER): an account made on this
-    // device gets a login and a password, the recovery key, a new password, signing out and in again.
+    // device gets a login and a password, the recovery key, a new password, signing out and in again, and is
+    // deleted at the end (so it can run against the real server).
     readonly property bool withAccount: Qt.application.arguments.indexOf("--tour-account") >= 0
     readonly property var accountSteps: {
         if (!withAccount)
@@ -737,7 +738,9 @@ Item {
             { name: "K11-wrong", run: () => Online.signIn(login, password) },
             { name: "K11b-error", run: () => {} },
             { name: "K12-sign-in", run: () => Online.signIn(login, password + "2") },
-            { name: "K13-back", run: () => log("signed in again") }
+            { name: "K13-back", run: () => log("signed in again") },
+            { name: "K14-delete", run: () => Online.forgetAccount() },
+            { name: "K15-deleted", run: () => log("deleted") }
         ]
     }
     // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).

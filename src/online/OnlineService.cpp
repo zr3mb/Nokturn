@@ -2037,9 +2037,15 @@ void OnlineService::redeemPairCode(const QString &code)
 
 QString OnlineService::deviceName()
 {
+    // Plain printable ASCII: it goes in a header, and anything else breaks HTTP/2's header compression.
     const QString host = QSysInfo::machineHostName();
     const QString os = QSysInfo::prettyProductName();
-    return host.isEmpty() || host == QLatin1String("localhost") ? os : host + QStringLiteral(" · ") + os;
+    const QString name = host.isEmpty() || host == QLatin1String("localhost") ? os : host + QStringLiteral(" - ") + os;
+    QString ascii;
+    for (const QChar c : name)
+        if (c.unicode() >= 0x20 && c.unicode() < 0x7f)
+            ascii += c;
+    return ascii.simplified().left(60);
 }
 
 void OnlineService::accountRequest(const QString &action, const QString &path, const QJsonObject &body)
