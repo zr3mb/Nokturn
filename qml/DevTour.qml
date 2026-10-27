@@ -560,6 +560,20 @@ Item {
             { name: "S7-after", run: () => console.log("tour: liked at the end", JSON.stringify(liked())) }
         ]
     }
+    // Copies of the YouTube Music playlists on the account (--tour-mirrors, with NOKTURN_SERVER and a profile
+    // signed in to YouTube Music): makes the account, then waits while the playlists load and go up.
+    readonly property bool withMirrors: Qt.application.arguments.indexOf("--tour-mirrors") >= 0
+    readonly property var mirrorSteps: {
+        if (!withMirrors)
+            return []
+        const s = [{ name: "R1-account", run: () => { Nav.finishOnboarding(); Player.muted = true
+                                                     console.log("tour: youtube", YouTube.connected, "playlists", YouTube.playlistCount)
+                                                     Online.createPairCode() } }]
+        for (let i = 2; i <= 16; ++i)
+            s.push({ name: "R" + i + "-wait", run: () => console.log("tour: registered", Online.registered, "liked", Library.likedTracks().length) })
+        s.push({ name: "R17-library", run: () => Nav.navigate("library") })
+        return s
+    }
     // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).
     readonly property bool withScSeekLiked: Qt.application.arguments.indexOf("--tour-sc-seek-liked") >= 0
     readonly property var scSeekLikedSteps: {
@@ -771,7 +785,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

@@ -30,6 +30,9 @@ class QQmlEngine;
 // so nothing is sent anywhere until one of these features is used. Once there is an account, the YouTube
 // Music likes and the plays go to it too (unless turned off), so every device signed in to it (paired with
 // an 8-character code: the phone app, the browser version) has the same "Liked" and "Recently played".
+// The YouTube Music playlists go there as copies too (shared playlists with an "origin", kept in step with
+// their source by whichever signed-in device sees a change), so devices without the YouTube Music sign-in
+// have them as well; here they aren't listed twice.
 class OnlineService : public QObject
 {
     Q_OBJECT
@@ -215,6 +218,9 @@ private:
     void notePlayed(const Track &t);
     void libraryVersion(const QJsonObject &reply);
     void saveToken() const;
+    void scheduleMirrors();
+    void syncMirrors();
+    void pushMirror(const QString &origin, const QString &name, const QList<Track> &tracks, const QString &signature);
 
     void copyToClipboard(const QString &text, const QString &message);
     void registerUrlScheme();
@@ -264,4 +270,11 @@ private:
     QTimer m_libTimer;
     QString m_pairCode;
     double m_pairExpires = 0;
+
+    // copies of the YouTube Music playlists: "ytmusic:<playlist id>" -> the server's playlist
+    QHash<QString, QString> m_mirrors;
+    QHash<QString, QString> m_mirrorSigs;    // what each copy was last made from (kept in the sync file)
+    bool m_mirrorsListed = false;            // the account's playlists were listed this session
+    bool m_mirrorBusy = false;
+    QTimer m_mirrorTimer;
 };

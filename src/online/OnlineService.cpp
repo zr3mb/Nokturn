@@ -42,7 +42,8 @@ QString cacheFile() { return AppPaths::dataDir() + QStringLiteral("/shared-playl
 
 qint64 nowMs() { return QDateTime::currentMSecsSinceEpoch(); }
 
-constexpr int kFirstUpload = 300;   // likes sent up the first time a device syncs
+constexpr int kLikeBatch = 200;      // likes per request
+constexpr int kMirrorBatch = 400;    // tracks per request when copying a playlist
 
 // A track as the server keeps it (tracks.py).
 Track serverTrack(const QJsonObject &o)
@@ -153,6 +154,11 @@ OnlineService::OnlineService(QObject *parent)
     // The library also comes with every change over the connection; this catches a missed one.
     m_libTimer.setInterval(10 * 60'000);
     connect(&m_libTimer, &QTimer::timeout, this, &OnlineService::syncLibrary);
+    // The YouTube Music playlists are copied a moment after they change (they load one by one).
+    m_mirrorTimer.setSingleShot(true);
+    m_mirrorTimer.setInterval(4'000);
+    connect(&m_mirrorTimer, &QTimer::timeout, this, &OnlineService::syncMirrors);
+    connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &OnlineService::scheduleMirrors);
 
     connect(&m_ws, &QWebSocket::connected, this, [this] {
         m_connected = true;
@@ -1055,6 +1061,12 @@ void OnlineService::applyPlaylist(const QJsonObject &o)
     const QString id = o.value("id").toString();
     if (id.isEmpty() || !o.contains("tracks"))
         return;
+    // Our own copy of a YouTube Music playlist: this app shows the original.
+    const QString origin = o.value("origin").toString();
+    if (origin.startsWith(QLatin1String("ytmusic:")) && o.value("owner").toObject().value("id").toString() == m_userId) {
+        m_mirrors.insert(origin, id);
+        return;
+    }
     SharedPlaylist p;
     p.id = id;
     p.name = o.value("name").toString();
@@ -1096,6 +1108,7 @@ void OnlineService::refreshPlaylists()
     request("GET", QStringLiteral("/playlists"), {}, [this](const QJsonObject &reply, const QString &error) {
         if (!error.isEmpty())
             return;
+        m_mirrors.clear();
         QSet<QString> present;
         for (const QJsonValue &v : reply.value("playlists").toArray()) {
             present.insert(v.toObject().value("id").toString());
@@ -1111,6 +1124,8 @@ void OnlineService::refreshPlaylists()
         }
         if (!m_playlists.isEmpty())
             connectSocket();   // live changes from the others
+        m_mirrorsListed = true;
+        scheduleMirrors();
     });
 }
 
@@ -1370,6 +1385,9 @@ void OnlineService::loadLibrarySync()
     m_libVersion = -1;
     m_serverLiked.clear();
     m_libOps.clear();
+    m_mirrors.clear();
+    m_mirrorSigs.clear();
+    m_mirrorsListed = false;
     QFile f(syncFile());
     if (m_userId.isEmpty() || !f.open(QIODevice::ReadOnly))
         return;
@@ -1382,6 +1400,9 @@ void OnlineService::loadLibrarySync()
         m_serverLiked.insert(v.toString());
     for (const QJsonValue &v : o.value("ops").toArray())
         m_libOps << v.toObject();
+    const QJsonObject sigs = o.value("mirrors").toObject();
+    for (auto it = sigs.begin(); it != sigs.end(); ++it)
+        m_mirrorSigs.insert(it.key(), it.value().toString());
 }
 
 void OnlineService::saveLibrarySync() const
@@ -1391,10 +1412,13 @@ void OnlineService::saveLibrarySync() const
         liked.append(id);
     for (const QJsonObject &op : m_libOps)
         ops.append(op);
+    QJsonObject sigs;
+    for (auto it = m_mirrorSigs.cbegin(); it != m_mirrorSigs.cend(); ++it)
+        sigs.insert(it.key(), it.value());
     QSaveFile f(syncFile());
     if (f.open(QIODevice::WriteOnly)) {
         f.write(QJsonDocument(QJsonObject { { "user", m_userId }, { "synced", m_libSynced }, { "version", m_libVersion },
-                                            { "liked", liked }, { "ops", ops } }).toJson(QJsonDocument::Compact));
+                                            { "liked", liked }, { "ops", ops }, { "mirrors", sigs } }).toJson(QJsonDocument::Compact));
         f.commit();
     }
 }
@@ -1405,6 +1429,9 @@ void OnlineService::resetLibrarySync()
     m_libVersion = -1;
     m_serverLiked.clear();
     m_libOps.clear();
+    m_mirrors.clear();
+    m_mirrorSigs.clear();
+    m_mirrorsListed = false;
     saveLibrarySync();
 }
 
@@ -1445,9 +1472,13 @@ void OnlineService::flushLibraryOps(std::function<void()> then)
         return;
     }
     m_libFlushing = true;
-    const QJsonObject op = m_libOps.first();
-    const QString id = op.value("id").toString();
-    auto done = [this, op, id, then](const QJsonObject &reply, const QString &error) {
+    // Likes go up together (up to kLikeBatch, in the order they were queued); an unlike on its own.
+    QList<QJsonObject> batch { m_libOps.first() };
+    const bool like = batch.first().value("op") == QLatin1String("like");
+    while (like && batch.size() < kLikeBatch && batch.size() < m_libOps.size()
+           && m_libOps.at(batch.size()).value("op") == QLatin1String("like"))
+        batch << m_libOps.at(batch.size());
+    auto done = [this, batch, like, then](const QJsonObject &reply, const QString &error) {
         m_libFlushing = false;
         const bool offline = !error.isEmpty() && (reply.isEmpty() || reply.value("error") == QLatin1String("rate_limited"));
         if (offline) {   // try again with the next sync
@@ -1455,22 +1486,33 @@ void OnlineService::flushLibraryOps(std::function<void()> then)
                 then();
             return;
         }
-        if (!m_libOps.isEmpty() && m_libOps.first() == op)
-            m_libOps.removeFirst();
-        if (error.isEmpty()) {
-            if (op.value("op") == QLatin1String("like"))
-                m_serverLiked.insert(id);
+        for (const QJsonObject &op : batch) {
+            m_libOps.removeOne(op);
+            if (!error.isEmpty())
+                continue;
+            if (like)
+                m_serverLiked.insert(op.value("id").toString());
             else
-                m_serverLiked.remove(id);
-            libraryVersion(reply);
+                m_serverLiked.remove(op.value("id").toString());
         }
+        if (error.isEmpty())
+            libraryVersion(reply);
         saveLibrarySync();
         flushLibraryOps(then);
     };
-    if (op.value("op") == QLatin1String("like"))
-        request("POST", QStringLiteral("/library/liked"), { { "track", op.value("track") } }, done);
-    else
+    if (like) {
+        QJsonArray items;
+        for (const QJsonObject &op : batch) {
+            QJsonObject item { { "track", op.value("track") } };
+            if (op.contains("at"))
+                item.insert("at", op.value("at"));
+            items.append(item);
+        }
+        request("POST", QStringLiteral("/library/liked"), { { "items", items } }, done);
+    } else {
+        const QString id = batch.first().value("id").toString();
         request("DELETE", QStringLiteral("/library/liked/") + QString::fromUtf8(QUrl::toPercentEncoding(id)), {}, done);
+    }
 }
 
 void OnlineService::syncLibrary()
@@ -1500,35 +1542,42 @@ void OnlineService::applyLibrary(const QJsonObject &library)
 
     // Likes: what's on the account and not here was liked elsewhere; what's here and not there was either
     // unliked elsewhere (it was there at the last sync) or liked here meanwhile (it wasn't).
-    QHash<QString, Track> server;
-    for (const QJsonValue &v : library.value("liked").toArray()) {
-        const Track t = serverTrack(v.toObject());
-        if (t.source == QLatin1String("youtube") && !t.path.isEmpty())
-            server.insert(t.id, t);
-    }
+    QHash<QString, qint64> serverAt;   // the account's likes and when (ms)
+    QList<Track> adopt;               // newest first, as the server lists them
     const QStringList localIds = yt->likedIds();
     const QSet<QString> local(localIds.cbegin(), localIds.cend());
-    QList<Track> adopt;
-    for (const Track &t : std::as_const(server))
+    for (const QJsonValue &v : library.value("liked").toArray()) {
+        const Track t = serverTrack(v.toObject());
+        if (t.source != QLatin1String("youtube") || t.path.isEmpty())
+            continue;
+        serverAt.insert(t.id, qint64(v.toObject().value("at").toDouble()));
         if (!local.contains(t.id))
             adopt << t;
+    }
+    // The likes here, newest first: each one the account lacks goes up just below the newer one before it,
+    // and one the account has in another order is moved there — so the account keeps this order.
     QStringList unlike;
-    int uploads = 0;
+    qint64 cursor = nowMs();
     for (const QString &id : localIds) {
-        if (server.contains(id))
-            continue;
         const bool pending = std::any_of(m_libOps.cbegin(), m_libOps.cend(),
                                          [&](const QJsonObject &o) { return o.value("id").toString() == id; });
         if (pending)
             continue;
-        if (m_libSynced && m_serverLiked.contains(id)) {
-            unlike << id;
-        } else if (const int row = model->rowOf(id); row >= 0 && (m_libSynced || uploads < kFirstUpload)) {
-            ++uploads;
-            queueLibraryOp({ { "op", "like" }, { "id", id }, { "track", trackJson(model->at(row)) } });
+        const auto at = serverAt.constFind(id);
+        if (at != serverAt.cend() && *at > 0 && *at < cursor) {
+            cursor = *at;
+            continue;
         }
+        if (at == serverAt.cend() && m_libSynced && m_serverLiked.contains(id)) {
+            unlike << id;   // unliked on another device
+            continue;
+        }
+        const int row = model->rowOf(id);
+        if (row < 0)
+            continue;
+        queueLibraryOp({ { "op", "like" }, { "id", id }, { "track", trackJson(model->at(row)) }, { "at", double(--cursor) } });
     }
-    m_serverLiked = QSet<QString>(server.keyBegin(), server.keyEnd());
+    m_serverLiked = QSet<QString>(serverAt.keyBegin(), serverAt.keyEnd());
     m_libVersion = library.value("version").toInt();
     m_libSynced = true;
     saveLibrarySync();
@@ -1548,6 +1597,7 @@ void OnlineService::applyLibrary(const QJsonObject &library)
 
     if (!m_libOps.isEmpty())
         flushLibraryOps({});
+    scheduleMirrors();
 }
 
 void OnlineService::notePlayed(const Track &t)
@@ -1559,6 +1609,135 @@ void OnlineService::notePlayed(const Track &t)
             [this](const QJsonObject &reply, const QString &error) {
                 if (error.isEmpty())
                     libraryVersion(reply);
+            });
+}
+
+// ---- copies of the YouTube Music playlists -------------------------------------------
+
+void OnlineService::scheduleMirrors()
+{
+    if (m_librarySync && registered() && YouTubeService::instance()->connected())
+        m_mirrorTimer.start();
+}
+
+void OnlineService::syncMirrors()
+{
+    YouTubeService *yt = YouTubeService::instance();
+    if (!m_librarySync || !registered() || !yt->connected() || m_mirrorBusy)
+        return;
+    if (!m_mirrorsListed) {   // which copies exist first, so none is made twice
+        refreshPlaylists();
+        return;
+    }
+    const TrackModel *model = Library::instance()->tracks();
+    const QVariantList playlists = yt->playlists();
+    QSet<QString> current;
+    for (const QVariant &v : playlists) {
+        const QVariantMap p = v.toMap();
+        const QString id = p.value("id").toString();
+        if (id.isEmpty())
+            continue;
+        const QString origin = QStringLiteral("ytmusic:") + id;
+        current.insert(origin);
+        yt->ensurePlaylist(id);   // fresh once per session (it calls back through dataChanged)
+        if (yt->playlistLoading(id))
+            continue;
+        QList<Track> tracks;
+        QStringList ids;
+        for (const QString &trackId : yt->playlistTrackIds(id)) {
+            const int row = model->rowOf(trackId);
+            if (row < 0 || model->at(row).source != QLatin1String("youtube") || model->at(row).path.isEmpty())
+                continue;
+            tracks << model->at(row);
+            ids << trackId;
+        }
+        const QString name = p.value("title").toString();
+        const QString signature = QString::fromLatin1(QCryptographicHash::hash((name + QLatin1Char('\n') + ids.join(QLatin1Char(','))).toUtf8(),
+                                                                              QCryptographicHash::Sha1).toHex());
+        if (m_mirrors.contains(origin) && m_mirrorSigs.value(origin) == signature)
+            continue;
+        pushMirror(origin, name.isEmpty() ? QStringLiteral("YouTube Music") : name, tracks, signature);
+        return;   // one at a time; the next one when this is done
+    }
+    // A playlist gone from YouTube Music takes its copy with it (only with the list in hand).
+    if (playlists.isEmpty())
+        return;
+    for (auto it = m_mirrors.cbegin(); it != m_mirrors.cend(); ++it) {
+        if (current.contains(it.key()))
+            continue;
+        const QString origin = it.key();
+        m_mirrorBusy = true;
+        request("DELETE", QStringLiteral("/playlists/") + it.value(), {}, [this, origin](const QJsonObject &, const QString &error) {
+            m_mirrorBusy = false;
+            if (error.isEmpty()) {
+                m_mirrors.remove(origin);
+                m_mirrorSigs.remove(origin);
+                saveLibrarySync();
+                scheduleMirrors();
+            }
+        });
+        return;
+    }
+}
+
+void OnlineService::pushMirror(const QString &origin, const QString &name, const QList<Track> &tracks, const QString &signature)
+{
+    // The first batch makes or replaces the copy, the rest is appended (a request has a size limit).
+    auto rest = std::make_shared<QList<Track>>(tracks.mid(kMirrorBatch));
+    const QList<Track> first = tracks.mid(0, kMirrorBatch);
+    m_mirrorBusy = true;
+    auto finish = [this, origin, signature](bool ok) {
+        m_mirrorBusy = false;
+        if (ok) {
+            m_mirrorSigs.insert(origin, signature);
+            saveLibrarySync();
+            QTimer::singleShot(300, this, &OnlineService::syncMirrors);   // the next playlist
+        }
+    };
+    auto append = std::make_shared<std::function<void(const QString &)>>();
+    *append = [this, rest, finish, append](const QString &id) {
+        if (rest->isEmpty()) {
+            finish(true);
+            return;
+        }
+        const QList<Track> batch = rest->mid(0, kMirrorBatch);
+        *rest = rest->mid(kMirrorBatch);
+        request("POST", QStringLiteral("/playlists/") + id + QStringLiteral("/tracks"), { { "tracks", tracksJson(batch) } },
+                [finish, append, id](const QJsonObject &, const QString &error) {
+                    if (!error.isEmpty())
+                        finish(false);
+                    else
+                        (*append)(id);
+                });
+    };
+    const QString existing = m_mirrors.value(origin);
+    if (existing.isEmpty()) {
+        request("POST", QStringLiteral("/playlists"),
+                { { "name", name.left(100) }, { "tracks", tracksJson(first) }, { "origin", origin } },
+                [this, origin, finish, append](const QJsonObject &reply, const QString &error) {
+                    const QString id = reply.value("id").toString();
+                    if (!error.isEmpty() || id.isEmpty()) {
+                        finish(false);
+                        return;
+                    }
+                    m_mirrors.insert(origin, id);
+                    (*append)(id);
+                });
+        return;
+    }
+    request("PATCH", QStringLiteral("/playlists/") + existing, { { "name", name.left(100) } },
+            [](const QJsonObject &, const QString &) {});
+    request("PUT", QStringLiteral("/playlists/") + existing + QStringLiteral("/tracks"), { { "tracks", tracksJson(first) } },
+            [this, origin, existing, finish, append](const QJsonObject &, const QString &error) {
+                if (!error.isEmpty()) {
+                    if (error.contains(QLatin1String("no such playlist"))) {   // deleted on the server: made again next time
+                        m_mirrors.remove(origin);
+                        m_mirrorSigs.remove(origin);
+                    }
+                    finish(false);
+                    return;
+                }
+                (*append)(existing);
             });
 }
 

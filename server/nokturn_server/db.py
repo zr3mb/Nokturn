@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS playlists (
     description TEXT NOT NULL DEFAULT '',
     created     INTEGER NOT NULL,
     updated     INTEGER NOT NULL,
-    version     INTEGER NOT NULL DEFAULT 1
+    version     INTEGER NOT NULL DEFAULT 1,
+    origin      TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS playlist_members (
     playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
@@ -106,6 +107,9 @@ class Database:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
+        # Databases made before playlists had an origin (a copy of a YouTube Music playlist: "ytmusic:<id>").
+        if "origin" not in {r["name"] for r in self.conn.execute("PRAGMA table_info(playlists)")}:
+            self.conn.execute("ALTER TABLE playlists ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
 
     def close(self):
         self.conn.close()
@@ -182,17 +186,30 @@ class Database:
                 "history": kind("history", MAX_HISTORY)}
 
     def set_liked(self, user_id, track, liked):
+        if liked:
+            return self.like_many(user_id, [(track, None)])
         with self._tx():
-            if liked:
-                count = self.conn.execute("SELECT COUNT(*) FROM library WHERE user_id = ? AND kind = 'liked'",
-                                          (user_id,)).fetchone()[0]
-                if count >= MAX_LIKED:
-                    raise LimitError("too many liked tracks")
-                self.conn.execute("INSERT OR IGNORE INTO library (user_id, kind, track_id, track, added_at) "
-                                  "VALUES (?, 'liked', ?, ?, ?)", (user_id, track["id"], json.dumps(track), now_ms()))
-            else:
-                self.conn.execute("DELETE FROM library WHERE user_id = ? AND kind = 'liked' AND track_id = ?",
-                                  (user_id, track if isinstance(track, str) else track["id"]))
+            self.conn.execute("DELETE FROM library WHERE user_id = ? AND kind = 'liked' AND track_id = ?",
+                              (user_id, track if isinstance(track, str) else track["id"]))
+            return self._bump_library(user_id)
+
+    def like_many(self, user_id, items):
+        """[(track, at)]: at (ms) puts the like at its place in the list (an app sending likes made before, in
+        their order) and moves one already there; without it the like is new and an existing one stays."""
+        with self._tx():
+            for track, at in items:
+                if at:
+                    self.conn.execute(
+                        "INSERT INTO library (user_id, kind, track_id, track, added_at) VALUES (?, 'liked', ?, ?, ?) "
+                        "ON CONFLICT(user_id, kind, track_id) DO UPDATE SET added_at = excluded.added_at",
+                        (user_id, track["id"], json.dumps(track), at))
+                else:
+                    self.conn.execute("INSERT OR IGNORE INTO library (user_id, kind, track_id, track, added_at) "
+                                      "VALUES (?, 'liked', ?, ?, ?)", (user_id, track["id"], json.dumps(track), now_ms()))
+            count = self.conn.execute("SELECT COUNT(*) FROM library WHERE user_id = ? AND kind = 'liked'",
+                                      (user_id,)).fetchone()[0]
+            if count > MAX_LIKED:
+                raise LimitError("too many liked tracks")   # nothing of it is kept
             return self._bump_library(user_id)
 
     def add_history(self, user_id, track):
@@ -251,15 +268,15 @@ class Database:
 
     # ---- shared playlists ---------------------------------------------------
 
-    def create_playlist(self, owner_id, name, description, tracks):
+    def create_playlist(self, owner_id, name, description, tracks, origin=""):
         count = self.conn.execute("SELECT COUNT(*) FROM playlist_members WHERE user_id = ?", (owner_id,)).fetchone()[0]
         if count >= MAX_PLAYLISTS_PER_USER:
             raise LimitError("too many shared playlists")
         playlist_id = new_code(10)
         t = now_ms()
         with self._tx():
-            self.conn.execute("INSERT INTO playlists (id, owner_id, name, description, created, updated) "
-                              "VALUES (?, ?, ?, ?, ?, ?)", (playlist_id, owner_id, name, description, t, t))
+            self.conn.execute("INSERT INTO playlists (id, owner_id, name, description, created, updated, origin) "
+                              "VALUES (?, ?, ?, ?, ?, ?, ?)", (playlist_id, owner_id, name, description, t, t, origin))
             self.conn.execute("INSERT INTO playlist_members (playlist_id, user_id, joined) VALUES (?, ?, ?)",
                               (playlist_id, owner_id, t))
             self._insert_tracks(playlist_id, owner_id, tracks)
@@ -320,6 +337,7 @@ class Database:
             "owner": {"id": p["owner_id"], "name": names.get(p["owner_id"], "")},
             "members": [{"id": m, "name": names.get(m, "")} for m in member_ids],
             "version": p["version"], "created": p["created"], "updated": p["updated"], "count": count,
+            "origin": p["origin"],
         }
         if with_tracks:
             out["tracks"] = tracks
@@ -375,6 +393,13 @@ class Database:
             if added:
                 self._touch(playlist_id)
         return added
+
+    def replace_tracks(self, playlist_id, user_id, tracks):
+        """The whole list at once (a copy of a YouTube Music playlist following its source)."""
+        with self._tx():
+            self.conn.execute("DELETE FROM playlist_tracks WHERE playlist_id = ?", (playlist_id,))
+            self._insert_tracks(playlist_id, user_id, tracks[:MAX_PLAYLIST_TRACKS])
+            self._touch(playlist_id)
 
     def remove_track(self, playlist_id, entry_id):
         with self._tx():

@@ -284,11 +284,24 @@ async def like_track(request):
     if not request.app[LIMITS]["library"].allow(request[USER]["id"]):
         return error(429, "rate_limited", "too many changes, try again later")
     body = await read_json(request)
+    # {"track", "at"?} or {"items": [{"track", "at"?}, …]} — "at" (ms) places likes made before
+    raw = body.get("items") if isinstance(body.get("items"), list) else [body]
+    latest = time.time() * 1000 + 60_000
+    items = []
+    for item in raw[:MAX_TRACKS_PER_REQUEST]:
+        if not isinstance(item, dict):
+            continue
+        at = item.get("at")
+        at = int(at) if isinstance(at, (int, float)) and 0 < at < latest else None
+        try:
+            items.append((clean_track(item.get("track")), at))
+        except TrackError as e:
+            if len(raw) == 1:
+                return error(400, "bad_track", str(e))
+    if not items:
+        return error(400, "bad_track", "no track")
     try:
-        track = clean_track(body.get("track"))
-        version = request.app[DB].set_liked(request[USER]["id"], track, True)
-    except TrackError as e:
-        return error(400, "bad_track", str(e))
+        version = request.app[DB].like_many(request[USER]["id"], items)
     except LimitError as e:
         return error(409, "limit", str(e))
     return await _library_changed(request, version)
@@ -401,7 +414,8 @@ async def create_playlist(request):
     description = clean_name(body.get("description"), 500)
     db = request.app[DB]
     try:
-        playlist_id = db.create_playlist(user["id"], name, description, clean_tracks(body.get("tracks")))
+        playlist_id = db.create_playlist(user["id"], name, description, clean_tracks(body.get("tracks")),
+                                         clean_name(body.get("origin"), 100))
     except LimitError as e:
         return error(403, "limit", str(e))
     return web.json_response(playlist_json(request, db.playlist(playlist_id)))
@@ -453,6 +467,18 @@ async def leave_playlist(request):
     db.leave_playlist(p["id"], user["id"])
     await hub.playlist_changed(p["id"], extra_users=[user["id"]])
     return web.json_response({"left": True})
+
+
+@require_user
+async def replace_playlist_tracks(request):
+    p = _playlist_or_404(request)
+    if p["owner_id"] != request[USER]["id"]:
+        return error(403, "owner_only", "only the owner can replace the tracks")
+    body = await read_json(request)
+    db = request.app[DB]
+    db.replace_tracks(p["id"], request[USER]["id"], clean_tracks(body.get("tracks")))
+    await request.app[HUB].playlist_changed(p["id"])
+    return web.json_response(playlist_json(request, db.playlist(p["id"])))
 
 
 @require_user
@@ -856,6 +882,7 @@ def create_app(config):
     r.add_post(f"{API}/playlists/{{id}}/join", join_playlist)
     r.add_post(f"{API}/playlists/{{id}}/leave", leave_playlist)
     r.add_post(f"{API}/playlists/{{id}}/tracks", add_playlist_tracks)
+    r.add_put(f"{API}/playlists/{{id}}/tracks", replace_playlist_tracks)
     r.add_delete(f"{API}/playlists/{{id}}/tracks/{{entry}}", remove_playlist_track)
     r.add_post(f"{API}/playlists/{{id}}/tracks/{{entry}}/move", move_playlist_track)
     r.add_get(f"{API}/rooms/{{code}}", get_room)
