@@ -194,6 +194,18 @@ class ServerTest(AioHTTPTestCase):
         r = await self.client.post("/api/v1/account/login", json={"login": "ala", "password": "wrong one"})
         self.assertEqual(r.status, 429)
 
+    async def test_limits_per_client_behind_a_proxy(self):
+        # every request comes from the proxy (here: localhost); each client has its own count
+        for _ in range(30):
+            await self.client.post("/api/v1/account/login", json={"login": "x" + str(_), "password": "wrong one"},
+                                   headers={"X-Forwarded-For": "203.0.113.7"})
+        r = await self.client.post("/api/v1/account/login", json={"login": "other", "password": "wrong one"},
+                                   headers={"X-Forwarded-For": "203.0.113.7"})
+        self.assertEqual(r.status, 429)
+        r = await self.client.post("/api/v1/account/login", json={"login": "other", "password": "wrong one"},
+                                   headers={"X-Forwarded-For": "198.51.100.9"})
+        self.assertEqual(r.status, 401)
+
     async def test_register_and_rename(self):
         token, user = await self.register("  Ala\n  Kot ")
         self.assertEqual(user["name"], "Ala Kot")
