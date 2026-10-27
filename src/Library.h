@@ -70,8 +70,13 @@ public:
     Q_INVOKABLE void deletePlaylistFolder(const QString &id);   // its playlists go back to their source's group
     Q_INVOKABLE void movePlaylistToFolder(int index, const QString &folderId);   // "" = no folder
     Q_INVOKABLE void setPlaylistHidden(int index, bool hidden);
+    // Dragged (Ctrl + drag in the sidebar) in front of another playlist (beforeIndex; -1 = the group's end) in a
+    // group: the user's order; into a folder's group the playlist joins the folder, into its source's group it
+    // leaves its folder. False when it can't go there (another source's group).
+    Q_INVOKABLE bool reorderPlaylist(int index, int beforeIndex, const QString &groupKey);
     Q_INVOKABLE void setGroupCollapsed(const QString &key, bool collapsed);
-    // { folders, assign: { playlist key: folder id }, hidden: [playlist key], updated (ms) } — what the account keeps
+    // { folders, assign: { playlist key: folder id }, hidden: [playlist key], order: [playlist key], updated (ms) }
+    // — what the account keeps
     QJsonObject organizer() const { return m_org; }
     void applyOrganizer(const QJsonObject &org);   // from the account (newer than ours)
 

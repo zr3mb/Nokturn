@@ -32,6 +32,7 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <climits>
 
 namespace {
 
@@ -601,6 +602,19 @@ void Library::layOutPlaylists()
         byGroup[folder.isEmpty() ? sourceGroup(p.value("kind").toString()) : QStringLiteral("folder:") + folder] << i;
     }
 
+    // the user's order (dragged into place) first, the playlists it doesn't know yet after them as they come
+    QHash<QString, int> position;
+    const QJsonArray order = m_org.value("order").toArray();
+    for (int i = 0; i < order.size(); ++i)
+        position.insert(order.at(i).toString(), i);
+    for (QVariantList &items : byGroup) {
+        std::stable_sort(items.begin(), items.end(), [&](const QVariant &a, const QVariant &b) {
+            const int pa = position.value(m_playlists.at(a.toInt()).toMap().value("coverKey").toString(), INT_MAX);
+            const int pb = position.value(m_playlists.at(b.toInt()).toMap().value("coverKey").toString(), INT_MAX);
+            return pa < pb;
+        });
+    }
+
     auto group = [this](const QString &key, const QString &name, const QString &folderId, const QVariantList &items) {
         return QVariantMap { { "key", key }, { "name", name }, { "folderId", folderId },
                              { "collapsed", m_collapsed.contains(key) }, { "items", items } };
@@ -739,6 +753,49 @@ void Library::setPlaylistHidden(int index, bool hidden)
         list.append(key);
     m_org.insert("hidden", list);
     organizerEdited();
+}
+
+bool Library::reorderPlaylist(int index, int beforeIndex, const QString &groupKey)
+{
+    if (index < 0 || index >= m_playlists.size() || index == beforeIndex)
+        return false;
+    const QVariantMap p = m_playlists.at(index).toMap();
+    const QString key = p.value("coverKey").toString();
+    const QString source = sourceGroup(p.value("kind").toString());
+    QString folder;
+    if (groupKey.startsWith(QLatin1String("folder:")))
+        folder = groupKey.mid(7);
+    else if (groupKey != source)
+        return false;   // a YouTube Music playlist doesn't go among the Spotify ones
+
+    // the group as it will be: its playlists without this one, this one in front of beforeIndex
+    QVariantList items;
+    for (const QVariant &g : std::as_const(m_groups))
+        if (g.toMap().value("key").toString() == groupKey)
+            items = g.toMap().value("items").toList();
+    items.removeAll(index);
+    const int at = items.indexOf(beforeIndex);
+    items.insert(at < 0 ? items.size() : at, index);
+
+    QJsonObject assign = m_org.value("assign").toObject();
+    if (folder.isEmpty())
+        assign.remove(key);
+    else
+        assign.insert(key, folder);
+    m_org.insert("assign", assign);
+    // the group's playlists go to the end of the order, in their new order (the order counts within a group)
+    QStringList keys;
+    for (const QVariant &v : std::as_const(items))
+        keys << m_playlists.at(v.toInt()).toMap().value("coverKey").toString();
+    QJsonArray order;
+    for (const QJsonValue &v : m_org.value("order").toArray())
+        if (!keys.contains(v.toString()))
+            order.append(v);
+    for (const QString &k : std::as_const(keys))
+        order.append(k);
+    m_org.insert("order", order);
+    organizerEdited();
+    return true;
 }
 
 void Library::setGroupCollapsed(const QString &key, bool collapsed)

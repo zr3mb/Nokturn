@@ -1027,5 +1027,7 @@
   "The playlist is back in the list": "Playlista wróciła na listę",
   "Hidden — “Show hidden playlists” at the end of the list brings it back": "Ukryta — „Pokaż ukryte playlisty” na końcu listy ją przywróci",
   "Shared playlists": "Wspólne playlisty",
-  "Hidden playlists": "Ukryte playlisty"
+  "Hidden playlists": "Ukryte playlisty",
+  "A playlist can move within its source's group or into your folders": "Playlistę można przesunąć w obrębie jej źródła albo do własnego folderu",
+  "Hold Ctrl and drag playlists to put them in order": "Przytrzymaj Ctrl i przeciągnij playlistę, żeby ułożyć je po swojemu"
 }

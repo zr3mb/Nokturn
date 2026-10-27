@@ -10,6 +10,41 @@ Panel {
     tint: Theme.alpha(Theme.surface, 0.55)
     roundedClip: false   // the logo, the list and the footer all stay clear of the corners
 
+    // Ctrl + drag a playlist: where it would land (the line shows it), and the move when it's let go.
+    property int dragIndex: -1
+    property int dropBefore: -1
+    property string dropGroup: ""
+    property real dropY: -1
+    function dragOver(y) {
+        let last = null
+        for (let i = 0; i < rows.count; ++i) {
+            const r = rows.itemAt(i)
+            if (!r)
+                continue
+            const m = r.modelData
+            if (m.header && y >= r.y && y < r.y + r.height && m.group.folderId) {   // onto a folder: into it
+                dropGroup = m.group.key; dropBefore = -1; dropY = r.y + r.height
+                return
+            }
+            if (!m.header) {
+                if (y < r.y + r.height / 2) {
+                    dropGroup = m.group; dropBefore = m.index; dropY = r.y - 1
+                    return
+                }
+                last = r
+            }
+        }
+        if (last) {
+            dropGroup = last.modelData.group; dropBefore = -1; dropY = last.y + last.height + 1
+        }
+    }
+    function finishDrag() {
+        if (dragIndex >= 0 && dropGroup !== "" && dropBefore !== dragIndex
+                && !Library.reorderPlaylist(dragIndex, dropBefore, dropGroup))
+            Nav.toast(qsTr("A playlist can move within its source's group or into your folders"), "folder")
+        dragIndex = -1; dropBefore = -1; dropGroup = ""; dropY = -1
+    }
+
     function isPlaylist(i) {
         return Nav.page === "playlist" && Nav.args && Nav.args.kind === "playlist" && Nav.args.index === i
     }
@@ -84,6 +119,17 @@ Panel {
                 }
             }
 
+            Rectangle {
+                visible: root.dragIndex >= 0 && root.dropY >= 0
+                z: 2
+                x: 8
+                y: root.dropY - 1
+                width: parent.width - 16
+                height: 2
+                radius: 1
+                color: Theme.accent
+            }
+
             Column {
                 id: col
                 width: parent.width
@@ -135,6 +181,10 @@ Panel {
                         anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                         text: qsTr("PLAYLISTS")
                         color: Theme.textFaint
+                        HoverHandler { id: playlistsHover }
+                        ToolTip.visible: playlistsHover.hovered && !root.compact
+                        ToolTip.delay: 600
+                        ToolTip.text: qsTr("Hold Ctrl and drag playlists to put them in order")
                         font.pixelSize: 11
                         font.weight: Font.DemiBold
                         font.letterSpacing: 1.6
@@ -172,13 +222,14 @@ Panel {
                 // The playlists in their groups: the built-in lists, the user's folders, one group per source
                 // (Library.playlistGroups); a group's header folds it away.
                 Repeater {
+                    id: rows
                     model: {
                         const out = []
                         Library.playlistGroups.forEach(g => {
                             if (g.key !== "builtin" && !root.compact)
                                 out.push({ header: true, group: g })
                             if (!g.collapsed || root.compact || g.key === "builtin")
-                                g.items.forEach(i => out.push({ header: false, index: i }))
+                                g.items.forEach(i => out.push({ header: false, index: i, group: g.key }))
                         })
                         return out
                     }
@@ -245,7 +296,7 @@ Panel {
                             readonly property var pl: Library.playlists[plIndex] || ({})
                             visible: !row.modelData.header
                             width: parent.width
-                            opacity: pl.hidden ? 0.55 : 1
+                            opacity: root.dragIndex === plIndex ? 0.4 : pl.hidden ? 0.55 : 1
                             cover: true
                             compact: root.compact
                             label: pl.name || ""
@@ -271,6 +322,20 @@ Panel {
                             coverSource: pl.cover || ""
                             coverMosaic: pl.mosaic || []
                             selected: !row.modelData.header && root.isPlaylist(plIndex)
+                            // Ctrl + drag: the user's order (Library.reorderPlaylist)
+                            DragHandler {
+                                target: null
+                                enabled: !row.modelData.header && !root.compact
+                                acceptedModifiers: Qt.ControlModifier
+                                cursorShape: Qt.ClosedHandCursor
+                                onActiveChanged: {
+                                    if (active)
+                                        root.dragIndex = plItem.plIndex
+                                    else
+                                        root.finishDrag()
+                                }
+                                onCentroidChanged: if (active) root.dragOver(plItem.mapToItem(col, centroid.position.x, centroid.position.y).y)
+                            }
                             onSelectedChanged: if (selected) root.selectedItem = row
                             Component.onCompleted: if (selected) root.selectedItem = row
                             onClicked: Nav.navigate("playlist", { kind: "playlist", index: plIndex })

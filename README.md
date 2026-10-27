@@ -357,8 +357,9 @@ features is used.
 - **Playlist folders and hidden playlists:** the sidebar (and the home page, which is where the phone layout lists
   them) groups the playlists: the built-in lists, the user's folders (the folder button next to *New playlist*;
   a playlist's ⋯ menu → *Move to a folder…*), then one group per source — your playlists, shared, YouTube Music,
-  Spotify, SoundCloud. *Hide the playlist* in the same menu takes it out of the list; *Show hidden playlists* at
-  the end brings them back. The layout (`{ folders, assign, hidden, updated }`, keyed like the playlist covers:
+  Spotify, SoundCloud. **Ctrl + drag** a playlist in the sidebar puts it in your order (a line shows where it
+  lands); dropped in a folder it joins the folder, back in its source's group it leaves it. *Hide the playlist* in the same menu takes it out of the list; *Show hidden playlists* at
+  the end brings them back. The layout (`{ folders, assign, hidden, order, updated }`, keyed like the playlist covers:
   `yt:<id>`, `sp:<id>`, `shared:<id>`, `user:<id>`…) is kept on the account, the newer one winning, so every
   device — the browser version too — shows the same folders.
 - **More devices on one account:** *Link another device* shows an 8-character code (valid 10 minutes, single

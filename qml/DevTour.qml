@@ -452,6 +452,25 @@ Item {
         } })
         return s
     }
+    // The user's order of the playlists (--tour-order, with a profile signed in to YouTube Music): the last one
+    // moved to the top of its group, one into a new folder, one into a wrong group (refused).
+    readonly property bool withOrder: Qt.application.arguments.indexOf("--tour-order") >= 0
+    readonly property var orderSteps: {
+        if (!withOrder)
+            return []
+        const group = key => (Library.playlistGroups.find(g => g.key === key) || { items: [] }).items
+        const names = key => JSON.stringify(group(key).map(i => Library.playlists[i].name.slice(0, 12)))
+        return [
+            { name: "O1-start", run: () => { Nav.finishOnboarding(); Player.muted = true } },
+            { name: "O2-before", run: () => console.log("tour: ytmusic before", names("ytmusic")) },
+            { name: "O3-move", run: () => { const g = group("ytmusic")
+                                           console.log("tour: moved", Library.reorderPlaylist(g[g.length - 1], g[0], "ytmusic"), names("ytmusic")) } },
+            { name: "O4-folder", run: () => { const g = group("ytmusic"); const f = Library.createPlaylistFolder("Ulubione listy", g[2])
+                                             console.log("tour: into the folder", Library.reorderPlaylist(g[3], group("folder:" + f)[0], "folder:" + f), names("folder:" + f)) } },
+            { name: "O5-wrong", run: () => console.log("tour: wrong group refused", !Library.reorderPlaylist(group("ytmusic")[0], -1, "spotify")) },
+            { name: "O6-kept", run: () => console.log("tour: order kept", JSON.stringify(Library.organizer ? 1 : 0), names("ytmusic")) }
+        ]
+    }
     // Playlist folders and hidden playlists (--tour-folders "<pair code or ->", with NOKTURN_SERVER): links the
     // account (to see the layout reach it), makes a folder with a playlist in it, hides one, shows the hidden.
     readonly property bool withFolders: Qt.application.arguments.indexOf("--tour-folders") >= 0
@@ -833,7 +852,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
