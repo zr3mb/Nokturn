@@ -122,6 +122,7 @@ public:
     void createPlaylist(const QString &name, const QString &description, const QVariantList &rows);
     void addToPlaylist(const QString &id, const QVariantList &rows);
     void removeFromPlaylist(const QString &id, const QString &trackId);
+    bool moveInPlaylist(const QString &id, const QString &trackId, const QString &beforeTrackId);   // "" = to the end
     void editPlaylist(const QString &id, const QString &name, const QString &description);
     void deleteOrLeavePlaylist(const QString &id);   // the owner deletes it, a member leaves
     Q_INVOKABLE void copyPlaylistLink(const QString &id);

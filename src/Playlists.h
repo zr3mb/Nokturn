@@ -48,6 +48,10 @@ public:
                                     const QString &privacy, const QVariantList &rows = {});
     Q_INVOKABLE void addRows(int index, const QVariantList &rows);
     Q_INVOKABLE void removeRow(int index, int row);
+    // Ctrl + drag on the playlist's page: the track (a row of the track model) in front of another one
+    // (beforeRow; -1 = the end). Only in the user's own and shared playlists; false elsewhere.
+    Q_INVOKABLE bool canReorder(int index) const;
+    Q_INVOKABLE bool moveRow(int index, int row, int beforeRow);
     Q_INVOKABLE void edit(int index, const QString &name, const QString &description);
     Q_INVOKABLE void setPrivacy(int index, const QString &privacy);   // YouTube Music playlists
     Q_INVOKABLE void deletePlaylist(int index);

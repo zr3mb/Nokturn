@@ -452,6 +452,39 @@ Item {
         } })
         return s
     }
+    // The order of the tracks in a playlist (--tour-track-order "<pair code or ->", with NOKTURN_SERVER): a local
+    // playlist and a shared one made from the first liked tracks, the last track moved to the top of each.
+    readonly property bool withTrackOrder: Qt.application.arguments.indexOf("--tour-track-order") >= 0
+    readonly property var trackOrderSteps: {
+        if (!withTrackOrder)
+            return []
+        const code = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-track-order") + 1]
+        const find = (kind, name) => {   // the newest
+            const list = Library.playlists
+            for (let i = list.length - 1; i >= 0; --i)
+                if (list[i].kind === kind && list[i].name === name)
+                    return i
+            return -1
+        }
+        const titles = i => JSON.stringify(Library.playlistRows(i).map(r => Library.tracks.get(r).title.slice(0, 14)))
+        const sample = () => Library.likedTracks().slice(0, 4)
+        const moveLastFirst = i => { const r = Library.playlistRows(i); return Playlists.moveRow(i, r[r.length - 1], r[0]) }
+        return [
+            // (no library sync: a profile signed in to YouTube Music would like the test account's tracks there)
+            { name: "Q1-link", run: () => { Nav.finishOnboarding(); Player.muted = true; Online.librarySync = false
+                                           if (code !== "-") Online.redeemPairCode(code) } },
+            { name: "Q2-make", run: () => { Playlists.createPlaylist("Kolejność", "", "local", "", sample())
+                                           if (code !== "-") Playlists.createPlaylist("Wspólna kolejność", "", "shared", "", sample()) } },
+            { name: "Q2b-wait", run: () => {} },
+            { name: "Q2c-wait", run: () => {} },
+            { name: "Q3-before", run: () => console.log("tour: local", titles(find("user", "Kolejność")), "| shared", titles(find("shared", "Wspólna kolejność"))) },
+            { name: "Q4-move", run: () => console.log("tour: moved", moveLastFirst(find("user", "Kolejność")),
+                                                      find("shared", "Wspólna kolejność") >= 0 ? moveLastFirst(find("shared", "Wspólna kolejność")) : "-",
+                                                      "| youtube refused", !Playlists.moveRow(Library.playlists.findIndex(p => p.kind === "youtube"), 0, -1)) },
+            { name: "Q5-after", run: () => console.log("tour: local", titles(find("user", "Kolejność")), "| shared", titles(find("shared", "Wspólna kolejność"))) },
+            { name: "Q6-page", run: () => Nav.navigate("playlist", { kind: "playlist", index: find("user", "Kolejność") }) }
+        ]
+    }
     // The user's order of the playlists (--tour-order, with a profile signed in to YouTube Music): the last one
     // moved to the top of its group, one into a new folder, one into a wrong group (refused).
     readonly property bool withOrder: Qt.application.arguments.indexOf("--tour-order") >= 0
@@ -852,7 +885,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

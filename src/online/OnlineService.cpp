@@ -1238,6 +1238,31 @@ void OnlineService::removeFromPlaylist(const QString &id, const QString &trackId
     });
 }
 
+bool OnlineService::moveInPlaylist(const QString &id, const QString &trackId, const QString &beforeTrackId)
+{
+    SharedPlaylist *p = findPlaylist(id);
+    if (!p || !p->entryOf.contains(trackId))
+        return false;
+    // here at once; the server says the same a moment later (and tells the others)
+    p->trackIds.removeAll(trackId);
+    const int at = beforeTrackId.isEmpty() ? -1 : p->trackIds.indexOf(beforeTrackId);
+    const int to = at < 0 ? int(p->trackIds.size()) : at;
+    p->trackIds.insert(to, trackId);
+    savePlaylists();
+    emit playlistsChanged();
+    const QString name = p->name;
+    request("POST", QStringLiteral("/playlists/") + id + QStringLiteral("/tracks/") + p->entryOf.value(trackId) + QStringLiteral("/move"),
+            { { "to", to } }, [this, id, name](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty()) {
+            emit notice(tr("Couldn't move it in %1: %2").arg(name, error), QStringLiteral("close"));
+            fetchPlaylist(id);
+            return;
+        }
+        applyPlaylist(reply);
+    });
+    return true;
+}
+
 void OnlineService::editPlaylist(const QString &id, const QString &name, const QString &description)
 {
     if (!isPlaylistOwner(id)) {
