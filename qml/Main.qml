@@ -171,6 +171,17 @@ ApplicationWindow {
             }
         }
 
+        // The Nokturn account: a login and a password, signing in, the recovery key
+        Loader {
+            id: accountDialog
+            active: false
+            sourceComponent: AccountDialog { onClosed: accountDialog.active = false }
+            function show(mode) {
+                active = true
+                item.show(mode)
+            }
+        }
+
         Toast {
             id: toast
             bottomOffset: playerBar.height + 22
@@ -242,6 +253,7 @@ ApplicationWindow {
             matchDialog.show(track)
         }
         function onPasswordDialogRequested(playlistId) { passwordDialog.edit(playlistId) }
+        function onAccountDialogRequested(mode) { accountDialog.show(mode) }
         function onFolderDialogRequested(mode, folderId, playlistIndex) { playlistFolderDialog.show(mode, folderId, playlistIndex) }
         function onPlaylistDialogRequested(mode, index, rows) {
             playlistDialog.show(mode, index, rows)

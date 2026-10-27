@@ -42,6 +42,9 @@ class OnlineService : public QObject
     Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY settingsChanged)
     Q_PROPERTY(QString displayName READ displayName WRITE setDisplayName NOTIFY settingsChanged)
     Q_PROPERTY(bool registered READ registered NOTIFY accountChanged)
+    // The account's login; empty while it has none — then it lives only on this device's token.
+    Q_PROPERTY(QString login READ login NOTIFY accountChanged)
+    Q_PROPERTY(QVariantList devices READ devices NOTIFY devicesChanged)   // [{ id, name, seen, current }]
     Q_PROPERTY(bool connected READ connected NOTIFY connectionChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(bool inRoom READ inRoom NOTIFY roomChanged)
@@ -81,6 +84,8 @@ public:
     QString displayName() const { return m_name; }
     void setDisplayName(const QString &name);
     bool registered() const { return !m_token.isEmpty(); }
+    QString login() const { return m_login; }
+    QVariantList devices() const { return m_devices; }
     bool connected() const { return m_connected; }
     bool busy() const { return m_busy > 0; }
     bool inRoom() const { return !m_roomCode.isEmpty() && !m_roomState.isEmpty(); }
@@ -96,6 +101,19 @@ public:
     Q_INVOKABLE void createPairCode();
     Q_INVOKABLE void redeemPairCode(const QString &code);   // this device switches to that account
     void noteLiked(const Track &t, bool liked);             // the heart on a YouTube Music track
+
+    // ---- signing in with a login and a password (AccountDialog) ----
+    // Each ends with accountDone(action) or accountFailed(code, message); a new recovery key comes with
+    // recoveryKeyShown. Signing in brings this device's own account (one with no login) along.
+    Q_INVOKABLE void createLogin(const QString &login, const QString &password);
+    Q_INVOKABLE void signIn(const QString &login, const QString &password);
+    Q_INVOKABLE void recoverAccount(const QString &login, const QString &recoveryKey, const QString &password);
+    Q_INVOKABLE void changePassword(const QString &password, const QString &newPassword);
+    Q_INVOKABLE void newRecoveryKey(const QString &password);
+    Q_INVOKABLE void refreshAccount();   // the login (set on another device) and the list of devices
+    Q_INVOKABLE void signOutDevice(const QString &id);
+    Q_INVOKABLE void signOut();
+    Q_INVOKABLE void copyText(const QString &text) { copyToClipboard(text, tr("Copied")); }
 
     // ---- links ----
     Q_INVOKABLE void shareTrack(int row);   // copies the link to the clipboard
@@ -153,6 +171,10 @@ signals:
     void activateRequested();                        // a link came from outside — bring the window up
     void pairChanged();
     void passwordNeeded(const QString &playlistId, bool wrong);   // QML asks for it (PasswordDialog)
+    void devicesChanged();
+    void accountDone(const QString &action);   // "create" | "signin" | "recover" | "password" | "recovery"
+    void accountFailed(const QString &code, const QString &message);
+    void recoveryKeyShown(const QString &key);
 
 private:
     explicit OnlineService(QObject *parent = nullptr);
@@ -172,6 +194,10 @@ private:
     void request(const QByteArray &method, const QString &path, const QJsonObject &body, JsonCallback done);
     QString tokenFile() const;
     void loadAccount();
+    void switchAccount(const QString &token, const QJsonObject &user);
+    void dropAccount();
+    void accountRequest(const QString &action, const QString &path, const QJsonObject &body);
+    static QString deviceName();
     void beginBusy();
     void endBusy();
 
@@ -242,6 +268,8 @@ private:
     QString m_name;
     QString m_token;
     QString m_userId;
+    QString m_login;
+    QVariantList m_devices;
     int m_busy = 0;
     bool m_registering = false;
     QList<std::function<void(bool)>> m_waitingForAccount;

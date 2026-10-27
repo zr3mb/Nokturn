@@ -311,10 +311,21 @@ Share links, shared playlists and listening rooms go through the Nokturn server 
 [Server](#server-vps)), by default `https://nokturn.404piwko.wtf`. Nothing is sent there until one of these
 features is used.
 
-- **Account:** anonymous. The first time you share something, Nokturn registers with the name from
+- **Account:** the first time you share something, Nokturn makes an account with the name from
   *Settings → Online → Your name* and gets a token (kept encrypted like the other tokens, in
-  `online-<server>.token`). No e-mail, no password. *Delete the online account* removes the name, the links and
-  the shared playlists you own from the server.
+  `online-<server>.token`). Until it has a login it lives only on that device, so *Settings → Online → Nokturn
+  account* asks to **set a login and a password** (no e-mail): then it's an account to sign in to from any device
+  — the desktop app, Android, the browser version. A **recovery key** (`XXXX-XXXX-XXXX-XXXX-XXXX`, shown once)
+  sets a new password when the old one is forgotten; *New key* replaces it. Passwords and keys are kept as salted
+  scrypt hashes; signing in is rate-limited per address and per login.
+- **Signing in brings the device along:** a device that used Nokturn on its own (an account with no login) and
+  signs in to an account moves everything of it there — its shared playlists (owned and joined), likes,
+  history and share links — so nothing is lost; a copy of the same YouTube Music / Spotify / SoundCloud playlist
+  is kept once. A device signed in to another account only leaves it.
+- **Devices:** the account lists its signed-in devices (named after the computer or phone) with when each was
+  last used; any of them can be signed out from another one, and a new password signs out all the others.
+  *Sign out* on a device keeps the account on the server. *Delete the online account* removes the name, the
+  links and the shared playlists you own from the server.
 - **What travels:** only YouTube Music and SoundCloud tracks, the sources everyone can play. A Spotify track goes
   as its YouTube Music match, a local file as the YouTube Music track that matches its artist, title and duration;
   a track without a match is skipped with a notice.
@@ -366,8 +377,9 @@ features is used.
   `yt:<id>`, `sp:<id>`, `shared:<id>`, `user:<id>`…) is kept on the account, the newer one winning, so every
   device — the browser version too — shows the same folders.
 - **More devices on one account:** *Link another device* shows an 8-character code (valid 10 minutes, single
-  use); *I have a code* on the other device (the desktop app, the Android app or the browser version) switches it
-  to that account, with its library, shared playlists and rooms. Its own likes are added to the account.
+  use); *I have a code* on the other device (the desktop app, the Android app or the browser version) signs it in
+  to that account, with its library, shared playlists and rooms — no password needed, and what the device had
+  moves into the account as when signing in.
 - **Links open Nokturn:** `nokturn://` is registered for the current user on startup (Windows: `HKCU\Software\Classes\nokturn`,
   removed by the uninstaller; Linux AppImage: a hidden `nokturn-links.desktop` + `xdg-mime`; installed from
   source: `MimeType` in `nokturn.desktop`). A link opened while Nokturn runs goes to the running window.
@@ -376,6 +388,8 @@ features is used.
   `--tour <dir> --tour-online "<room>;<playlist>;<share>"` walks through it against a server.
   `--tour <dir> --tour-library "<pair code>"` links a test profile with a code and checks the synced library.
   `--tour <dir> --tour-folders "<pair code or ->"` makes a folder, hides a playlist and shows the hidden ones.
+  `--tour <dir> --tour-account "<login>;<password>"` gives a new account a login, changes the password, signs out
+  and in again.
 
 ## Server (VPS)
 
@@ -402,7 +416,11 @@ Logs: `journalctl -u nokturn-server -f`. Backup: `sqlite3 /var/lib/nokturn/noktu
 Locally: `cd server && pip install -r requirements.txt && python3 -m nokturn_server --db /tmp/n.db --public-url http://127.0.0.1:8710`
 (then `NOKTURN_SERVER=http://127.0.0.1:8710` for the app). Tests: `cd server && python3 -m unittest discover -s tests`.
 
-API (`/api/v1`, JSON, `Authorization: Bearer <token>`): `POST /register`, `GET|PATCH|DELETE /me`,
+API (`/api/v1`, JSON, `Authorization: Bearer <token>`, `X-Nokturn-Device: <device name>`): `POST /register`,
+`GET|PATCH|DELETE /me`, `POST /account` (a login and a password for the account, or a new one; answers with the
+recovery key), `POST /account/login|recover|password|recovery|logout`, `GET /account/devices`,
+`DELETE /account/devices/<id>`, `POST /me/pair`, `POST /pair`, the library (`GET /library`,
+`POST|DELETE /library/liked`, `POST|DELETE /library/history`, `PUT /library/organizer`),
 `POST /shares`, `GET /shares/<code>`, `GET|POST /playlists`, `GET|PATCH|DELETE /playlists/<id>`,
 `POST /playlists/<id>/join|leave|tracks`, `DELETE /playlists/<id>/tracks/<entry>`,
 `POST /playlists/<id>/tracks/<entry>/move`, `GET /rooms/<code>` (preview), `GET /health`. Rooms run over the
