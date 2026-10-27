@@ -763,7 +763,9 @@ void YouTubeService::adoptLiked(const QList<Track> &liked, const QStringList &un
 {
     storeTracks(liked, false);
     bool changed = false;
-    for (const Track &t : liked) {
+    // newest first, like the account's list: the oldest goes in first, each next one in front of it
+    for (auto it = liked.crbegin(); it != liked.crend(); ++it) {
+        const Track &t = *it;
         if (m_likedSet.contains(t.id))
             continue;
         m_liked.prepend(t.id);

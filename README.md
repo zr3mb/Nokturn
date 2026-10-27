@@ -342,6 +342,11 @@ features is used.
   device signed in to the account shows the same *Liked* and *Recently played*; a change reaches the others at
   once over the WebSocket. Plays from other devices show in *Recently played* but not in the statistics, which
   count only what was heard on this one. Likes waiting for a connection are kept in `library-sync-<server>.json`.
+- **YouTube Music playlists on the account:** a device signed in to YouTube Music keeps a copy of each of its
+  playlists on the account (a playlist with the origin `ytmusic:<id>`, replaced whenever the original changes and
+  deleted with it), so devices without the YouTube Music sign-in have them too. The app that made the copies shows
+  the originals and hides the copies. Likes keep YouTube Music's order on the account: each one goes up with its
+  place in time (`at`), and one out of place is moved.
 - **More devices on one account:** *Link another device* shows an 8-character code (valid 10 minutes, single
   use); *I have a code* on the other device (the desktop app, the Android app or the browser version) switches it
   to that account, with its library, shared playlists and rooms. Its own likes are added to the account.
