@@ -64,7 +64,10 @@
     "With %n track",
     "With %n tracks"
   ],
-  "%n plays": ["%n play", "%n plays"],
+  "%n plays": [
+    "%n play",
+    "%n plays"
+  ],
   "Shared · %n tracks": [
     "Shared · %n track",
     "Shared · %n tracks"
@@ -92,5 +95,9 @@
   "Added to %1 — %n without a YouTube Music version skipped": [
     "Added to %1 — %n without a YouTube Music version skipped",
     "Added to %1 — %n without a YouTube Music version skipped"
+  ],
+  "Password changed — %n other device(s) signed out": [
+    "Password changed — %n other device signed out",
+    "Password changed — %n other devices signed out"
   ]
 }

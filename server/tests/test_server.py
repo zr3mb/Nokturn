@@ -64,6 +64,136 @@ class ServerTest(AioHTTPTestCase):
 
     # ---- accounts -------------------------------------------------------
 
+    async def test_login_and_devices(self):
+        # an account made on a device gets a login and a password
+        a, user = await self.register("Ala")
+        self.assertIsNone((await (await self.client.get("/api/v1/me", headers=self.auth(a))).json())["user"]["login"])
+        self.assertEqual((await self.client.post("/api/v1/account/logout", headers=self.auth(a))).status, 409)
+        r = await self.client.post("/api/v1/account", json={"login": "x", "password": "longenough"}, headers=self.auth(a))
+        self.assertEqual((await r.json())["error"], "bad_login")
+        r = await self.client.post("/api/v1/account", json={"login": "ala", "password": "short"}, headers=self.auth(a))
+        self.assertEqual((await r.json())["error"], "bad_password")
+        r = await self.client.post("/api/v1/account", json={"login": "Ala.K", "password": "correct horse"},
+                                   headers={**self.auth(a), "X-Nokturn-Device": "Nokturn · PC"})
+        self.assertEqual(r.status, 200)
+        data = await r.json()
+        self.assertEqual(data["user"], {"id": user["id"], "name": "Ala", "login": "ala.k"})
+        recovery = data["recovery"]
+        self.assertRegex(recovery, r"^[A-Z2-9]{4}(-[A-Z2-9]{4}){4}$")
+        r = await self.client.post("/api/v1/account", json={"login": "ala.k", "password": "correct horse"})
+        self.assertEqual((await r.json())["error"], "login_taken")
+
+        # another device signs in
+        r = await self.client.post("/api/v1/account/login", json={"login": "ala.k", "password": "wrong password"})
+        self.assertEqual((await r.json())["error"], "bad_login")
+        r = await self.client.post("/api/v1/account/login", json={"login": "nobody", "password": "wrong password"})
+        self.assertEqual((await r.json())["error"], "bad_login")
+        r = await self.client.post("/api/v1/account/login", json={"login": "ALA.K", "password": "correct horse"},
+                                   headers={"X-Nokturn-Device": "Nokturn · laptop"})
+        self.assertEqual(r.status, 200)
+        b = (await r.json())["token"]
+        devices = (await (await self.client.get("/api/v1/account/devices", headers=self.auth(b))).json())["devices"]
+        self.assertEqual(sorted(d["name"] for d in devices), ["Nokturn · PC", "Nokturn · laptop"])
+        self.assertEqual([d["name"] for d in devices if d["current"]], ["Nokturn · laptop"])
+
+        # the laptop signs the PC out; the PC's socket closes and its token stops working
+        ws_a = await self.ws(a)
+        pc = next(d["id"] for d in devices if not d["current"])
+        self.assertEqual((await self.client.delete("/api/v1/account/devices/" + pc, headers=self.auth(b))).status, 200)
+        await ws_a.receive(timeout=2)
+        self.assertTrue(ws_a.closed)
+        self.assertEqual((await self.client.get("/api/v1/me", headers=self.auth(a))).status, 401)
+
+        # a new password signs the other devices out
+        c = (await (await self.client.post("/api/v1/account/login", json={"login": "ala.k", "password": "correct horse"})).json())["token"]
+        r = await self.client.post("/api/v1/account/password", json={"password": "nope nope", "new": "battery staple"},
+                                   headers=self.auth(b))
+        self.assertEqual(r.status, 403)
+        r = await self.client.post("/api/v1/account/password", json={"password": "correct horse", "new": "battery staple"},
+                                   headers=self.auth(b))
+        self.assertEqual((await r.json())["signedOut"], 1)
+        self.assertEqual((await self.client.get("/api/v1/me", headers=self.auth(c))).status, 401)
+        self.assertEqual((await self.client.get("/api/v1/me", headers=self.auth(b))).status, 200)
+
+        # a forgotten password: the recovery key sets a new one and is replaced
+        r = await self.client.post("/api/v1/account/recover", json={"login": "ala.k", "recovery": "AAAA-BBBB-CCCC-DDDD-EEEE",
+                                                                   "password": "new password"})
+        self.assertEqual((await r.json())["error"], "bad_recovery")
+        r = await self.client.post("/api/v1/account/recover", json={"login": "ala.k", "recovery": recovery.lower().replace("-", " "),
+                                                                   "password": "new password"})
+        self.assertEqual(r.status, 200)
+        data = await r.json()
+        self.assertNotEqual(data["recovery"], recovery)
+        self.assertEqual((await self.client.get("/api/v1/me", headers=self.auth(b))).status, 401)
+        d = data["token"]
+        r = await self.client.post("/api/v1/account/recover", json={"login": "ala.k", "recovery": recovery, "password": "again again"})
+        self.assertEqual(r.status, 401)   # the old key is gone
+        r = await self.client.post("/api/v1/account/recovery", json={"password": "new password"}, headers=self.auth(d))
+        self.assertNotEqual((await r.json())["recovery"], data["recovery"])
+
+        # signing out
+        self.assertEqual((await self.client.post("/api/v1/account/logout", headers=self.auth(d))).status, 200)
+        self.assertEqual((await self.client.get("/api/v1/me", headers=self.auth(d))).status, 401)
+
+    async def test_new_account_with_login(self):
+        r = await self.client.post("/api/v1/account", json={"login": "ola", "password": "secret pass", "name": "Ola"})
+        data = await r.json()
+        self.assertEqual(data["user"]["name"], "Ola")
+        me = await (await self.client.get("/api/v1/me", headers=self.auth(data["token"]))).json()
+        self.assertEqual(me["user"]["login"], "ola")
+
+    async def test_signing_in_brings_the_device_along(self):
+        # the account with a login, on one device
+        a, owner = await self.register("Ala")
+        await self.client.post("/api/v1/account", json={"login": "ala", "password": "correct horse"}, headers=self.auth(a))
+        await self.client.post("/api/v1/library/liked", json={"track": YT}, headers=self.auth(a))
+        mirror = {"name": "Mix", "origin": "ytmusic:PL1"}
+        await self.client.post("/api/v1/playlists", json=mirror, headers=self.auth(a))
+
+        # another device used Nokturn on its own: a shared playlist, likes, the same mirrored playlist
+        b, guest = await self.register("Laptop")
+        p = await (await self.client.post("/api/v1/playlists", json={"name": "Road trip"}, headers=self.auth(b))).json()
+        friend, _ = await self.register("Friend")
+        await self.client.post(f"/api/v1/playlists/{p['id']}/join", headers=self.auth(friend))
+        await self.client.post(f"/api/v1/playlists/{p['id']}/tracks", json={"tracks": [YT2]}, headers=self.auth(b))
+        await self.client.post("/api/v1/library/liked", json={"track": YT2}, headers=self.auth(b))
+        await self.client.post("/api/v1/playlists", json=mirror, headers=self.auth(b))
+        ws_friend = await self.ws(friend)
+
+        r = await self.client.post("/api/v1/account/login", json={"login": "ala", "password": "correct horse"},
+                                   headers=self.auth(b))
+        self.assertEqual(r.status, 200)
+        b2 = (await r.json())["token"]
+        self.assertEqual((await self.client.get("/api/v1/me", headers=self.auth(b))).status, 401)   # gone
+        self.assertEqual((await self.next_of(ws_friend, "playlist"))["id"], p["id"])
+        lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
+        self.assertEqual({t["id"] for t in lib["liked"]}, {YT["id"], YT2["id"]})
+        mine = (await (await self.client.get("/api/v1/playlists", headers=self.auth(b2))).json())["playlists"]
+        self.assertEqual(sorted(x["name"] for x in mine), ["Mix", "Road trip"])   # one copy of the mirror
+        road = next(x for x in mine if x["name"] == "Road trip")
+        self.assertEqual(road["owner"]["id"], owner["id"])
+        full = await (await self.client.get(f"/api/v1/playlists/{p['id']}", headers=self.auth(friend))).json()
+        self.assertEqual(full["tracks"][0]["addedBy"], owner["id"])
+        self.assertIn(owner["id"], [m["id"] for m in full["members"]])
+        self.assertNotIn(guest["id"], [m["id"] for m in full["members"]])
+        await ws_friend.close()
+
+        # a device signed in to another account only leaves it
+        c, _ = await self.register("Other")
+        await self.client.post("/api/v1/account", json={"login": "other", "password": "correct horse"}, headers=self.auth(c))
+        r = await self.client.post("/api/v1/account/login", json={"login": "ala", "password": "correct horse"},
+                                   headers=self.auth(c))
+        self.assertEqual(r.status, 200)
+        self.assertEqual((await self.client.get("/api/v1/me", headers=self.auth(c))).status, 401)
+        r = await self.client.post("/api/v1/account/login", json={"login": "other", "password": "correct horse"})
+        self.assertEqual(r.status, 200)   # that account is still there
+
+    async def test_login_rate_limit(self):
+        for _ in range(10):
+            await self.client.post("/api/v1/account/login", json={"login": "ala", "password": "wrong one"})
+        r = await self.client.post("/api/v1/account/login", json={"login": "ala", "password": "wrong one"})
+        self.assertEqual(r.status, 429)
+
     async def test_register_and_rename(self):
         token, user = await self.register("  Ala\n  Kot ")
         self.assertEqual(user["name"], "Ala Kot")

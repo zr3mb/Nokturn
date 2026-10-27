@@ -4,6 +4,7 @@ tracks and playlists. Listening rooms live in memory."""
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import sqlite3
 import time
@@ -14,7 +15,10 @@ CREATE TABLE IF NOT EXISTS users (
     token_hash  TEXT NOT NULL UNIQUE,
     name        TEXT NOT NULL,
     created     INTEGER NOT NULL,
-    seen        INTEGER NOT NULL
+    seen        INTEGER NOT NULL,
+    login       TEXT,
+    password    TEXT NOT NULL DEFAULT '',
+    recovery    TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS shares (
     code        TEXT PRIMARY KEY,
@@ -54,7 +58,10 @@ CREATE INDEX IF NOT EXISTS playlist_tracks_playlist ON playlist_tracks(playlist_
 CREATE TABLE IF NOT EXISTS tokens (
     token_hash  TEXT PRIMARY KEY,
     user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created     INTEGER NOT NULL
+    created     INTEGER NOT NULL,
+    id          TEXT,
+    device      TEXT NOT NULL DEFAULT '',
+    seen        INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS pair_codes (
     code        TEXT PRIMARY KEY,
@@ -86,6 +93,9 @@ MAX_PLAYLISTS_PER_USER = 200
 MAX_LIKED = 5000
 MAX_HISTORY = 300
 PAIR_CODE_SECONDS = 600
+LOGIN = re.compile(r"^[a-z0-9][a-z0-9._-]{2,31}$")
+PASSWORD_MIN, PASSWORD_MAX = 8, 200
+_RECOVERY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 # Codes in links: letters and digits only, so they survive any chat app.
 _ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
@@ -101,6 +111,57 @@ def now_ms():
 
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def clean_login(login):
+    """A login: 3-32 small letters, digits, dots, dashes and underscores (any case typed is the same login)."""
+    login = (login or "").strip().lower() if isinstance(login, str) else ""
+    return login if LOGIN.match(login) else None
+
+
+def good_password(password):
+    return isinstance(password, str) and PASSWORD_MIN <= len(password) <= PASSWORD_MAX
+
+
+def hash_secret(secret):
+    """A salted scrypt hash (passwords of accounts and playlists, recovery keys). Slow on purpose: the server
+    calls it off the event loop."""
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(secret.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+_DUMMY_HASH = "scrypt$" + "00" * 16 + "$" + "00" * 32
+
+
+def check_secret(stored, secret):
+    """Whether the secret matches the hash; with no hash it still takes as long, so a missing account doesn't
+    answer faster than a wrong password."""
+    try:
+        _kind, salt, digest = (stored or _DUMMY_HASH).split("$")
+        given = hashlib.scrypt((secret or "").encode(), salt=bytes.fromhex(salt), n=2 ** 14, r=8, p=1, dklen=32)
+    except ValueError:
+        return False
+    return bool(stored) and hmac.compare_digest(given.hex(), digest)
+
+
+def new_recovery_key():
+    """Shown once when the account gets its password: it sets a new password when the old one is forgotten."""
+    raw = "".join(secrets.choice(_RECOVERY_ALPHABET) for _ in range(20))
+    return "-".join(raw[i:i + 4] for i in range(0, 20, 4))
+
+
+def clean_recovery_key(key):
+    return "".join(c for c in (key or "").upper() if c in _RECOVERY_ALPHABET) if isinstance(key, str) else ""
+
+
+def clean_device(name):
+    text = "".join(c for c in str(name or "") if c.isprintable() and not 0xD800 <= ord(c) <= 0xDFFF)
+    return " ".join(text.split())[:60]
+
+
+class LoginTaken(Exception):
+    pass
 
 
 class LimitError(Exception):
@@ -120,6 +181,27 @@ class Database:
             self.conn.execute("ALTER TABLE playlists ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
         if "password" not in columns:   # and before they could have a password
             self.conn.execute("ALTER TABLE playlists ADD COLUMN password TEXT NOT NULL DEFAULT ''")
+        # ... and before accounts had a login and a list of their devices
+        columns = {r["name"] for r in self.conn.execute("PRAGMA table_info(users)")}
+        if "login" not in columns:
+            self.conn.execute("ALTER TABLE users ADD COLUMN login TEXT")
+            self.conn.execute("ALTER TABLE users ADD COLUMN password TEXT NOT NULL DEFAULT ''")
+            self.conn.execute("ALTER TABLE users ADD COLUMN recovery TEXT NOT NULL DEFAULT ''")
+        columns = {r["name"] for r in self.conn.execute("PRAGMA table_info(tokens)")}
+        if "device" not in columns:
+            self.conn.execute("ALTER TABLE tokens ADD COLUMN id TEXT")
+            self.conn.execute("ALTER TABLE tokens ADD COLUMN device TEXT NOT NULL DEFAULT ''")
+            self.conn.execute("ALTER TABLE tokens ADD COLUMN seen INTEGER NOT NULL DEFAULT 0")
+        self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_login ON users(login)")
+        # The first device's token used to sit in users itself; every device is in tokens now.
+        with self._tx():
+            for r in self.conn.execute("SELECT id, token_hash, created, seen FROM users "
+                                       "WHERE token_hash NOT LIKE '-%'").fetchall():
+                self.conn.execute("INSERT OR IGNORE INTO tokens (token_hash, user_id, created, seen) VALUES (?, ?, ?, ?)",
+                                  (r["token_hash"], r["id"], r["created"], r["seen"]))
+                self.conn.execute("UPDATE users SET token_hash = ? WHERE id = ?", ("-" + r["id"], r["id"]))
+            for r in self.conn.execute("SELECT token_hash FROM tokens WHERE id IS NULL").fetchall():
+                self.conn.execute("UPDATE tokens SET id = ? WHERE token_hash = ?", (new_code(10), r["token_hash"]))
 
     def close(self):
         self.conn.close()
@@ -129,26 +211,123 @@ class Database:
 
     # ---- users --------------------------------------------------------------
 
-    def create_user(self, name):
+    def create_user(self, name, device="", login=None, password_hash="", recovery_hash=""):
+        """A new account and the token of the device that made it. With a login (taken: LoginTaken) it's an
+        account to sign in to; without one it lives only on that device until it gets a login."""
         user_id = new_code(12)
+        t = now_ms()
+        try:
+            with self._tx():
+                self.conn.execute("INSERT INTO users (id, token_hash, name, created, seen, login, password, recovery) "
+                                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                  (user_id, "-" + user_id, name, t, t, login, password_hash, recovery_hash))
+                token = self._new_token(user_id, device)
+        except sqlite3.IntegrityError:
+            raise LoginTaken(login)
+        return {"id": user_id, "name": name, "login": login}, token
+
+    def _new_token(self, user_id, device=""):
         token = secrets.token_urlsafe(32)
         t = now_ms()
-        self.conn.execute("INSERT INTO users (id, token_hash, name, created, seen) VALUES (?, ?, ?, ?, ?)",
-                          (user_id, hash_token(token), name, t, t))
-        return {"id": user_id, "name": name}, token
+        self.conn.execute("INSERT INTO tokens (token_hash, user_id, created, id, device, seen) VALUES (?, ?, ?, ?, ?, ?)",
+                          (hash_token(token), user_id, t, new_code(10), clean_device(device), t))
+        return token
 
-    def user_by_token(self, token):
-        h = hash_token(token)
-        row = self.conn.execute("SELECT id, name, seen FROM users WHERE token_hash = ?", (h,)).fetchone()
-        if not row:   # another device of the same account (paired with a code)
-            row = self.conn.execute("SELECT u.id, u.name, u.seen FROM tokens t JOIN users u ON u.id = t.user_id "
-                                    "WHERE t.token_hash = ?", (h,)).fetchone()
+    def session(self, token, device=None):
+        """(the account, the id of this device) for a device's token, or (None, None). A device that says what
+        it is (device) gets that name in the account's list of devices."""
+        row = self.conn.execute("SELECT u.id, u.name, u.login, u.seen, t.id AS device_id, t.device, t.seen AS device_seen "
+                                "FROM tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?",
+                                (hash_token(token),)).fetchone()
         if not row:
-            return None
+            return None, None
         t = now_ms()
         if t - row["seen"] > 3600_000:
             self.conn.execute("UPDATE users SET seen = ? WHERE id = ?", (t, row["id"]))
-        return {"id": row["id"], "name": row["name"]}
+        device = clean_device(device) if device else row["device"]
+        if t - row["device_seen"] > 3600_000 or device != row["device"]:
+            self.conn.execute("UPDATE tokens SET seen = ?, device = ? WHERE id = ?", (t, device, row["device_id"]))
+        return {"id": row["id"], "name": row["name"], "login": row["login"]}, row["device_id"]
+
+    def user_by_token(self, token):
+        return self.session(token)[0]
+
+    # ---- logins ---------------------------------------------------------------
+
+    def account(self, user_id):
+        row = self.conn.execute("SELECT id, name, login, password, recovery FROM users WHERE id = ?",
+                                (user_id,)).fetchone()
+        return dict(row) if row else None
+
+    def account_by_login(self, login):
+        row = self.conn.execute("SELECT id, name, login, password, recovery FROM users WHERE login = ?",
+                                (login,)).fetchone()
+        return dict(row) if row else None
+
+    def set_login(self, user_id, login, password_hash, recovery_hash):
+        """Gives an account made on a device a login and a password (LoginTaken if someone has that login)."""
+        try:
+            self.conn.execute("UPDATE users SET login = ?, password = ?, recovery = ? WHERE id = ?",
+                              (login, password_hash, recovery_hash, user_id))
+        except sqlite3.IntegrityError:
+            raise LoginTaken(login)
+
+    def set_account_password(self, user_id, password_hash, recovery_hash=None, keep_device=None):
+        """A new password (and recovery key); every other device of the account is signed out."""
+        with self._tx():
+            if recovery_hash is None:
+                self.conn.execute("UPDATE users SET password = ? WHERE id = ?", (password_hash, user_id))
+            else:
+                self.conn.execute("UPDATE users SET password = ?, recovery = ? WHERE id = ?",
+                                  (password_hash, recovery_hash, user_id))
+            self.conn.execute("DELETE FROM tokens WHERE user_id = ? AND id IS NOT ?", (user_id, keep_device))
+
+    def set_recovery(self, user_id, recovery_hash):
+        self.conn.execute("UPDATE users SET recovery = ? WHERE id = ?", (recovery_hash, user_id))
+
+    def sign_in(self, user_id, device=""):
+        """A token for a device signing in to the account."""
+        return self._new_token(user_id, device)
+
+    def devices(self, user_id):
+        return [{"id": r["id"], "name": r["device"], "created": r["created"], "seen": r["seen"] or r["created"]}
+                for r in self.conn.execute("SELECT id, device, created, seen FROM tokens WHERE user_id = ? "
+                                           "ORDER BY seen DESC", (user_id,))]
+
+    def sign_out(self, user_id, device_id):
+        return self.conn.execute("DELETE FROM tokens WHERE user_id = ? AND id = ?", (user_id, device_id)).rowcount > 0
+
+    def merge_users(self, source, target):
+        """Moves everything of the account `source` (one made on a device that now signs in to `target`) into
+        `target` and deletes it: its playlists, the shared ones it's in, its likes, history and shared tracks.
+        Returns the ids of the playlists whose people changed."""
+        if source == target:
+            return []
+        with self._tx():
+            # A copy of the same YouTube Music / Spotify / SoundCloud playlist: the account's own one stays.
+            self.conn.execute("DELETE FROM playlists WHERE owner_id = ? AND origin != '' AND origin IN "
+                              "(SELECT origin FROM playlists WHERE owner_id = ? AND origin != '')", (source, target))
+            changed = [r["playlist_id"] for r in self.conn.execute(
+                "SELECT playlist_id FROM playlist_members WHERE user_id = ?", (source,))]
+            self.conn.execute("UPDATE playlists SET owner_id = ? WHERE owner_id = ?", (target, source))
+            self.conn.execute("INSERT OR IGNORE INTO playlist_members (playlist_id, user_id, joined) "
+                              "SELECT playlist_id, ?, joined FROM playlist_members WHERE user_id = ?", (target, source))
+            self.conn.execute("UPDATE playlist_tracks SET added_by = ? WHERE added_by = ?", (target, source))
+            self.conn.execute("UPDATE shares SET user_id = ? WHERE user_id = ?", (target, source))
+            self.conn.execute("INSERT INTO library (user_id, kind, track_id, track, added_at) "
+                              "SELECT ?, kind, track_id, track, added_at FROM library WHERE user_id = ? "
+                              "ON CONFLICT(user_id, kind, track_id) DO UPDATE SET added_at = MAX(added_at, excluded.added_at)",
+                              (target, source))
+            self.conn.execute("DELETE FROM library WHERE user_id = ? AND kind = 'history' AND track_id NOT IN "
+                              "(SELECT track_id FROM library WHERE user_id = ? AND kind = 'history' "
+                              "ORDER BY added_at DESC LIMIT ?)", (target, target, MAX_HISTORY))
+            self.conn.execute("INSERT OR IGNORE INTO library_settings (user_id, data, updated) "
+                              "SELECT ?, data, updated FROM library_settings WHERE user_id = ?", (target, source))
+            for playlist_id in changed:
+                self._touch(playlist_id)
+            self.conn.execute("DELETE FROM users WHERE id = ?", (source,))
+            self._bump_library(target)
+        return changed
 
     # ---- devices: one account on several devices --------------------------------
 
@@ -161,7 +340,7 @@ class Database:
                           (code, user_id, t + PAIR_CODE_SECONDS))
         return code, t + PAIR_CODE_SECONDS
 
-    def redeem_pair_code(self, code):
+    def redeem_pair_code(self, code, device=""):
         """The account and a new token for the device that entered the code, or None."""
         code = (code or "").strip().upper().replace("-", "").replace(" ", "")
         with self._tx():
@@ -169,11 +348,9 @@ class Database:
             if not row or row["expires"] < time.time():
                 return None
             self.conn.execute("DELETE FROM pair_codes WHERE code = ?", (code,))
-            token = secrets.token_urlsafe(32)
-            self.conn.execute("INSERT INTO tokens (token_hash, user_id, created) VALUES (?, ?, ?)",
-                              (hash_token(token), row["user_id"], now_ms()))
-            user = self.conn.execute("SELECT id, name FROM users WHERE id = ?", (row["user_id"],)).fetchone()
-        return {"id": user["id"], "name": user["name"]}, token
+            token = self._new_token(row["user_id"], device)
+            user = self.conn.execute("SELECT id, name, login FROM users WHERE id = ?", (row["user_id"],)).fetchone()
+        return {"id": user["id"], "name": user["name"], "login": user["login"]}, token
 
     # ---- the library ---------------------------------------------------------------
 
@@ -418,11 +595,7 @@ class Database:
 
     def set_password(self, playlist_id, password):
         """A password the others enter to join (kept as a salted scrypt hash); empty removes it."""
-        stored = ""
-        if password:
-            salt = secrets.token_bytes(16)
-            digest = hashlib.scrypt(password.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
-            stored = f"scrypt${salt.hex()}${digest.hex()}"
+        stored = hash_secret(password) if password else ""
         with self._tx():
             self.conn.execute("UPDATE playlists SET password = ? WHERE id = ?", (stored, playlist_id))
             self._touch(playlist_id)
@@ -431,12 +604,7 @@ class Database:
         row = self.conn.execute("SELECT password FROM playlists WHERE id = ?", (playlist_id,)).fetchone()
         if not row or not row["password"]:
             return True
-        try:
-            _kind, salt, digest = row["password"].split("$")
-            given = hashlib.scrypt((password or "").encode(), salt=bytes.fromhex(salt), n=2 ** 14, r=8, p=1, dklen=32)
-        except ValueError:
-            return False
-        return hmac.compare_digest(given.hex(), digest)
+        return check_secret(row["password"], password)
 
     def replace_tracks(self, playlist_id, user_id, tracks):
         """The whole list at once (a copy of a YouTube Music playlist following its source)."""

@@ -712,6 +712,34 @@ Item {
             { name: "P6-joined", run: () => console.log("tour: shared after", JSON.stringify(shared()), JSON.stringify(Online.playlistInfo(id))) }
         ]
     }
+    // The Nokturn account (--tour-account "<login>;<password>", with NOKTURN_SERVER): an account made on this
+    // device gets a login and a password, the recovery key, a new password, signing out and in again.
+    readonly property bool withAccount: Qt.application.arguments.indexOf("--tour-account") >= 0
+    readonly property var accountSteps: {
+        if (!withAccount)
+            return []
+        const [login, password] = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-account") + 1].split(";")
+        const log = what => console.log("tour: " + what, "| registered", Online.registered, "| login", JSON.stringify(Online.login),
+                                        "| devices", JSON.stringify(Online.devices.map(d => d.name + (d.current ? " (this)" : ""))))
+        return [
+            { name: "K1-anonymous", run: () => { Nav.finishOnboarding(); Player.muted = true; Online.createPairCode()
+                                                 Nav.navigate("settings", { section: "account" }) } },
+            { name: "K2-settings", run: () => log("before") },
+            { name: "K3-create", run: () => Nav.account("create") },
+            { name: "K4-create", run: () => Online.createLogin(login, password) },
+            { name: "K4b-key", run: () => {} },
+            { name: "K5-settings", run: () => { log("with a login"); Nav.account("password") } },
+            { name: "K6-wrong", run: () => Online.changePassword("not-" + password, password + "2") },
+            { name: "K7-changed", run: () => Online.changePassword(password, password + "2") },
+            { name: "K8-signed-in", run: () => log("new password") },
+            { name: "K9-sign-out", run: () => Online.signOut() },
+            { name: "K10-signed-out", run: () => { log("signed out"); Nav.account("signin") } },
+            { name: "K11-wrong", run: () => Online.signIn(login, password) },
+            { name: "K11b-error", run: () => {} },
+            { name: "K12-sign-in", run: () => Online.signIn(login, password + "2") },
+            { name: "K13-back", run: () => log("signed in again") }
+        ]
+    }
     // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).
     readonly property bool withScSeekLiked: Qt.application.arguments.indexOf("--tour-sc-seek-liked") >= 0
     readonly property var scSeekLikedSteps: {
@@ -923,7 +951,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

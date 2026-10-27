@@ -35,7 +35,16 @@ Item {
         }
     }
 
+    // Nav.navigate("settings", { section: "account" }) opens the page at the Nokturn account.
+    Timer {
+        running: page.args.section === "account"
+        interval: 250
+        onTriggered: flick.contentY = Math.max(0, Math.min(accountRow.mapToItem(flick.contentItem, 0, 0).y - 60,
+                                                            flick.contentHeight - flick.height))
+    }
+
     PageFlick {
+        id: flick
         anchors.fill: parent
         spacing: 26
 
@@ -700,9 +709,115 @@ Item {
                 spacing: 8
                 Heading { text: qsTr("Online") }
                 SettingRow {
+                    id: accountRow
+                    icon: "person"
+                    title: Online.login !== "" ? qsTr("Nokturn account: %1").arg(Online.login) : qsTr("Nokturn account")
+                    description: Online.login !== ""
+                                 ? qsTr("Signed in. Your library, playlists and folders are the same on every device signed in to this account.")
+                                 : Online.registered
+                                   ? qsTr("This account has no password yet, so it lives only on this device — lose the device and its shared playlists are gone. Set a login and a password to keep it safe and sign in on your phone, laptop or in the browser.")
+                                   : qsTr("Sign in on every device — computer, laptop, phone, browser — for the same library and playlists everywhere.")
+                    Row {
+                        spacing: 8
+                        PillButton {
+                            visible: Online.login === ""
+                            text: Online.registered ? qsTr("Set a password") : qsTr("Create an account")
+                            fontSize: 13
+                            implicitHeight: 36
+                            onClicked: Nav.account("create")
+                        }
+                        PillButton {
+                            visible: Online.login === ""
+                            kind: "ghost"
+                            text: qsTr("Sign in")
+                            fontSize: 13
+                            implicitHeight: 36
+                            onClicked: Nav.account("signin")
+                        }
+                        PillButton {
+                            visible: Online.login !== ""
+                            kind: "ghost"
+                            text: qsTr("Change the password")
+                            fontSize: 13
+                            implicitHeight: 36
+                            onClicked: Nav.account("password")
+                        }
+                        PillButton {
+                            visible: Online.login !== ""
+                            kind: "ghost"
+                            text: qsTr("Sign out")
+                            fontSize: 13
+                            implicitHeight: 36
+                            onClicked: Online.signOut()
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: Online.login !== ""
+                    icon: "devices"
+                    title: qsTr("Signed-in devices")
+                    description: qsTr("Sign out a device you don't use or don't recognise.")
+                    Component.onCompleted: Online.refreshAccount()
+                }
+                Repeater {
+                    model: Online.login !== "" ? Online.devices : []
+                    delegate: Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 52
+                        implicitHeight: 52
+                        radius: 14
+                        color: Qt.rgba(1, 1, 1, 0.03)
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 16
+                            anchors.rightMargin: 10
+                            spacing: 10
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: (modelData.name || qsTr("Unknown device")) + (modelData.current ? "  ·  " + qsTr("this device") : "")
+                                    color: modelData.current ? Theme.accent : Theme.text
+                                    font.pixelSize: 13
+                                    font.weight: Font.Medium
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    text: qsTr("Last used %1").arg(new Date(modelData.seen).toLocaleDateString(Qt.locale(), Locale.ShortFormat))
+                                    color: Theme.textDim
+                                    font.pixelSize: 11
+                                }
+                            }
+                            PillButton {
+                                visible: !modelData.current
+                                kind: "ghost"
+                                text: qsTr("Sign out")
+                                fontSize: 12
+                                implicitHeight: 32
+                                onClicked: Online.signOutDevice(modelData.id)
+                            }
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: Online.login !== ""
+                    icon: "key"
+                    title: qsTr("Recovery key")
+                    description: qsTr("Sets a new password if you forget it. Lost the old one? Get a new key.")
+                    PillButton {
+                        kind: "ghost"
+                        text: qsTr("New key")
+                        fontSize: 13
+                        implicitHeight: 36
+                        onClicked: Nav.account("newkey")
+                    }
+                }
+                SettingRow {
                     icon: "person"
                     title: qsTr("Your name")
-                    description: qsTr("What others see in listening rooms and shared playlists. Nokturn makes an anonymous account on the server the first time you share something — no e-mail, no password.")
+                    description: qsTr("What others see in listening rooms and shared playlists.")
                     InputField {
                         width: 230
                         implicitHeight: 38
@@ -768,7 +883,7 @@ Item {
                 SettingRow {
                     icon: "key"
                     title: qsTr("I have a code")
-                    description: qsTr("From another device: this one switches to that device's Nokturn account. Your likes here are added to it.")
+                    description: qsTr("From another device: this one signs in to that device's Nokturn account and brings along what it has here (likes, shared playlists).")
                     Row {
                         spacing: 8
                         InputField {

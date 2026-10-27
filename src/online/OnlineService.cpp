@@ -29,6 +29,7 @@
 #include <QSet>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QSysInfo>
 
 #include <algorithm>
 #include <memory>
@@ -194,6 +195,10 @@ OnlineService::OnlineService(QObject *parent)
         m_pingTimer.stop();
         if (was)
             emit connectionChanged();
+        if (m_ws.closeCode() == 4001) {   // the server signed this device out
+            refreshAccount();
+            return;
+        }
         if (wantSocket()) {
             m_reconnect.start(m_backoff * 1000);
             m_backoff = std::min(60, m_backoff * 2);
@@ -281,6 +286,7 @@ void OnlineService::loadAccount()
     const QJsonObject o = QJsonDocument::fromJson(unprotectSecret(f.readAll())).object();
     m_token = o.value("token").toString();
     m_userId = o.value("id").toString();
+    m_login = o.value("login").toString();
 }
 
 void OnlineService::ensureAccount(std::function<void(bool ok)> then)
@@ -352,38 +358,80 @@ void OnlineService::saveToken() const
 {
     QSaveFile f(tokenFile());
     if (f.open(QIODevice::WriteOnly)) {
-        f.write(protectSecret(QJsonDocument(QJsonObject { { "token", m_token }, { "id", m_userId } }).toJson(QJsonDocument::Compact)));
+        f.write(protectSecret(QJsonDocument(QJsonObject { { "token", m_token }, { "id", m_userId }, { "login", m_login } })
+                                  .toJson(QJsonDocument::Compact)));
         f.commit();
     }
 }
 
 void OnlineService::forgetAccount()
 {
-    if (inRoom() || joiningRoom())
-        leaveRoom();
-    auto drop = [this] {
-        m_ws.close();
-        QFile::remove(tokenFile());
-        QFile::remove(syncFile());
-        m_token.clear();
-        m_userId.clear();
-        loadLibrarySync();
-        m_libTimer.stop();
-        m_playlists.clear();
-        savePlaylists();
-        emit playlistsChanged();
-        emit accountChanged();
-    };
     if (!registered())
         return;
-    request("DELETE", QStringLiteral("/me"), {}, [this, drop](const QJsonObject &, const QString &error) {
+    request("DELETE", QStringLiteral("/me"), {}, [this](const QJsonObject &, const QString &error) {
         if (!error.isEmpty()) {
             emit notice(tr("Couldn't delete the account: %1").arg(error), QStringLiteral("close"));
             return;
         }
-        drop();
+        dropAccount();
         emit notice(tr("Online account deleted"), QStringLiteral("check"));
     });
+}
+
+void OnlineService::dropAccount()
+{
+    // This device has no account any more: what came from it (shared playlists, the library's state) goes too.
+    if (inRoom() || joiningRoom())
+        leaveRoom();
+    m_ws.close();
+    QFile::remove(tokenFile());
+    QFile::remove(syncFile());
+    m_token.clear();
+    m_userId.clear();
+    m_login.clear();
+    loadLibrarySync();
+    m_libTimer.stop();
+    m_playlists.clear();
+    savePlaylists();
+    m_devices.clear();
+    m_pairCode.clear();
+    emit pairChanged();
+    emit devicesChanged();
+    emit playlistsChanged();
+    emit accountChanged();
+}
+
+void OnlineService::switchAccount(const QString &token, const QJsonObject &user)
+{
+    // This device signs in to that account: its rooms and playlists are that account's from now on (what this
+    // device's own account had, the server moved into it).
+    const QString id = user.value("id").toString();
+    const bool other = id != m_userId;
+    if (other && (inRoom() || joiningRoom()))
+        leaveRoom();
+    m_ws.close();
+    m_token = token;
+    m_userId = id;
+    m_login = user.value("login").toString();
+    saveToken();
+    if (other) {
+        // The likes here join the account's (nothing is removed from either).
+        loadLibrarySync();
+        resetLibrarySync();
+        m_playlists.clear();
+        savePlaylists();
+        emit playlistsChanged();
+    }
+    m_pairCode.clear();
+    emit pairChanged();
+    emit accountChanged();
+    refreshPlaylists();
+    if (m_librarySync) {
+        m_libTimer.start();
+        syncLibrary();
+    }
+    connectSocket();
+    refreshAccount();
 }
 
 void OnlineService::request(const QByteArray &method, const QString &path, const QJsonObject &body, JsonCallback done)
@@ -394,6 +442,7 @@ void OnlineService::request(const QByteArray &method, const QString &path, const
     req.setTransferTimeout(15'000);
     if (!m_token.isEmpty())
         req.setRawHeader("Authorization", "Bearer " + m_token.toUtf8());
+    req.setRawHeader("X-Nokturn-Device", deviceName().toUtf8());   // its name in the account's list of devices
     const QByteArray data = (method == "GET" || method == "DELETE") && body.isEmpty()
                                 ? QByteArray() : QJsonDocument(body).toJson(QJsonDocument::Compact);
     QNetworkReply *reply = m_net.sendCustomRequest(req, method, data);
@@ -403,12 +452,12 @@ void OnlineService::request(const QByteArray &method, const QString &path, const
         endBusy();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QJsonObject o = QJsonDocument::fromJson(reply->readAll()).object();
-        if (status == 401 && !m_token.isEmpty()) {
-            // The server forgot us (a new database): the next action makes a new account.
-            QFile::remove(tokenFile());
-            m_token.clear();
-            m_userId.clear();
-            emit accountChanged();
+        if (status == 401 && !m_token.isEmpty() && o.value("error").toString() == QLatin1String("unauthorized")) {
+            // Signed out from another device (or the server forgot us): the next action makes a new account.
+            const bool hadLogin = !m_login.isEmpty();
+            dropAccount();
+            if (hadLogin)
+                emit notice(tr("This device was signed out of your Nokturn account"), QStringLiteral("close"));
         }
         QString error;
         if (reply->error() != QNetworkReply::NoError || status >= 400) {
@@ -477,7 +526,13 @@ void OnlineService::onSocketMessage(const QString &text)
     const QJsonObject m = QJsonDocument::fromJson(text.toUtf8()).object();
     const QString type = m.value("type").toString();
     if (type == QLatin1String("hello")) {
-        m_userId = m.value("user").toObject().value("id").toString();
+        const QJsonObject user = m.value("user").toObject();
+        m_userId = user.value("id").toString();
+        if (user.value("login").toString() != m_login) {   // given on another device
+            m_login = user.value("login").toString();
+            saveToken();
+            emit accountChanged();
+        }
     } else if (type == QLatin1String("pong")) {
         // The clock offset from the round trip with the smallest delay (the most exact one).
         const qint64 rtt = m_monotonic.elapsed() - qint64(m.value("t").toDouble());
@@ -1973,29 +2028,139 @@ void OnlineService::redeemPairCode(const QString &code)
                         QStringLiteral("close"));
             return;
         }
-        // This device joins that account: its rooms and playlists are that account's from now on.
-        if (inRoom() || joiningRoom())
-            leaveRoom();
-        m_ws.close();
-        m_token = token;
-        m_userId = reply.value("user").toObject().value("id").toString();
-        saveToken();
-        // The likes here join the account's (nothing is removed from either).
-        loadLibrarySync();
-        resetLibrarySync();
-        m_playlists.clear();
-        savePlaylists();
-        m_pairCode.clear();
-        emit pairChanged();
-        emit playlistsChanged();
-        emit accountChanged();
-        refreshPlaylists();
-        if (m_librarySync) {
-            m_libTimer.start();
-            syncLibrary();
-        }
-        connectSocket();
+        switchAccount(token, reply.value("user").toObject());
         emit notice(tr("Linked — this device uses the same Nokturn account now"), QStringLiteral("check"));
+    });
+}
+
+// ---- signing in with a login and a password -----------------------------------------
+
+QString OnlineService::deviceName()
+{
+    const QString host = QSysInfo::machineHostName();
+    const QString os = QSysInfo::prettyProductName();
+    return host.isEmpty() || host == QLatin1String("localhost") ? os : host + QStringLiteral(" · ") + os;
+}
+
+void OnlineService::accountRequest(const QString &action, const QString &path, const QJsonObject &body)
+{
+    request("POST", path, body, [this, action](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty()) {
+            emit accountFailed(reply.value("error").toString(), error);
+            return;
+        }
+        const QJsonObject user = reply.value("user").toObject();
+        const QString token = reply.value("token").toString();
+        if (!token.isEmpty()) {
+            switchAccount(token, user);
+        } else {
+            m_login = user.value("login").toString();
+            saveToken();
+            emit accountChanged();
+            refreshAccount();
+        }
+        if (reply.contains("recovery"))
+            emit recoveryKeyShown(reply.value("recovery").toString());
+        if (action == QLatin1String("signin"))
+            emit notice(tr("Signed in as %1").arg(m_login), QStringLiteral("check"));
+        emit accountDone(action);
+    });
+}
+
+void OnlineService::createLogin(const QString &login, const QString &password)
+{
+    // With an account here it gets the login (and keeps everything); without one it's a new account.
+    accountRequest(QStringLiteral("create"), QStringLiteral("/account"),
+                   { { "login", login.trimmed() }, { "password", password }, { "name", m_name } });
+}
+
+void OnlineService::signIn(const QString &login, const QString &password)
+{
+    accountRequest(QStringLiteral("signin"), QStringLiteral("/account/login"),
+                   { { "login", login.trimmed() }, { "password", password } });
+}
+
+void OnlineService::recoverAccount(const QString &login, const QString &recoveryKey, const QString &password)
+{
+    accountRequest(QStringLiteral("recover"), QStringLiteral("/account/recover"),
+                   { { "login", login.trimmed() }, { "recovery", recoveryKey }, { "password", password } });
+}
+
+void OnlineService::changePassword(const QString &password, const QString &newPassword)
+{
+    request("POST", QStringLiteral("/account/password"), { { "password", password }, { "new", newPassword } },
+            [this](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty()) {
+            emit accountFailed(reply.value("error").toString(), error);
+            return;
+        }
+        const int others = reply.value("signedOut").toInt();
+        emit notice(others > 0 ? tr("Password changed — %n other device(s) signed out", nullptr, others)
+                               : tr("Password changed"), QStringLiteral("check"));
+        emit accountDone(QStringLiteral("password"));
+        refreshAccount();
+    });
+}
+
+void OnlineService::newRecoveryKey(const QString &password)
+{
+    request("POST", QStringLiteral("/account/recovery"), { { "password", password } },
+            [this](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty()) {
+            emit accountFailed(reply.value("error").toString(), error);
+            return;
+        }
+        emit recoveryKeyShown(reply.value("recovery").toString());
+        emit accountDone(QStringLiteral("recovery"));
+    });
+}
+
+void OnlineService::refreshAccount()
+{
+    if (!registered())
+        return;
+    request("GET", QStringLiteral("/me"), {}, [this](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty())
+            return;
+        const QString login = reply.value("user").toObject().value("login").toString();
+        if (login != m_login) {
+            m_login = login;
+            saveToken();
+            emit accountChanged();
+        }
+        if (m_login.isEmpty()) {
+            m_devices.clear();
+            emit devicesChanged();
+            return;
+        }
+        request("GET", QStringLiteral("/account/devices"), {}, [this](const QJsonObject &reply, const QString &error) {
+            if (!error.isEmpty())
+                return;
+            m_devices = reply.value("devices").toArray().toVariantList();
+            emit devicesChanged();
+        });
+    });
+}
+
+void OnlineService::signOutDevice(const QString &id)
+{
+    request("DELETE", QStringLiteral("/account/devices/") + id, {}, [this](const QJsonObject &, const QString &error) {
+        if (!error.isEmpty()) {
+            emit notice(tr("Couldn't sign the device out: %1").arg(error), QStringLiteral("close"));
+            return;
+        }
+        emit notice(tr("Device signed out"), QStringLiteral("check"));
+        refreshAccount();
+    });
+}
+
+void OnlineService::signOut()
+{
+    if (!registered() || m_login.isEmpty())
+        return;   // an account with no login would be lost
+    request("POST", QStringLiteral("/account/logout"), {}, [this](const QJsonObject &, const QString &) {
+        dropAccount();   // signed out here even if the server couldn't be told
+        emit notice(tr("Signed out of your Nokturn account"), QStringLiteral("check"));
     });
 }
 
