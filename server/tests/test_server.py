@@ -276,6 +276,47 @@ class ServerTest(AioHTTPTestCase):
         self.assertEqual((await self.client.get("/r/ZZZZZZ")).status, 404)
         await wa.close()
 
+    async def test_library_and_pairing(self):
+        a, _ = await self.register("Ala")
+        r = await self.client.get("/api/v1/library", headers=self.auth(a))
+        self.assertEqual(await r.json(), {"version": 0, "liked": [], "history": []})
+        r = await self.client.post("/api/v1/library/liked", json={"track": YT}, headers=self.auth(a))
+        self.assertEqual((await r.json())["version"], 1)
+        await self.client.post("/api/v1/library/liked", json={"track": YT}, headers=self.auth(a))   # twice: once
+        r = await self.client.post("/api/v1/library/liked", json={"track": LOCAL}, headers=self.auth(a))
+        self.assertEqual(r.status, 400)
+        for t in (YT, YT2, YT):
+            await self.client.post("/api/v1/library/history", json={"track": t}, headers=self.auth(a))
+        lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
+        self.assertEqual([t["id"] for t in lib["liked"]], [YT["id"]])
+        self.assertEqual([t["id"] for t in lib["history"]], [YT["id"], YT2["id"]])   # latest first, no repeats
+
+        # a second device signs in to the same account with a code
+        code = (await (await self.client.post("/api/v1/me/pair", headers=self.auth(a))).json())["code"]
+        r = await self.client.post("/api/v1/pair", json={"code": "WRONG123"})
+        self.assertEqual(r.status, 404)
+        r = await self.client.post("/api/v1/pair", json={"code": code.lower()})
+        self.assertEqual(r.status, 200)
+        b = (await r.json())["token"]
+        self.assertEqual((await self.client.post("/api/v1/pair", json={"code": code})).status, 404)   # single use
+        lib_b = await (await self.client.get("/api/v1/library", headers=self.auth(b))).json()
+        self.assertEqual(lib_b["version"], lib["version"])
+        await self.client.delete("/api/v1/library/liked/" + YT["id"], headers=self.auth(b))
+        lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
+        self.assertEqual(lib["liked"], [])
+        await self.client.delete("/api/v1/library/history", headers=self.auth(a))
+        self.assertEqual((await (await self.client.get("/api/v1/library", headers=self.auth(b))).json())["history"], [])
+        self.assertEqual((await self.client.delete("/api/v1/me")).status, 401)
+
+    async def test_ws_ticket(self):
+        a, user = await self.register("Ala")
+        ticket = (await (await self.client.post("/api/v1/ws/ticket", headers=self.auth(a))).json())["ticket"]
+        ws = await self.client.ws_connect("/api/v1/ws?ticket=" + ticket)
+        self.assertEqual((await ws.receive_json(timeout=2))["user"]["id"], user["id"])
+        await ws.close()
+        with self.assertRaises(Exception):   # single use
+            await self.client.ws_connect("/api/v1/ws?ticket=" + ticket)
+
 
 class RoomLogicTest(unittest.TestCase):
     def setUp(self):

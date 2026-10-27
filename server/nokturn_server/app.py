@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import secrets
 import time
 import unicodedata
 from collections import defaultdict, deque
@@ -122,6 +123,27 @@ def require_user(handler):
     return wrapped
 
 
+# Browsers can't send an Authorization header with a WebSocket: the web app first asks for a ticket (with its
+# token, like any request) and opens the socket with it — single use, half a minute, so the token itself never
+# ends up in a URL.
+_tickets = {}
+
+
+@require_user
+async def ws_ticket(request):
+    now = time.time()
+    for k in [k for k, v in _tickets.items() if v[1] < now]:
+        del _tickets[k]
+    ticket = secrets.token_urlsafe(24)
+    _tickets[ticket] = (request[USER], now + 30)
+    return web.json_response({"ticket": ticket})
+
+
+def ticket_user(request):
+    entry = _tickets.pop(request.query.get("ticket", ""), None)
+    return entry[0] if entry and entry[1] >= time.time() else None
+
+
 def clean_tracks(raw, limit=MAX_TRACKS_PER_REQUEST):
     if not isinstance(raw, list):
         return []
@@ -223,6 +245,92 @@ async def update_me(request):
     request.app[DB].rename_user(user["id"], name)
     user["name"] = name
     return web.json_response({"user": user})
+
+
+@require_user
+async def delete_me(request):
+    user = request[USER]
+    db, hub = request.app[DB], request.app[HUB]
+    member_of = [p["id"] for p in db.playlists_of(user["id"])]
+    owned = db.delete_user(user["id"])
+    for pid in member_of:
+        if pid in owned:
+            continue
+        await hub.playlist_changed(pid)
+    return web.json_response({"deleted": True})
+
+
+# ---- REST: the library and paired devices -------------------------------------
+
+
+@require_user
+async def get_library(request):
+    return web.json_response(request.app[DB].library(request[USER]["id"]))
+
+
+async def _library_changed(request, version):
+    # the account's other devices fetch it again
+    await request.app[HUB].to_users([request[USER]["id"]], {"type": "library", "version": version})
+    return web.json_response({"version": version})
+
+
+@require_user
+async def like_track(request):
+    if not request.app[LIMITS]["library"].allow(request[USER]["id"]):
+        return error(429, "rate_limited", "too many changes, try again later")
+    body = await read_json(request)
+    try:
+        track = clean_track(body.get("track"))
+        version = request.app[DB].set_liked(request[USER]["id"], track, True)
+    except TrackError as e:
+        return error(400, "bad_track", str(e))
+    except LimitError as e:
+        return error(409, "limit", str(e))
+    return await _library_changed(request, version)
+
+
+@require_user
+async def unlike_track(request):
+    if not request.app[LIMITS]["library"].allow(request[USER]["id"]):
+        return error(429, "rate_limited", "too many changes, try again later")
+    version = request.app[DB].set_liked(request[USER]["id"], request.match_info["track"], False)
+    return await _library_changed(request, version)
+
+
+@require_user
+async def add_history(request):
+    if not request.app[LIMITS]["library"].allow(request[USER]["id"]):
+        return error(429, "rate_limited", "too many changes, try again later")
+    body = await read_json(request)
+    try:
+        version = request.app[DB].add_history(request[USER]["id"], clean_track(body.get("track")))
+    except TrackError as e:
+        return error(400, "bad_track", str(e))
+    return await _library_changed(request, version)
+
+
+@require_user
+async def clear_history(request):
+    return await _library_changed(request, request.app[DB].clear_history(request[USER]["id"]))
+
+
+@require_user
+async def create_pair_code(request):
+    if not request.app[LIMITS]["pair"].allow(request[USER]["id"]):
+        return error(429, "rate_limited", "too many codes, try again later")
+    code, expires = request.app[DB].create_pair_code(request[USER]["id"])
+    return web.json_response({"code": code, "expires": expires})
+
+
+async def redeem_pair_code(request):
+    if not request.app[LIMITS]["pair"].allow(client_ip(request)):
+        return error(429, "rate_limited", "too many attempts, try again later")
+    body = await read_json(request)
+    result = request.app[DB].redeem_pair_code(body.get("code"))
+    if not result:
+        return error(404, "bad_code", "the code is wrong or has expired")
+    user, token = result
+    return web.json_response({"user": user, "token": token})
 
 
 @require_user
@@ -436,7 +544,7 @@ async def get_room(request):
 
 
 async def websocket(request):
-    user = current_user(request)
+    user = current_user(request) or ticket_user(request)
     if not user:
         return error(401, "unauthorized", "sign in first")
     ws = web.WebSocketResponse(heartbeat=25, max_msg_size=MAX_WS_MESSAGE)
@@ -681,6 +789,8 @@ def create_app(config):
         "share": RateLimiter(120, 3600),
         "playlist": RateLimiter(30, 3600),
         "room": RateLimiter(30, 3600),
+        "library": RateLimiter(3000, 3600),
+        "pair": RateLimiter(20, 3600),
     }
     r = app.router
     r.add_get(f"{API}/health", health)
@@ -702,6 +812,14 @@ def create_app(config):
     r.add_post(f"{API}/playlists/{{id}}/tracks/{{entry}}/move", move_playlist_track)
     r.add_get(f"{API}/rooms/{{code}}", get_room)
     r.add_get(f"{API}/ws", websocket)
+    r.add_post(f"{API}/ws/ticket", ws_ticket)
+    r.add_get(f"{API}/library", get_library)
+    r.add_post(f"{API}/library/liked", like_track)
+    r.add_delete(f"{API}/library/liked/{{track}}", unlike_track)
+    r.add_post(f"{API}/library/history", add_history)
+    r.add_delete(f"{API}/library/history", clear_history)
+    r.add_post(f"{API}/me/pair", create_pair_code)
+    r.add_post(f"{API}/pair", redeem_pair_code)
     r.add_get("/", home)
     r.add_get("/t/{code}", track_page)
     r.add_get("/r/{code}", room_page)

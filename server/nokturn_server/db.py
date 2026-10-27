@@ -1,4 +1,5 @@
-"""SQLite storage: accounts, shared tracks and shared playlists. Listening rooms live in memory."""
+"""SQLite storage: accounts (and the devices signed in to them), the library (liked tracks, history), shared
+tracks and playlists. Listening rooms live in memory."""
 
 import hashlib
 import json
@@ -47,10 +48,36 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
     added_at    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS playlist_tracks_playlist ON playlist_tracks(playlist_id, position);
+CREATE TABLE IF NOT EXISTS tokens (
+    token_hash  TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created     INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pair_codes (
+    code        TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires     INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS library (
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    track_id    TEXT NOT NULL,
+    track       TEXT NOT NULL,
+    added_at    INTEGER NOT NULL,
+    PRIMARY KEY (user_id, kind, track_id)
+);
+CREATE INDEX IF NOT EXISTS library_user ON library(user_id, kind, added_at);
+CREATE TABLE IF NOT EXISTS library_versions (
+    user_id     TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    version     INTEGER NOT NULL
+);
 """
 
 MAX_PLAYLIST_TRACKS = 2000
 MAX_PLAYLISTS_PER_USER = 200
+MAX_LIKED = 5000
+MAX_HISTORY = 300
+PAIR_CODE_SECONDS = 600
 
 # Codes in links: letters and digits only, so they survive any chat app.
 _ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
@@ -97,14 +124,91 @@ class Database:
         return {"id": user_id, "name": name}, token
 
     def user_by_token(self, token):
-        row = self.conn.execute("SELECT id, name, seen FROM users WHERE token_hash = ?",
-                                (hash_token(token),)).fetchone()
+        h = hash_token(token)
+        row = self.conn.execute("SELECT id, name, seen FROM users WHERE token_hash = ?", (h,)).fetchone()
+        if not row:   # another device of the same account (paired with a code)
+            row = self.conn.execute("SELECT u.id, u.name, u.seen FROM tokens t JOIN users u ON u.id = t.user_id "
+                                    "WHERE t.token_hash = ?", (h,)).fetchone()
         if not row:
             return None
         t = now_ms()
         if t - row["seen"] > 3600_000:
             self.conn.execute("UPDATE users SET seen = ? WHERE id = ?", (t, row["id"]))
         return {"id": row["id"], "name": row["name"]}
+
+    # ---- devices: one account on several devices --------------------------------
+
+    def create_pair_code(self, user_id):
+        """A short code another device enters to sign in to this account; single use, ten minutes."""
+        t = int(time.time())
+        self.conn.execute("DELETE FROM pair_codes WHERE expires < ? OR user_id = ?", (t, user_id))
+        code = "".join(secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(8))
+        self.conn.execute("INSERT INTO pair_codes (code, user_id, expires) VALUES (?, ?, ?)",
+                          (code, user_id, t + PAIR_CODE_SECONDS))
+        return code, t + PAIR_CODE_SECONDS
+
+    def redeem_pair_code(self, code):
+        """The account and a new token for the device that entered the code, or None."""
+        code = (code or "").strip().upper().replace("-", "").replace(" ", "")
+        with self._tx():
+            row = self.conn.execute("SELECT user_id, expires FROM pair_codes WHERE code = ?", (code,)).fetchone()
+            if not row or row["expires"] < time.time():
+                return None
+            self.conn.execute("DELETE FROM pair_codes WHERE code = ?", (code,))
+            token = secrets.token_urlsafe(32)
+            self.conn.execute("INSERT INTO tokens (token_hash, user_id, created) VALUES (?, ?, ?)",
+                              (hash_token(token), row["user_id"], now_ms()))
+            user = self.conn.execute("SELECT id, name FROM users WHERE id = ?", (row["user_id"],)).fetchone()
+        return {"id": user["id"], "name": user["name"]}, token
+
+    # ---- the library ---------------------------------------------------------------
+
+    def library_version(self, user_id):
+        row = self.conn.execute("SELECT version FROM library_versions WHERE user_id = ?", (user_id,)).fetchone()
+        return row["version"] if row else 0
+
+    def _bump_library(self, user_id):
+        self.conn.execute("INSERT INTO library_versions (user_id, version) VALUES (?, 1) "
+                          "ON CONFLICT(user_id) DO UPDATE SET version = version + 1", (user_id,))
+        return self.library_version(user_id)
+
+    def library(self, user_id):
+        def kind(k, limit):
+            # "at": when it was liked / last played (ms) — the apps put other devices' plays in their history
+            return [dict(json.loads(r["track"]), at=r["added_at"]) for r in self.conn.execute(
+                "SELECT track, added_at FROM library WHERE user_id = ? AND kind = ? ORDER BY added_at DESC LIMIT ?",
+                (user_id, k, limit))]
+        return {"version": self.library_version(user_id), "liked": kind("liked", MAX_LIKED),
+                "history": kind("history", MAX_HISTORY)}
+
+    def set_liked(self, user_id, track, liked):
+        with self._tx():
+            if liked:
+                count = self.conn.execute("SELECT COUNT(*) FROM library WHERE user_id = ? AND kind = 'liked'",
+                                          (user_id,)).fetchone()[0]
+                if count >= MAX_LIKED:
+                    raise LimitError("too many liked tracks")
+                self.conn.execute("INSERT OR IGNORE INTO library (user_id, kind, track_id, track, added_at) "
+                                  "VALUES (?, 'liked', ?, ?, ?)", (user_id, track["id"], json.dumps(track), now_ms()))
+            else:
+                self.conn.execute("DELETE FROM library WHERE user_id = ? AND kind = 'liked' AND track_id = ?",
+                                  (user_id, track if isinstance(track, str) else track["id"]))
+            return self._bump_library(user_id)
+
+    def add_history(self, user_id, track):
+        with self._tx():
+            self.conn.execute("INSERT INTO library (user_id, kind, track_id, track, added_at) VALUES (?, 'history', ?, ?, ?) "
+                              "ON CONFLICT(user_id, kind, track_id) DO UPDATE SET added_at = excluded.added_at, "
+                              "track = excluded.track", (user_id, track["id"], json.dumps(track), now_ms()))
+            self.conn.execute("DELETE FROM library WHERE user_id = ? AND kind = 'history' AND track_id NOT IN "
+                              "(SELECT track_id FROM library WHERE user_id = ? AND kind = 'history' "
+                              "ORDER BY added_at DESC LIMIT ?)", (user_id, user_id, MAX_HISTORY))
+            return self._bump_library(user_id)
+
+    def clear_history(self, user_id):
+        with self._tx():
+            self.conn.execute("DELETE FROM library WHERE user_id = ? AND kind = 'history'", (user_id,))
+            return self._bump_library(user_id)
 
     def rename_user(self, user_id, name):
         self.conn.execute("UPDATE users SET name = ? WHERE id = ?", (name, user_id))
