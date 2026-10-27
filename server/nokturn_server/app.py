@@ -328,7 +328,8 @@ async def clear_history(request):
 
 
 def clean_organizer(body):
-    """{"folders": [{"id", "name"}], "assign": {playlist key: folder id}, "hidden": [playlist key], "updated": ms}
+    """{"folders": [{"id", "name"}], "assign": {playlist key: folder id}, "hidden": [playlist key],
+    "order": [playlist key] (the user's order, dragged into place), "updated": ms}
     — playlist keys as the apps make them ("yt:<id>", "sp:<id>", "shared:<id>", "user:<id>", "liked"…)."""
     def key(value):
         return value.strip()[:160] if isinstance(value, str) and value.strip() else None
@@ -349,9 +350,13 @@ def clean_organizer(body):
     for k in (body.get("hidden") if isinstance(body.get("hidden"), list) else [])[:3000]:
         if key(k) and key(k) not in hidden:
             hidden.append(key(k))
+    order = []
+    for k in (body.get("order") if isinstance(body.get("order"), list) else [])[:3000]:
+        if key(k) and key(k) not in order:
+            order.append(key(k))
     updated = body.get("updated")
     updated = int(updated) if isinstance(updated, (int, float)) and updated > 0 else int(time.time() * 1000)
-    return {"folders": folders, "assign": assign, "hidden": hidden, "updated": updated}
+    return {"folders": folders, "assign": assign, "hidden": hidden, "order": order, "updated": updated}
 
 
 @require_user

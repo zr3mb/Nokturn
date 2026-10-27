@@ -325,12 +325,13 @@ class ServerTest(AioHTTPTestCase):
         lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
         self.assertIsNone(lib["organizer"])
         body = {"folders": [{"id": "f1", "name": "Rap"}, {"id": "f1", "name": "dup"}, {"id": "", "name": "x"}],
-                "assign": {"yt:PL1": "f1", "sp:2": "nope"}, "hidden": ["shared:abc", "shared:abc"], "updated": 1234}
+                "assign": {"yt:PL1": "f1", "sp:2": "nope"}, "hidden": ["shared:abc", "shared:abc"],
+                "order": ["sp:2", "yt:PL1", "sp:2"], "updated": 1234}
         r = await self.client.put("/api/v1/library/organizer", json=body, headers=self.auth(a))
         self.assertEqual((await r.json())["version"], 1)
         lib = await (await self.client.get("/api/v1/library", headers=self.auth(a))).json()
         self.assertEqual(lib["organizer"], {"folders": [{"id": "f1", "name": "Rap"}], "assign": {"yt:PL1": "f1"},
-                                            "hidden": ["shared:abc"], "updated": 1234})
+                                            "hidden": ["shared:abc"], "order": ["sp:2", "yt:PL1"], "updated": 1234})
 
     async def test_library_and_pairing(self):
         a, _ = await self.register("Ala")
