@@ -210,7 +210,7 @@ Item {
     }
     // The scrolled content of the current page (PageFlick)
     function findFlick(item) {
-        if (item.visible && item.contentY !== undefined && item.contentHeight > item.height + 10 && item.width > 500)
+        if (item.visible && item.contentY !== undefined && item.contentHeight > item.height + 10 && item.width > (Nav.mobile ? 300 : 500))
             return item
         for (let i = 0; i < item.children.length; ++i) {
             const found = root.findFlick(item.children[i])
