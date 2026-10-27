@@ -2,6 +2,7 @@
 tracks and playlists. Listening rooms live in memory."""
 
 import hashlib
+import hmac
 import json
 import secrets
 import sqlite3
@@ -30,7 +31,8 @@ CREATE TABLE IF NOT EXISTS playlists (
     created     INTEGER NOT NULL,
     updated     INTEGER NOT NULL,
     version     INTEGER NOT NULL DEFAULT 1,
-    origin      TEXT NOT NULL DEFAULT ''
+    origin      TEXT NOT NULL DEFAULT '',
+    password    TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS playlist_members (
     playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
@@ -108,8 +110,11 @@ class Database:
         self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
         # Databases made before playlists had an origin (a copy of a YouTube Music playlist: "ytmusic:<id>").
-        if "origin" not in {r["name"] for r in self.conn.execute("PRAGMA table_info(playlists)")}:
+        columns = {r["name"] for r in self.conn.execute("PRAGMA table_info(playlists)")}
+        if "origin" not in columns:
             self.conn.execute("ALTER TABLE playlists ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
+        if "password" not in columns:   # and before they could have a password
+            self.conn.execute("ALTER TABLE playlists ADD COLUMN password TEXT NOT NULL DEFAULT ''")
 
     def close(self):
         self.conn.close()
@@ -337,7 +342,7 @@ class Database:
             "owner": {"id": p["owner_id"], "name": names.get(p["owner_id"], "")},
             "members": [{"id": m, "name": names.get(m, "")} for m in member_ids],
             "version": p["version"], "created": p["created"], "updated": p["updated"], "count": count,
-            "origin": p["origin"],
+            "origin": p["origin"], "protected": bool(p["password"]),
         }
         if with_tracks:
             out["tracks"] = tracks
@@ -393,6 +398,28 @@ class Database:
             if added:
                 self._touch(playlist_id)
         return added
+
+    def set_password(self, playlist_id, password):
+        """A password the others enter to join (kept as a salted scrypt hash); empty removes it."""
+        stored = ""
+        if password:
+            salt = secrets.token_bytes(16)
+            digest = hashlib.scrypt(password.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+            stored = f"scrypt${salt.hex()}${digest.hex()}"
+        with self._tx():
+            self.conn.execute("UPDATE playlists SET password = ? WHERE id = ?", (stored, playlist_id))
+            self._touch(playlist_id)
+
+    def check_password(self, playlist_id, password):
+        row = self.conn.execute("SELECT password FROM playlists WHERE id = ?", (playlist_id,)).fetchone()
+        if not row or not row["password"]:
+            return True
+        try:
+            _kind, salt, digest = row["password"].split("$")
+            given = hashlib.scrypt((password or "").encode(), salt=bytes.fromhex(salt), n=2 ** 14, r=8, p=1, dklen=32)
+        except ValueError:
+            return False
+        return hmac.compare_digest(given.hex(), digest)
 
     def replace_tracks(self, playlist_id, user_id, tracks):
         """The whole list at once (a copy of a YouTube Music playlist following its source)."""
