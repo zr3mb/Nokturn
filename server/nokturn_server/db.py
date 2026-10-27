@@ -70,6 +70,11 @@ CREATE TABLE IF NOT EXISTS library (
     PRIMARY KEY (user_id, kind, track_id)
 );
 CREATE INDEX IF NOT EXISTS library_user ON library(user_id, kind, added_at);
+CREATE TABLE IF NOT EXISTS library_settings (
+    user_id     TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    data        TEXT NOT NULL,
+    updated     INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS library_versions (
     user_id     TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     version     INTEGER NOT NULL
@@ -188,7 +193,19 @@ class Database:
                 "SELECT track, added_at FROM library WHERE user_id = ? AND kind = ? ORDER BY added_at DESC LIMIT ?",
                 (user_id, k, limit))]
         return {"version": self.library_version(user_id), "liked": kind("liked", MAX_LIKED),
-                "history": kind("history", MAX_HISTORY)}
+                "history": kind("history", MAX_HISTORY), "organizer": self.organizer(user_id)}
+
+    def organizer(self, user_id):
+        """How the apps lay the playlists out: folders, which playlist is in which, the hidden ones."""
+        row = self.conn.execute("SELECT data FROM library_settings WHERE user_id = ?", (user_id,)).fetchone()
+        return json.loads(row["data"]) if row else None
+
+    def set_organizer(self, user_id, data):
+        with self._tx():
+            self.conn.execute("INSERT INTO library_settings (user_id, data, updated) VALUES (?, ?, ?) "
+                              "ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated = excluded.updated",
+                              (user_id, json.dumps(data), now_ms()))
+            return self._bump_library(user_id)
 
     def set_liked(self, user_id, track, liked):
         if liked:

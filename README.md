@@ -386,11 +386,20 @@ features is used.
   device signed in to the account shows the same *Liked* and *Recently played*; a change reaches the others at
   once over the WebSocket. Plays from other devices show in *Recently played* but not in the statistics, which
   count only what was heard on this one. Likes waiting for a connection are kept in `library-sync-<server>.json`.
-- **YouTube Music playlists on the account:** a device signed in to YouTube Music keeps a copy of each of its
-  playlists on the account (a playlist with the origin `ytmusic:<id>`, replaced whenever the original changes and
-  deleted with it), so devices without the YouTube Music sign-in have them too. The app that made the copies shows
-  the originals and hides the copies. Likes keep YouTube Music's order on the account: each one goes up with its
-  place in time (`at`), and one out of place is moved.
+- **YouTube Music and Spotify playlists on the account:** a device signed in to YouTube Music or Spotify keeps a
+  copy of each of its playlists on the account — a playlist with the origin `ytmusic:<id>` / `spotify:<id>`
+  (`spotify:liked` for the liked tracks), replaced whenever the original changes and deleted with it — so devices
+  without those sign-ins have them too. Spotify tracks go as their YouTube Music matches, found in the background
+  one every 1.5 s; an unfinished copy goes up once it has a track and grows as they come. The app that made the
+  copies shows the originals and hides the copies. Likes keep YouTube Music's order on the account: each one goes
+  up with its place in time (`at`), and one out of place is moved.
+- **Playlist folders and hidden playlists:** the sidebar (and the home page, which is where the phone layout lists
+  them) groups the playlists: the built-in lists, the user's folders (the folder button next to *New playlist*;
+  a playlist's ⋯ menu → *Move to a folder…*), then one group per source — your playlists, shared, YouTube Music,
+  Spotify, SoundCloud. *Hide the playlist* in the same menu takes it out of the list; *Show hidden playlists* at
+  the end brings them back. The layout (`{ folders, assign, hidden, updated }`, keyed like the playlist covers:
+  `yt:<id>`, `sp:<id>`, `shared:<id>`, `user:<id>`…) is kept on the account, the newer one winning, so every
+  device — the browser version too — shows the same folders.
 - **More devices on one account:** *Link another device* shows an 8-character code (valid 10 minutes, single
   use); *I have a code* on the other device (the desktop app, the Android app or the browser version) switches it
   to that account, with its library, shared playlists and rooms. Its own likes are added to the account.
@@ -401,6 +410,7 @@ features is used.
   `NOKTURN_ONLINE_DEBUG=1` logs room states, what the player is told and what it reports.
   `--tour <dir> --tour-online "<room>;<playlist>;<share>"` walks through it against a server.
   `--tour <dir> --tour-library "<pair code>"` links a test profile with a code and checks the synced library.
+  `--tour <dir> --tour-folders "<pair code or ->"` makes a folder, hides a playlist and shows the hidden ones.
 
 ## Server (VPS)
 

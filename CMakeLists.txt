@@ -98,6 +98,7 @@ qt_add_qml_module(Nokturn
         qml/components/LyricsView.qml
         qml/components/MatchDialog.qml
         qml/components/PasswordDialog.qml
+        qml/components/PlaylistFolderDialog.qml
         qml/components/MenuEntry.qml
         qml/components/PlaylistDialog.qml
         qml/components/LogoMark.qml

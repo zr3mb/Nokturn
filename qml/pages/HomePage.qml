@@ -20,15 +20,10 @@ Item {
             { p: { name: qsTr("Night Jazz — live"), kind: "radio", icon: "live", colorA: "#b9a889", colorB: "#4a4232", seed: 0 }, index: -1 }
         ])
     }
-    // Whole playlists (your own, YouTube Music, Spotify), at the end of the page.
-    readonly property var fullPlaylists: {
-        const out = []
-        Library.playlists.forEach((p, i) => {
-            if (!["liked", "recent", "history", "youtube"].includes(p.kind))
-                out.push({ p: p, index: i })
-        })
-        return out
-    }
+    // Whole playlists at the end of the page, in their folders (Library.playlistGroups): { name, folder, items: [{ p, index }] }.
+    readonly property var playlistSections: Library.playlistGroups
+        .filter(g => g.key !== "builtin" && g.items.length > 0)
+        .map(g => ({ name: g.name, folder: !!g.folderId, items: g.items.map(i => ({ p: Library.playlists[i], index: i })) }))
 
     // Picked from YouTube Music radios of the tracks that say the most about the taste (Recommendations).
     readonly property var recommended: {
@@ -453,7 +448,7 @@ Item {
 
         Reveal {
             delay: 350
-            visible: page.fullPlaylists.length > 0
+            visible: page.playlistSections.length > 0 || Library.hiddenCount > 0
             ColumnLayout {
                 width: parent.width
                 spacing: 18
@@ -462,35 +457,64 @@ Item {
                     title: qsTr("Playlists")
                     subtitle: qsTr("Yours, from YouTube Music and Spotify")
                 }
-                Grid {
-                    id: playlistGrid
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 100
-                    columns: Math.max(3, Math.floor((width + columnSpacing) / 200))
-                    columnSpacing: 22
-                    rowSpacing: 18
-                    readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
+                Repeater {
+                    model: page.playlistSections
+                    ColumnLayout {
+                        id: section
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 12
+                        RowLayout {
+                            spacing: 8
+                            Icon { name: section.modelData.folder ? "folder" : "library"; size: 15; color: Theme.textFaint }
+                            Text {
+                                text: section.modelData.name + "  ·  " + section.modelData.items.length
+                                color: Theme.textDim
+                                font.pixelSize: 14
+                                font.weight: Font.DemiBold
+                            }
+                        }
+                        Grid {
+                            id: playlistGrid
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 100
+                            columns: Math.max(3, Math.floor((width + columnSpacing) / 200))
+                            columnSpacing: 22
+                            rowSpacing: 18
+                            readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
 
-                    Repeater {
-                        model: page.fullPlaylists
-                        AlbumCard {
-                            required property var modelData
-                            required property int index
-                            width: playlistGrid.cellW
-                            shadow: albumShadow
-                            title: modelData.p.name
-                            subtitle: modelData.p.count !== undefined && modelData.p.count >= 0
-                                      ? qsTr("%n tracks", "", modelData.p.count) : ""
-                            colorA: modelData.p.colorA
-                            colorB: modelData.p.colorB
-                            seed: modelData.p.seed
-                            cover: modelData.p.cover || ""
-                            mosaic: modelData.p.mosaic || []
-                            revealDelay: 380 + Math.min(index, 8) * 50
-                            onClicked: page.openPick(modelData.p, modelData.index)
-                            onPlayClicked: page.playPick(modelData.p, modelData.index)
+                            Repeater {
+                                model: section.modelData.items
+                                AlbumCard {
+                                    required property var modelData
+                                    required property int index
+                                    width: playlistGrid.cellW
+                                    shadow: albumShadow
+                                    opacity: modelData.p.hidden ? 0.55 : 1
+                                    title: modelData.p.name
+                                    subtitle: modelData.p.count !== undefined && modelData.p.count >= 0
+                                              ? qsTr("%n tracks", "", modelData.p.count) : ""
+                                    colorA: modelData.p.colorA
+                                    colorB: modelData.p.colorB
+                                    seed: modelData.p.seed
+                                    cover: modelData.p.cover || ""
+                                    mosaic: modelData.p.mosaic || []
+                                    revealDelay: 380 + Math.min(index, 8) * 50
+                                    onClicked: page.openPick(modelData.p, modelData.index)
+                                    onPlayClicked: page.playPick(modelData.p, modelData.index)
+                                }
+                            }
                         }
                     }
+                }
+                PillButton {
+                    visible: Library.hiddenCount > 0
+                    kind: "ghost"
+                    icon: Library.showHidden ? "close" : "add"
+                    text: Library.showHidden ? qsTr("Hide hidden playlists") : qsTr("Show hidden playlists (%1)").arg(Library.hiddenCount)
+                    fontSize: 13
+                    implicitHeight: 36
+                    onClicked: Library.showHidden = !Library.showHidden
                 }
             }
         }

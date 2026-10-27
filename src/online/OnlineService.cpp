@@ -159,6 +159,14 @@ OnlineService::OnlineService(QObject *parent)
     m_mirrorTimer.setInterval(4'000);
     connect(&m_mirrorTimer, &QTimer::timeout, this, &OnlineService::syncMirrors);
     connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &OnlineService::scheduleMirrors);
+    connect(SpotifyService::instance(), &SpotifyService::dataChanged, this, &OnlineService::scheduleMirrors);
+    // Spotify tracks are matched one by one, gently: each is one or two YouTube Music searches.
+    m_matchTimer.setSingleShot(true);
+    m_matchTimer.setInterval(1'500);
+    connect(&m_matchTimer, &QTimer::timeout, this, &OnlineService::matchNext);
+    m_orgTimer.setSingleShot(true);
+    m_orgTimer.setInterval(1'500);
+    connect(&m_orgTimer, &QTimer::timeout, this, &OnlineService::pushOrganizer);
 
     connect(&m_ws, &QWebSocket::connected, this, [this] {
         m_connected = true;
@@ -203,6 +211,11 @@ void OnlineService::attach(PlayerController *player)
 {
     m_player = player;
     connect(ListeningHistory::instance(), &ListeningHistory::playNoted, this, &OnlineService::notePlayed);
+    // (here, not in the constructor: the library makes this service while it's being made itself)
+    connect(Library::instance(), &Library::organizerChanged, this, [this] {
+        if (m_librarySync && registered())
+            m_orgTimer.start();
+    });
 }
 
 // ---- settings ---------------------------------------------------------------------
@@ -1061,9 +1074,9 @@ void OnlineService::applyPlaylist(const QJsonObject &o)
     const QString id = o.value("id").toString();
     if (id.isEmpty() || !o.contains("tracks"))
         return;
-    // Our own copy of a YouTube Music playlist: this app shows the original.
+    // Our own copy of a YouTube Music or Spotify playlist: this app shows the original.
     const QString origin = o.value("origin").toString();
-    if (origin.startsWith(QLatin1String("ytmusic:")) && o.value("owner").toObject().value("id").toString() == m_userId) {
+    if (!origin.isEmpty() && o.value("owner").toObject().value("id").toString() == m_userId) {
         m_mirrors.insert(origin, id);
         return;
     }
@@ -1628,7 +1641,28 @@ void OnlineService::applyLibrary(const QJsonObject &library)
 
     if (!m_libOps.isEmpty())
         flushLibraryOps({});
+
+    // The playlists' folders and the hidden ones: the newer of the two layouts wins.
+    const QJsonObject serverOrg = library.value("organizer").toObject();
+    const double serverUpdated = serverOrg.value("updated").toDouble();
+    const double localUpdated = Library::instance()->organizer().value("updated").toDouble();
+    if (serverUpdated > localUpdated)
+        Library::instance()->applyOrganizer(serverOrg);
+    else if (localUpdated > serverUpdated)
+        m_orgTimer.start();
+
     scheduleMirrors();
+}
+
+void OnlineService::pushOrganizer()
+{
+    if (!m_librarySync || !registered())
+        return;
+    request("PUT", QStringLiteral("/library/organizer"), Library::instance()->organizer(),
+            [this](const QJsonObject &reply, const QString &error) {
+                if (error.isEmpty())
+                    libraryVersion(reply);
+            });
 }
 
 void OnlineService::notePlayed(const Track &t)
@@ -1647,54 +1681,111 @@ void OnlineService::notePlayed(const Track &t)
 
 void OnlineService::scheduleMirrors()
 {
-    if (m_librarySync && registered() && YouTubeService::instance()->connected())
+    if (m_librarySync && registered()
+        && (YouTubeService::instance()->connected() || SpotifyService::instance()->connected()))
         m_mirrorTimer.start();
 }
 
 void OnlineService::syncMirrors()
 {
     YouTubeService *yt = YouTubeService::instance();
-    if (!m_librarySync || !registered() || !yt->connected() || m_mirrorBusy)
+    SpotifyService *sp = SpotifyService::instance();
+    if (!m_librarySync || !registered() || (!yt->connected() && !sp->connected()) || m_mirrorBusy)
         return;
     if (!m_mirrorsListed) {   // which copies exist first, so none is made twice
         refreshPlaylists();
         return;
     }
-    const TrackModel *model = Library::instance()->tracks();
-    const QVariantList playlists = yt->playlists();
-    QSet<QString> current;
-    for (const QVariant &v : playlists) {
-        const QVariantMap p = v.toMap();
-        const QString id = p.value("id").toString();
-        if (id.isEmpty())
-            continue;
-        const QString origin = QStringLiteral("ytmusic:") + id;
-        current.insert(origin);
-        yt->ensurePlaylist(id);   // fresh once per session (it calls back through dataChanged)
-        if (yt->playlistLoading(id))
-            continue;
+    struct Source
+    {
+        QString origin;
+        QString name;
         QList<Track> tracks;
-        QStringList ids;
-        for (const QString &trackId : yt->playlistTrackIds(id)) {
-            const int row = model->rowOf(trackId);
-            if (row < 0 || model->at(row).source != QLatin1String("youtube") || model->at(row).path.isEmpty())
+        bool complete = true;   // every track's YouTube Music version is known
+    };
+    QList<Source> sources;
+    QSet<QString> listed;       // sources whose list is in hand: a copy missing from it goes
+    const TrackModel *model = Library::instance()->tracks();
+
+    if (yt->connected()) {
+        const QVariantList playlists = yt->playlists();
+        if (!playlists.isEmpty())
+            listed << QStringLiteral("ytmusic");
+        for (const QVariant &v : playlists) {
+            const QVariantMap p = v.toMap();
+            const QString id = p.value("id").toString();
+            if (id.isEmpty())
                 continue;
-            tracks << model->at(row);
-            ids << trackId;
+            yt->ensurePlaylist(id);   // fresh once per session (it calls back through dataChanged)
+            Source s { QStringLiteral("ytmusic:") + id, p.value("title").toString(), {}, !yt->playlistLoading(id) };
+            for (const QString &trackId : yt->playlistTrackIds(id)) {
+                const int row = model->rowOf(trackId);
+                if (row >= 0 && model->at(row).source == QLatin1String("youtube") && !model->at(row).path.isEmpty())
+                    s.tracks << model->at(row);
+            }
+            if (s.name.isEmpty())
+                s.name = QStringLiteral("YouTube Music");
+            sources << s;
         }
-        const QString name = p.value("title").toString();
-        const QString signature = QString::fromLatin1(QCryptographicHash::hash((name + QLatin1Char('\n') + ids.join(QLatin1Char(','))).toUtf8(),
-                                                                              QCryptographicHash::Sha1).toHex());
-        if (m_mirrors.contains(origin) && m_mirrorSigs.value(origin) == signature)
+    }
+    if (sp->connected()) {
+        // Spotify tracks travel as their YouTube Music versions; unknown ones are queued for matching.
+        auto spotify = [&](const QString &origin, const QString &name, const QStringList &ids) {
+            Source s { origin, name, {}, true };
+            for (const QString &id : ids) {
+                if (!sp->matchKnown(id)) {
+                    s.complete = false;
+                    if (!m_matchQueued.contains(id)) {
+                        m_matchQueued.insert(id);
+                        m_matchQueue << id;
+                    }
+                    continue;
+                }
+                const QString videoId = sp->matchedVideoId(id);
+                if (videoId.isEmpty())
+                    continue;   // no YouTube Music version
+                Track t = sp->trackFor(id);
+                t.id = QStringLiteral("yt:") + videoId;
+                t.path = videoId;
+                t.source = QStringLiteral("youtube");
+                s.tracks << t;
+            }
+            sources << s;
+        };
+        const QVariantList playlists = sp->playlists();
+        if (!playlists.isEmpty() || !sp->likedIds().isEmpty())
+            listed << QStringLiteral("spotify");
+        if (!sp->likedIds().isEmpty())
+            spotify(QStringLiteral("spotify:liked"), tr("Liked on Spotify"), sp->likedIds());
+        for (const QVariant &v : playlists) {
+            const QVariantMap p = v.toMap();
+            spotify(QStringLiteral("spotify:") + p.value("id").toString(), p.value("name").toString(),
+                    sp->playlistTrackIds(p.value("id").toString()));
+        }
+        if (!m_matchQueue.isEmpty() && !m_matchTimer.isActive())
+            m_matchTimer.start();
+    }
+
+    QSet<QString> current;
+    for (const Source &s : std::as_const(sources)) {
+        current.insert(s.origin);
+        // Unfinished: the first copy goes up with what's there (once there's something), later ones wait
+        // until it's complete.
+        if (!s.complete && (m_mirrors.contains(s.origin) || s.tracks.isEmpty()))
             continue;
-        pushMirror(origin, name.isEmpty() ? QStringLiteral("YouTube Music") : name, tracks, signature);
+        QStringList ids;
+        for (const Track &t : s.tracks)
+            ids << t.id;
+        const QString signature = QString::fromLatin1(QCryptographicHash::hash((s.name + QLatin1Char('\n') + ids.join(QLatin1Char(','))).toUtf8(),
+                                                                              QCryptographicHash::Sha1).toHex());
+        if (m_mirrors.contains(s.origin) && m_mirrorSigs.value(s.origin) == signature)
+            continue;
+        pushMirror(s.origin, s.name, s.tracks, signature);
         return;   // one at a time; the next one when this is done
     }
-    // A playlist gone from YouTube Music takes its copy with it (only with the list in hand).
-    if (playlists.isEmpty())
-        return;
+    // A playlist gone from its source takes its copy with it (only with the source's list in hand).
     for (auto it = m_mirrors.cbegin(); it != m_mirrors.cend(); ++it) {
-        if (current.contains(it.key()))
+        if (current.contains(it.key()) || !listed.contains(it.key().section(QLatin1Char(':'), 0, 0)))
             continue;
         const QString origin = it.key();
         m_mirrorBusy = true;
@@ -1770,6 +1861,26 @@ void OnlineService::pushMirror(const QString &origin, const QString &name, const
                 }
                 (*append)(existing);
             });
+}
+
+void OnlineService::matchNext()
+{
+    SpotifyService *sp = SpotifyService::instance();
+    while (!m_matchQueue.isEmpty() && sp->matchKnown(m_matchQueue.first()))
+        m_matchQueued.remove(m_matchQueue.takeFirst());
+    if (m_matchQueue.isEmpty() || !sp->connected()) {
+        scheduleMirrors();
+        return;
+    }
+    const QString id = m_matchQueue.takeFirst();
+    sp->match(id, [this, id](const QString &) {
+        m_matchQueued.remove(id);
+        // the copies grow every now and then, not with every track
+        if (m_matchQueue.isEmpty() || m_matchQueue.size() % 25 == 0)
+            scheduleMirrors();
+        if (!m_matchQueue.isEmpty())
+            m_matchTimer.start();
+    });
 }
 
 // ---- devices: one account on several -------------------------------------------------

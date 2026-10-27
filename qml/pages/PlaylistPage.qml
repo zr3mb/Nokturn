@@ -426,6 +426,29 @@ Item {
             spacing: 2
 
             MenuEntry {
+                visible: page.info.playlistIndex !== undefined && page.info.playlistIndex >= 0
+                Layout.fillWidth: true
+                icon: "folder"
+                text: qsTr("Move to a folder…")
+                onTriggered: {
+                    playlistMenu.close()
+                    Nav.moveToFolder(page.info.playlistIndex)
+                }
+            }
+            MenuEntry {
+                readonly property bool isHidden: page.info.playlistIndex >= 0 && (Library.playlists[page.info.playlistIndex] || {}).hidden === true
+                visible: page.info.playlistIndex !== undefined && page.info.playlistIndex >= 0
+                Layout.fillWidth: true
+                icon: isHidden ? "add" : "close"
+                text: isHidden ? qsTr("Show the playlist again") : qsTr("Hide the playlist")
+                onTriggered: {
+                    playlistMenu.close()
+                    Library.setPlaylistHidden(page.info.playlistIndex, !isHidden)
+                    Nav.toast(isHidden ? qsTr("The playlist is back in the list")
+                                       : qsTr("Hidden — “Show hidden playlists” at the end of the list brings it back"), "check")
+                }
+            }
+            MenuEntry {
                 visible: page.info.kind === "shared"
                 Layout.fillWidth: true
                 icon: "link"
