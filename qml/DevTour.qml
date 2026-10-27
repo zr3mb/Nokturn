@@ -469,7 +469,7 @@ Item {
             { name: "F4-hide", run: () => { Library.setPlaylistHidden(find("recent"), true); console.log("tour: groups", groups(), "hidden", Library.hiddenCount) } },
             { name: "F6-shown", run: () => { Library.showHidden = true; console.log("tour: groups", groups()) } },
             { name: "F6b-wait", run: () => {} },
-            { name: "F7-home", run: () => root.scrollPage(1400) },
+            { name: "F7-home", run: () => { const f = root.findFlick(root.target); root.scrollPage(f ? Math.round(f.contentHeight * 0.45) : 0) } },
             { name: "F7b-wait", run: () => {} },
             { name: "F8-account", run: () => console.log("tour: organizer", JSON.stringify(Library.playlistFolders)) },
             { name: "F9-pick", run: () => Nav.moveToFolder(find("history")) }
