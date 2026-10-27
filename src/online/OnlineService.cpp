@@ -5,6 +5,7 @@
 #include "ListeningHistory.h"
 #include "LibraryScanner.h"
 #include "PlayerController.h"
+#include "soundcloud/SoundCloudService.h"
 #include "spotify/SpotifyService.h"
 #include "youtube/YouTubeService.h"
 #include "youtube/YtCookies.h"
@@ -160,6 +161,7 @@ OnlineService::OnlineService(QObject *parent)
     connect(&m_mirrorTimer, &QTimer::timeout, this, &OnlineService::syncMirrors);
     connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &OnlineService::scheduleMirrors);
     connect(SpotifyService::instance(), &SpotifyService::dataChanged, this, &OnlineService::scheduleMirrors);
+    connect(SoundCloudService::instance(), &SoundCloudService::dataChanged, this, &OnlineService::scheduleMirrors);
     // Spotify tracks are matched one by one, gently: each is one or two YouTube Music searches.
     m_matchTimer.setSingleShot(true);
     m_matchTimer.setInterval(1'500);
@@ -1650,7 +1652,8 @@ void OnlineService::notePlayed(const Track &t)
 void OnlineService::scheduleMirrors()
 {
     if (m_librarySync && registered()
-        && (YouTubeService::instance()->connected() || SpotifyService::instance()->connected()))
+        && (YouTubeService::instance()->connected() || SpotifyService::instance()->connected()
+            || SoundCloudService::instance()->connected()))
         m_mirrorTimer.start();
 }
 
@@ -1658,7 +1661,8 @@ void OnlineService::syncMirrors()
 {
     YouTubeService *yt = YouTubeService::instance();
     SpotifyService *sp = SpotifyService::instance();
-    if (!m_librarySync || !registered() || (!yt->connected() && !sp->connected()) || m_mirrorBusy)
+    SoundCloudService *sc = SoundCloudService::instance();
+    if (!m_librarySync || !registered() || (!yt->connected() && !sp->connected() && !sc->connected()) || m_mirrorBusy)
         return;
     if (!m_mirrorsListed) {   // which copies exist first, so none is made twice
         refreshPlaylists();
@@ -1732,6 +1736,32 @@ void OnlineService::syncMirrors()
         }
         if (!m_matchQueue.isEmpty() && !m_matchTimer.isActive())
             m_matchTimer.start();
+    }
+
+    if (sc->connected()) {
+        // SoundCloud tracks travel as they are: every app plays them (the browser version through the server).
+        auto soundcloud = [&](const QString &origin, const QString &name, const QStringList &ids, bool complete) {
+            Source s { origin, name, {}, complete };
+            for (const QString &id : ids) {
+                const int row = model->rowOf(id);
+                if (row >= 0 && model->at(row).source == QLatin1String("soundcloud"))
+                    s.tracks << model->at(row);
+            }
+            sources << s;
+        };
+        const QVariantList playlists = sc->playlists();
+        if (!playlists.isEmpty() || !sc->likedIds().isEmpty())
+            listed << QStringLiteral("soundcloud");
+        if (!sc->likedIds().isEmpty())
+            soundcloud(QStringLiteral("soundcloud:liked"), tr("Liked on SoundCloud"), sc->likedIds(), true);
+        for (const QVariant &v : playlists) {
+            const QString id = v.toMap().value("id").toString();
+            if (id.isEmpty())
+                continue;
+            sc->ensurePlaylist(id);
+            soundcloud(QStringLiteral("soundcloud:") + id, v.toMap().value("title").toString(), sc->playlistTrackIds(id),
+                       !sc->playlistLoading(id));
+        }
     }
 
     QSet<QString> current;
