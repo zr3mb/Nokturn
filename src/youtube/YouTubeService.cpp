@@ -759,6 +759,33 @@ void YouTubeService::setTrackLiked(const QString &trackId, bool liked)
     saveCache();
 }
 
+void YouTubeService::adoptLiked(const QList<Track> &liked, const QStringList &unliked)
+{
+    storeTracks(liked, false);
+    bool changed = false;
+    for (const Track &t : liked) {
+        if (m_likedSet.contains(t.id))
+            continue;
+        m_liked.prepend(t.id);
+        m_likedSet.insert(t.id);
+        m_tracks[t.id].transient = false;
+        m_api.setLiked(t.path, true);
+        changed = true;
+    }
+    for (const QString &id : unliked) {
+        if (!m_likedSet.remove(id))
+            continue;
+        m_liked.removeAll(id);
+        if (const auto it = m_tracks.constFind(id); it != m_tracks.cend())
+            m_api.setLiked(it->path, false);
+        changed = true;
+    }
+    if (!changed)
+        return;
+    saveCache();
+    emit dataChanged();
+}
+
 void YouTubeService::setTrackColors(const QString &trackId, const QColor &a, const QColor &b)
 {
     auto it = m_tracks.find(trackId);

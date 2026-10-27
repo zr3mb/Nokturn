@@ -337,12 +337,21 @@ features is used.
   moves on by itself when a track is overdue. Transitions (crossfade, Mix) keep working inside a room. Shuffle and
   repeat are off there — the room's order applies. Someone who loses the connection keeps their place for 45 s;
   a room with nobody in it closes after 15 minutes.
+- **The same library on every device:** once there is an account, the YouTube Music likes (the heart) and the
+  tracks played go to it as well (*Settings → Online → Same library on every device*, on by default). Every
+  device signed in to the account shows the same *Liked* and *Recently played*; a change reaches the others at
+  once over the WebSocket. Plays from other devices show in *Recently played* but not in the statistics, which
+  count only what was heard on this one. Likes waiting for a connection are kept in `library-sync-<server>.json`.
+- **More devices on one account:** *Link another device* shows an 8-character code (valid 10 minutes, single
+  use); *I have a code* on the other device (the desktop app, the Android app or the browser version) switches it
+  to that account, with its library, shared playlists and rooms. Its own likes are added to the account.
 - **Links open Nokturn:** `nokturn://` is registered for the current user on startup (Windows: `HKCU\Software\Classes\nokturn`,
   removed by the uninstaller; Linux AppImage: a hidden `nokturn-links.desktop` + `xdg-mime`; installed from
   source: `MimeType` in `nokturn.desktop`). A link opened while Nokturn runs goes to the running window.
 - `NOKTURN_SERVER=<url>` points at another server (testing), *Settings → Online → Server* permanently.
   `NOKTURN_ONLINE_DEBUG=1` logs room states, what the player is told and what it reports.
   `--tour <dir> --tour-online "<room>;<playlist>;<share>"` walks through it against a server.
+  `--tour <dir> --tour-library "<pair code>"` links a test profile with a code and checks the synced library.
 
 ## Server (VPS)
 

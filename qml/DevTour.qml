@@ -501,6 +501,27 @@ Item {
             { name: "O11-dialog", run: () => Nav.createPlaylist([]) }
         ]
     }
+    // The account's library on this device (--tour-library "<pair code>", with NOKTURN_SERVER): links with a
+    // code from another device, shows what came over, then unlikes one track so the other device sees it.
+    readonly property bool withLibrarySync: Qt.application.arguments.indexOf("--tour-library") >= 0
+    readonly property var librarySyncSteps: {
+        if (!withLibrarySync)
+            return []
+        const code = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-library") + 1]
+        const liked = () => Library.likedTracks().map(r => Library.tracks.get(r).title)
+        return [
+            { name: "S1-link", run: () => { Nav.finishOnboarding(); Player.muted = true
+                                           console.log("tour: liked before", JSON.stringify(liked())); Online.redeemPairCode(code) } },
+            { name: "S2-settings", run: () => { console.log("tour: registered", Online.registered, "sync", Online.librarySync); Nav.navigate("settings") } },
+            { name: "S2b-code", run: () => { Online.createPairCode(); root.scrollPage(2300) } },
+            { name: "S3-liked", run: () => { console.log("tour: liked after", JSON.stringify(liked())); Nav.navigate("library") } },
+            { name: "S4-home", run: () => Nav.navigate("home") },
+            { name: "S5-unlike", run: () => { const r = Library.likedTracks()
+                                              if (r.length) { Player.playFrom(r, r[0], "library"); Player.pause() } } },
+            { name: "S6-unliked", run: () => { Player.toggleLiked(); console.log("tour: unliked", Player.title) } },
+            { name: "S7-after", run: () => console.log("tour: liked at the end", JSON.stringify(liked())) }
+        ]
+    }
     // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).
     readonly property bool withScSeekLiked: Qt.application.arguments.indexOf("--tour-sc-seek-liked") >= 0
     readonly property var scSeekLikedSteps: {
@@ -712,7 +733,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

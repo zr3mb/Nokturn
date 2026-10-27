@@ -17,6 +17,7 @@
 #include <QSet>
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace {
 
@@ -68,12 +69,42 @@ void ListeningHistory::notePlay(const Track &t, double secondsSoFar)
         keepStreamingTracks();
     ++m_revision;
     emit changed();
+    emit playNoted(t);
+    m_saveTimer.start();
+}
+
+void ListeningHistory::addRemote(const QList<std::pair<Track, qint64>> &plays)
+{
+    constexpr qint64 kSame = 3 * 60 * 1000;   // our own play, back from the server, is a few seconds apart
+    bool added = false;
+    for (const auto &[t, at] : plays) {
+        if (t.id.isEmpty() || at <= 0)
+            continue;
+        const bool known = std::any_of(m_events.cbegin(), m_events.cend(), [&](const Event &e) {
+            return e.id == t.id && std::abs(e.at - at) < kSame;
+        });
+        if (known)
+            continue;
+        const auto pos = std::upper_bound(m_events.begin(), m_events.end(), at,
+                                          [](qint64 v, const Event &e) { return v < e.at; });
+        m_events.insert(pos, { t.id, at, -1 });
+        if (!m_tracks.contains(t.id))
+            m_tracks.insert(t.id, t);
+        added = true;
+    }
+    if (!added)
+        return;
+    if (m_events.size() > kMaxEvents)
+        m_events.remove(0, m_events.size() - kMaxEvents);
+    keepStreamingTracks();
+    ++m_revision;
+    emit changed();
     m_saveTimer.start();
 }
 
 void ListeningHistory::addListening(const QString &id, double seconds)
 {
-    if (m_events.isEmpty() || m_events.last().id != id)
+    if (m_events.isEmpty() || m_events.last().id != id || m_events.last().seconds < 0)
         return;
     m_events.last().seconds += seconds;
     if (!m_saveTimer.isActive())
@@ -126,7 +157,7 @@ QVariantMap ListeningHistory::stats(const QString &period) const
     qint64 first = 0;
     Library *library = Library::instance();
     for (const Event &e : m_events) {
-        if (e.at < from)
+        if (e.at < from || e.seconds < 0)
             continue;
         const auto meta = m_tracks.constFind(e.id);
         if (meta == m_tracks.cend())
