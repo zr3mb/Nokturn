@@ -11,7 +11,8 @@ from collections import defaultdict, deque
 from aiohttp import WSMsgType, web
 
 from . import pages
-from .db import Database, LimitError
+from .db import (Database, LimitError, LoginTaken, check_secret, clean_login, clean_recovery_key, good_password,
+                 hash_secret, new_recovery_key)
 from .rooms import RoomError, Rooms, server_time
 from .tracks import TrackError, clean_track
 
@@ -35,6 +36,7 @@ def _request_key(name):
 CONFIG, DB, ROOMS, HUB, LIMITS, HOUSEKEEPING = (_app_key(n) for n in
                                                  ("config", "db", "rooms", "hub", "limits", "housekeeping"))
 USER = _request_key("user")
+DEVICE = _request_key("device")
 
 
 class Config:
@@ -108,17 +110,25 @@ def bearer(request):
     return header[7:].strip() if header.startswith("Bearer ") else ""
 
 
-def current_user(request):
+def current_session(request):
+    """(the account, this device's id) for the request's token; the apps name the device in X-Nokturn-Device."""
     token = bearer(request)
-    return request.app[DB].user_by_token(token) if token else None
+    if not token:
+        return None, None
+    return request.app[DB].session(token, request.headers.get("X-Nokturn-Device"))
+
+
+def current_user(request):
+    return current_session(request)[0]
 
 
 def require_user(handler):
     async def wrapped(request):
-        user = current_user(request)
+        user, device = current_session(request)
         if not user:
             return error(401, "unauthorized", "sign in first")
         request[USER] = user
+        request[DEVICE] = device
         return await handler(request)
     return wrapped
 
@@ -132,16 +142,16 @@ _tickets = {}
 @require_user
 async def ws_ticket(request):
     now = time.time()
-    for k in [k for k, v in _tickets.items() if v[1] < now]:
+    for k in [k for k, v in _tickets.items() if v[2] < now]:
         del _tickets[k]
     ticket = secrets.token_urlsafe(24)
-    _tickets[ticket] = (request[USER], now + 30)
+    _tickets[ticket] = (request[USER], request[DEVICE], now + 30)
     return web.json_response({"ticket": ticket})
 
 
-def ticket_user(request):
+def ticket_session(request):
     entry = _tickets.pop(request.query.get("ticket", ""), None)
-    return entry[0] if entry and entry[1] >= time.time() else None
+    return (entry[0], entry[1]) if entry and entry[2] >= time.time() else (None, None)
 
 
 def clean_tracks(raw, limit=MAX_TRACKS_PER_REQUEST):
@@ -160,9 +170,10 @@ def clean_tracks(raw, limit=MAX_TRACKS_PER_REQUEST):
 
 
 class Connection:
-    def __init__(self, ws, user):
+    def __init__(self, ws, user, device=None):
         self.ws = ws
-        self.user = user
+        self.user = {"id": user["id"], "name": user["name"]}   # what the rooms show of it
+        self.device = device
         self.room = None
         self.limiter = RateLimiter(40, 2.0)
 
@@ -203,6 +214,12 @@ class Hub:
         await self.to_users(members, message)
         if extra_users:
             await self.to_users(extra_users, {"type": "playlist.removed", "id": playlist_id})
+
+    async def sign_out(self, user_id, device_ids=None):
+        """Closes the sockets of signed-out devices (all of the account's with device_ids None)."""
+        closing = [c for c in list(self.by_user.get(user_id, ())) if device_ids is None or c.device in device_ids]
+        for c in closing:
+            await c.ws.close(code=4001, message=b"signed out")
 
     def room_connections(self, room):
         return [c for uid in room.members for c in self.by_user.get(uid, ()) if c.room is room]
@@ -380,11 +397,188 @@ async def redeem_pair_code(request):
     if not request.app[LIMITS]["pair"].allow(client_ip(request)):
         return error(429, "rate_limited", "too many attempts, try again later")
     body = await read_json(request)
-    result = request.app[DB].redeem_pair_code(body.get("code"))
+    result = request.app[DB].redeem_pair_code(body.get("code"), request.headers.get("X-Nokturn-Device"))
     if not result:
         return error(404, "bad_code", "the code is wrong or has expired")
     user, token = result
+    await _leave_device_account(request, user["id"])
     return web.json_response({"user": user, "token": token})
+
+
+# ---- REST: signing in with a login and a password ----------------------------------
+#
+# An account starts on one device with no login (the token is all there is); giving it a login and a password
+# makes it one to sign in to from any device. A device signing in with an account of its own that has no login
+# brings everything of it along, so nothing made there is lost.
+
+
+def _account_reply(user, **extra):
+    return web.json_response({"user": {"id": user["id"], "name": user["name"], "login": user["login"]}, **extra})
+
+
+async def _leave_device_account(request, target_id):
+    """The device that just signed in to target_id: an account of its own with no login joins that one; one
+    with a login (another account) only loses this device."""
+    user, device = current_session(request)
+    if not user or user["id"] == target_id:
+        return
+    db, hub = request.app[DB], request.app[HUB]
+    if user["login"]:
+        db.sign_out(user["id"], device)
+        await hub.sign_out(user["id"], {device})
+        return
+    for playlist_id in db.merge_users(user["id"], target_id):
+        await hub.playlist_changed(playlist_id)
+    await hub.sign_out(user["id"])
+    await hub.to_users([target_id], {"type": "library", "version": db.library_version(target_id)})
+
+
+def _login_limited(request, login):
+    limits = request.app[LIMITS]
+    return not (limits["login_ip"].allow(client_ip(request)) and limits["login_name"].allow(login))
+
+
+async def create_account(request):
+    """{login, password, name?}: with a token of an account that has no login, gives it this login; without
+    one, a new account. Answers with a recovery key, shown to the person once."""
+    body = await read_json(request)
+    login = clean_login(body.get("login"))
+    if not login:
+        return error(400, "bad_login", "a login has 3-32 letters, digits, dots, dashes or underscores")
+    if not good_password(body.get("password")):
+        return error(400, "bad_password", "a password has at least 8 characters")
+    user, _device = current_session(request)
+    if user and user["login"]:
+        return error(409, "has_login", "this account already has a login")
+    if not user and not request.app[LIMITS]["register"].allow(client_ip(request)):
+        return error(429, "rate_limited", "too many new accounts from this address, try later")
+    db = request.app[DB]
+    if db.account_by_login(login):
+        return error(409, "login_taken", "someone already has this login")
+    recovery = new_recovery_key()
+    password_hash = await asyncio.to_thread(hash_secret, body["password"])
+    recovery_hash = await asyncio.to_thread(hash_secret, clean_recovery_key(recovery))
+    try:
+        if user:
+            db.set_login(user["id"], login, password_hash, recovery_hash)
+            return _account_reply(dict(user, login=login), recovery=recovery)
+        name = clean_name(body.get("name")) or login
+        user, token = db.create_user(name, request.headers.get("X-Nokturn-Device"), login, password_hash, recovery_hash)
+    except LoginTaken:
+        return error(409, "login_taken", "someone already has this login")
+    return _account_reply(user, token=token, recovery=recovery)
+
+
+async def sign_in(request):
+    """{login, password}: a token for this device."""
+    body = await read_json(request)
+    login = clean_login(body.get("login")) or ""
+    if _login_limited(request, login):
+        return error(429, "rate_limited", "too many attempts, try again in a few minutes")
+    db = request.app[DB]
+    account = db.account_by_login(login) if login else None
+    ok = await asyncio.to_thread(check_secret, account["password"] if account else "", body.get("password"))
+    if not ok:
+        return error(401, "bad_login", "wrong login or password")
+    await _leave_device_account(request, account["id"])
+    token = db.sign_in(account["id"], request.headers.get("X-Nokturn-Device"))
+    return _account_reply(account, token=token)
+
+
+async def recover_account(request):
+    """{login, recovery, password}: a new password with the recovery key. The other devices are signed out
+    and the key is replaced by a new one."""
+    body = await read_json(request)
+    login = clean_login(body.get("login")) or ""
+    if _login_limited(request, login):
+        return error(429, "rate_limited", "too many attempts, try again in a few minutes")
+    if not good_password(body.get("password")):
+        return error(400, "bad_password", "a password has at least 8 characters")
+    db = request.app[DB]
+    account = db.account_by_login(login) if login else None
+    ok = await asyncio.to_thread(check_secret, account["recovery"] if account else "",
+                                 clean_recovery_key(body.get("recovery")))
+    if not ok:
+        return error(401, "bad_recovery", "wrong login or recovery key")
+    recovery = new_recovery_key()
+    password_hash = await asyncio.to_thread(hash_secret, body["password"])
+    recovery_hash = await asyncio.to_thread(hash_secret, clean_recovery_key(recovery))
+    await _leave_device_account(request, account["id"])
+    db.set_account_password(account["id"], password_hash, recovery_hash)
+    await request.app[HUB].sign_out(account["id"])
+    token = db.sign_in(account["id"], request.headers.get("X-Nokturn-Device"))
+    return _account_reply(account, token=token, recovery=recovery)
+
+
+async def _check_own_password(request, body):
+    """None when the body's "password" is the account's own one, else the error to answer with."""
+    user = request[USER]
+    if not user["login"]:
+        return error(409, "no_login", "this account has no login yet")
+    if _login_limited(request, user["login"]):
+        return error(429, "rate_limited", "too many attempts, try again in a few minutes")
+    account = request.app[DB].account(user["id"])
+    if not await asyncio.to_thread(check_secret, account["password"], body.get("password")):
+        return error(403, "wrong_password", "wrong password")
+    return None
+
+
+@require_user
+async def change_password(request):
+    """{password, new}: the other devices are signed out."""
+    body = await read_json(request)
+    if not good_password(body.get("new")):
+        return error(400, "bad_password", "a password has at least 8 characters")
+    refused = await _check_own_password(request, body)
+    if refused:
+        return refused
+    user, db = request[USER], request.app[DB]
+    others = {d["id"] for d in db.devices(user["id"]) if d["id"] != request[DEVICE]}
+    db.set_account_password(user["id"], await asyncio.to_thread(hash_secret, body["new"]), keep_device=request[DEVICE])
+    await request.app[HUB].sign_out(user["id"], others)
+    return web.json_response({"ok": True, "signedOut": len(others)})
+
+
+@require_user
+async def new_recovery(request):
+    """{password}: a new recovery key in place of the old one."""
+    body = await read_json(request)
+    refused = await _check_own_password(request, body)
+    if refused:
+        return refused
+    recovery = new_recovery_key()
+    request.app[DB].set_recovery(request[USER]["id"], await asyncio.to_thread(hash_secret, clean_recovery_key(recovery)))
+    return web.json_response({"recovery": recovery})
+
+
+@require_user
+async def list_devices(request):
+    devices = request.app[DB].devices(request[USER]["id"])
+    for d in devices:
+        d["current"] = d["id"] == request[DEVICE]
+    return web.json_response({"devices": devices})
+
+
+@require_user
+async def sign_out_device(request):
+    user, device_id = request[USER], request.match_info["device"]
+    if not user["login"] and device_id == request[DEVICE]:
+        return error(409, "no_login", "this account has no login: signing out would lose it")
+    if not request.app[DB].sign_out(user["id"], device_id):
+        return error(404, "not_found", "no such device")
+    await request.app[HUB].sign_out(user["id"], {device_id})
+    return web.json_response({"ok": True})
+
+
+@require_user
+async def sign_out(request):
+    """This device signs out (an account with no login can't: it would be gone)."""
+    user = request[USER]
+    if not user["login"]:
+        return error(409, "no_login", "this account has no login: signing out would lose it")
+    request.app[DB].sign_out(user["id"], request[DEVICE])
+    await request.app[HUB].sign_out(user["id"], {request[DEVICE]})
+    return web.json_response({"ok": True})
 
 
 @require_user
@@ -629,13 +823,15 @@ async def get_room(request):
 
 
 async def websocket(request):
-    user = current_user(request) or ticket_user(request)
+    user, device = current_session(request)
+    if not user:
+        user, device = ticket_session(request)
     if not user:
         return error(401, "unauthorized", "sign in first")
     ws = web.WebSocketResponse(heartbeat=25, max_msg_size=MAX_WS_MESSAGE)
     await ws.prepare(request)
     hub = request.app[HUB]
-    conn = Connection(ws, user)
+    conn = Connection(ws, user, device)
     hub.add(conn)
     await conn.send({"type": "hello", "user": user, "serverTime": server_time()})
     try:
@@ -877,6 +1073,8 @@ def create_app(config):
         "room": RateLimiter(30, 3600),
         "library": RateLimiter(3000, 3600),
         "pair": RateLimiter(20, 3600),
+        "login_ip": RateLimiter(30, 900),
+        "login_name": RateLimiter(10, 900),
         "password": RateLimiter(10, 900),
     }
     r = app.router
@@ -909,6 +1107,14 @@ def create_app(config):
     r.add_post(f"{API}/me/pair", create_pair_code)
     r.add_put(f"{API}/library/organizer", put_organizer)
     r.add_post(f"{API}/pair", redeem_pair_code)
+    r.add_post(f"{API}/account", create_account)
+    r.add_post(f"{API}/account/login", sign_in)
+    r.add_post(f"{API}/account/recover", recover_account)
+    r.add_post(f"{API}/account/password", change_password)
+    r.add_post(f"{API}/account/recovery", new_recovery)
+    r.add_post(f"{API}/account/logout", sign_out)
+    r.add_get(f"{API}/account/devices", list_devices)
+    r.add_delete(f"{API}/account/devices/{{device}}", sign_out_device)
     r.add_get("/", home)
     r.add_get("/t/{code}", track_page)
     r.add_get("/r/{code}", room_page)
