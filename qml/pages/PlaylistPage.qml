@@ -436,6 +436,16 @@ Item {
                 }
             }
             MenuEntry {
+                visible: page.info.kind === "shared" && Online.isPlaylistOwner(page.info.sharedId)
+                Layout.fillWidth: true
+                icon: "key"
+                text: Online.playlistInfo(page.info.sharedId).protected === true ? qsTr("Change or remove the password") : qsTr("Set a password")
+                onTriggered: {
+                    playlistMenu.close()
+                    Nav.editPlaylistPassword(page.info.sharedId)
+                }
+            }
+            MenuEntry {
                 visible: Online.inRoom && Online.room.canControl === true && page.rows.length > 0
                 Layout.fillWidth: true
                 icon: "group"

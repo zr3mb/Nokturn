@@ -436,6 +436,8 @@ async def get_playlist(request):
         # Not joined yet: what the invite is about, without the tracks.
         preview = db.playlist(p["id"], with_tracks=False)
         preview["member"] = False
+        if preview["protected"]:
+            preview.update(name="", description="", count=0, members=[])
         return web.json_response(playlist_json(request, preview))
     out = db.playlist(p["id"])
     out["member"] = True
@@ -446,6 +448,17 @@ async def get_playlist(request):
 async def join_playlist(request):
     p = _playlist_or_404(request)
     db = request.app[DB]
+    user_id = request[USER]["id"]
+    if p["password"] and not db.is_member(p["id"], user_id):
+        body = await read_json(request) if request.content_length else {}
+        password = body.get("password") if isinstance(body.get("password"), str) else ""
+        if not password:
+            return error(403, "password_required", "this playlist has a password")
+        limits = request.app[LIMITS]["password"]
+        if not (limits.allow(user_id) and limits.allow(client_ip(request))):
+            return error(429, "rate_limited", "too many tries, try again later")
+        if not db.check_password(p["id"], password):
+            return error(403, "bad_password", "wrong password")
     try:
         joined = db.join_playlist(p["id"], request[USER]["id"])
     except LimitError as e:
@@ -492,6 +505,11 @@ async def update_playlist(request):
         return error(400, "bad_request", "name is required")
     description = clean_name(body["description"], 500) if "description" in body else None
     db = request.app[DB]
+    if "password" in body:
+        password = body["password"] if isinstance(body["password"], str) else ""
+        if len(password) > 100:
+            return error(400, "bad_request", "the password is too long")
+        db.set_password(p["id"], password)
     db.update_playlist(p["id"], name, description)
     await request.app[HUB].playlist_changed(p["id"])
     return web.json_response(playlist_json(request, db.playlist(p["id"])))
@@ -757,7 +775,8 @@ async def playlist_page(request):
     p = db.playlist(playlist_id, with_tracks=False)
     if not p:
         return _html(pages.missing_page(lang, "playlist", url), 404)
-    return _html(pages.playlist_page(lang, p, db.preview_covers(playlist_id), url))
+    covers = [] if p["protected"] else db.preview_covers(playlist_id)
+    return _html(pages.playlist_page(lang, p, covers, url))
 
 
 async def home(request):
@@ -865,6 +884,7 @@ def create_app(config):
         "stream": RateLimiter(600, 3600),
         "library": RateLimiter(3000, 3600),
         "pair": RateLimiter(20, 3600),
+        "password": RateLimiter(10, 900),
     }
     r = app.router
     r.add_get(f"{API}/health", health)

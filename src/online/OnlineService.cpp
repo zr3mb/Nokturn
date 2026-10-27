@@ -1051,7 +1051,7 @@ QVariantMap OnlineService::playlistInfo(const QString &id) const
     for (const SharedPlaylist &p : m_playlists) {
         if (p.id == id)
             return { { "owner", p.ownerName }, { "members", p.memberNames }, { "url", p.url },
-                     { "isOwner", p.ownerId == m_userId } };
+                     { "isOwner", p.ownerId == m_userId }, { "protected", p.locked } };
     }
     return {};
 }
@@ -1075,6 +1075,7 @@ void OnlineService::applyPlaylist(const QJsonObject &o)
     p.ownerName = o.value("owner").toObject().value("name").toString();
     p.url = o.value("url").toString();
     p.version = o.value("version").toInt();
+    p.locked = o.value("protected").toBool();
     for (const QJsonValue &m : o.value("members").toArray())
         p.memberNames << m.toObject().value("name").toString();
     for (const QJsonValue &v : o.value("tracks").toArray()) {
@@ -1156,17 +1157,33 @@ void OnlineService::createPlaylist(const QString &name, const QString &descripti
     });
 }
 
-void OnlineService::joinPlaylist(const QString &id)
+void OnlineService::joinWithPassword(const QString &id, const QString &password)
+{
+    joinPlaylist(id, password);
+}
+
+void OnlineService::joinPlaylist(const QString &id, const QString &password)
 {
     if (findPlaylist(id)) {
         emit playlistOpened(id);
         return;
     }
-    ensureAccount([this, id](bool ok) {
+    ensureAccount([this, id, password](bool ok) {
         if (!ok)
             return;
-        request("POST", QStringLiteral("/playlists/") + id + QStringLiteral("/join"), {},
+        const QJsonObject body = password.isEmpty() ? QJsonObject() : QJsonObject { { "password", password } };
+        request("POST", QStringLiteral("/playlists/") + id + QStringLiteral("/join"), body,
                 [this, id](const QJsonObject &reply, const QString &error) {
+            const QString code = reply.value("error").toString();
+            if (code == QLatin1String("password_required") || code == QLatin1String("bad_password")) {
+                emit activateRequested();
+                emit passwordNeeded(id, code == QLatin1String("bad_password"));
+                return;
+            }
+            if (code == QLatin1String("rate_limited")) {
+                emit notice(tr("Too many wrong passwords — try again in a few minutes"), QStringLiteral("close"));
+                return;
+            }
             if (!error.isEmpty()) {
                 emit notice(tr("Couldn't join the playlist: %1").arg(error), QStringLiteral("close"));
                 return;
@@ -1177,6 +1194,20 @@ void OnlineService::joinPlaylist(const QString &id)
                         QStringLiteral("check"));
             emit playlistOpened(id);
         });
+    });
+}
+
+void OnlineService::setPlaylistPassword(const QString &id, const QString &password)
+{
+    request("PATCH", QStringLiteral("/playlists/") + id, { { "password", password } },
+            [this, password](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty()) {
+            emit notice(tr("Couldn't change the password: %1").arg(error), QStringLiteral("close"));
+            return;
+        }
+        applyPlaylist(reply);
+        emit notice(password.isEmpty() ? tr("Password removed — anyone with the link can join")
+                                       : tr("Password set — others need it to join"), QStringLiteral("check"));
     });
 }
 

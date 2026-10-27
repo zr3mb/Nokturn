@@ -574,6 +574,24 @@ Item {
         s.push({ name: "R17-library", run: () => Nav.navigate("library") })
         return s
     }
+    // Joining a shared playlist that has a password (--tour-password "<playlist id>;<password>", with
+    // NOKTURN_SERVER): the dialog, a wrong password, the right one.
+    readonly property bool withPassword: Qt.application.arguments.indexOf("--tour-password") >= 0
+    readonly property var passwordSteps: {
+        if (!withPassword)
+            return []
+        const [id, password] = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-password") + 1].split(";")
+        const shared = () => Library.playlists.filter(p => p.kind === "shared").map(p => p.name)
+        return [
+            { name: "P1-open", run: () => { Nav.finishOnboarding(); Player.muted = true
+                                           Online.openLink(Online.serverUrl + "/p/" + id) } },
+            { name: "P2-dialog", run: () => console.log("tour: shared before", JSON.stringify(shared())) },
+            { name: "P3-wrong", run: () => Online.joinWithPassword(id, "wrong-" + password) },
+            { name: "P4-wrong-dialog", run: () => console.log("tour: still", JSON.stringify(shared())) },
+            { name: "P5-right", run: () => Online.joinWithPassword(id, password) },
+            { name: "P6-joined", run: () => console.log("tour: shared after", JSON.stringify(shared()), JSON.stringify(Online.playlistInfo(id))) }
+        ]
+    }
     // Seeking in liked SoundCloud tracks, the way the progress bar does it (--tour-sc-seek-liked).
     readonly property bool withScSeekLiked: Qt.application.arguments.indexOf("--tour-sc-seek-liked") >= 0
     readonly property var scSeekLikedSteps: {
@@ -785,7 +803,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

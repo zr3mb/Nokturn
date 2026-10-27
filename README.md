@@ -361,7 +361,9 @@ features is used.
 - **Shared playlists:** *New playlist → Save to: Shared*. The invite link (`…/p/<id>`) is copied right away and
   can be copied again from the playlist's ⋯ menu. Everyone who opens it joins: the playlist shows up in their
   sidebar, and what anyone adds or removes reaches the others at once (WebSocket). The owner renames and deletes
-  it (for everyone); the others can leave. Kept in `shared-playlists.json` too, so they show up offline.
+  it (for everyone); the others can leave. The owner can set a **password** (playlist ⋯ menu): others then enter it
+  to join through the link, and the link's page shows nothing but that it has one. The password is kept as a
+  salted scrypt hash; those already in stay; wrong guesses are limited to 10 per 15 minutes. Kept in `shared-playlists.json` too, so they show up offline.
 - **Listening rooms:** *Listening room* in the sidebar — start one or paste a link / a 6-character code.
   The invite link is `…/r/<code>`. While you're in a room, the player plays the room's queue: clicking a track
   adds it to the room (or jumps to it when it's already queued), and play / pause / next / previous / seeking

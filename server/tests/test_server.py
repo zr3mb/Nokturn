@@ -300,6 +300,28 @@ class ServerTest(AioHTTPTestCase):
         r = await self.client.put(f'/api/v1/playlists/{p["id"]}/tracks', json={"tracks": []}, headers=self.auth(b))
         self.assertEqual(r.status, 403)
 
+    async def test_playlist_password(self):
+        a, _ = await self.register("Ala")
+        b, _ = await self.register("Ola")
+        p = await (await self.client.post("/api/v1/playlists", json={"name": "Secret", "tracks": [YT]},
+                                          headers=self.auth(a))).json()
+        r = await self.client.patch(f'/api/v1/playlists/{p["id"]}', json={"password": "kot123"}, headers=self.auth(a))
+        self.assertTrue((await r.json())["protected"])
+        preview = await (await self.client.get(f'/api/v1/playlists/{p["id"]}', headers=self.auth(b))).json()
+        self.assertEqual((preview["name"], preview["protected"]), ("", True))
+        r = await self.client.post(f'/api/v1/playlists/{p["id"]}/join', headers=self.auth(b))
+        self.assertEqual((await r.json())["error"], "password_required")
+        r = await self.client.post(f'/api/v1/playlists/{p["id"]}/join', json={"password": "pies"}, headers=self.auth(b))
+        self.assertEqual((await r.json())["error"], "bad_password")
+        r = await self.client.post(f'/api/v1/playlists/{p["id"]}/join', json={"password": "kot123"}, headers=self.auth(b))
+        self.assertEqual(r.status, 200)
+        self.assertEqual(len((await r.json())["tracks"]), 1)
+        page = await (await self.client.get(f'/p/{p["id"]}')).text()
+        self.assertNotIn("Secret", page)
+        await self.client.patch(f'/api/v1/playlists/{p["id"]}', json={"password": ""}, headers=self.auth(a))
+        preview = await (await self.client.get(f'/api/v1/playlists/{p["id"]}', headers=self.auth(b))).json()
+        self.assertFalse(preview["protected"])
+
     async def test_library_and_pairing(self):
         a, _ = await self.register("Ala")
         r = await self.client.get("/api/v1/library", headers=self.auth(a))

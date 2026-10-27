@@ -45,11 +45,13 @@ QtObject {
     signal playlistDialogRequested(string mode, int index, var rows)
     signal moreRequested(bool open)
     signal webLoginRequested(string service)   // Android: "youtube" | "soundcloud" in the in-app browser   // phone layout: the sheet with the pages the bottom bar has no room for
+    signal passwordDialogRequested(string playlistId)   // the owner sets a shared playlist's password
 
     // New playlist (optionally with tracks — rows of Library.tracks) / editing an existing one (PlaylistDialog).
     function createPlaylist(rows) {
         playlistDialogRequested("create", -1, rows || [])
     }
+    function editPlaylistPassword(playlistId) { passwordDialogRequested(playlistId) }
     function editPlaylist(index) {
         playlistDialogRequested("edit", index, [])
     }

@@ -27,6 +27,7 @@ STRINGS = {
         "playlist": "Shared playlist",
         "playlist_desc": "{count} tracks · by {owner} · {members} people add to it",
         "playlist_join": "Join the playlist",
+        "playlist_protected": "This playlist has a password — open it in Nokturn and enter it to join.",
         "missing_title": "Link not found",
         "missing_room": "This room has closed. Rooms disappear a while after everyone leaves.",
         "missing_other": "This link doesn't exist or has been removed.",
@@ -51,6 +52,7 @@ STRINGS = {
         "playlist": "Wspólna playlista",
         "playlist_desc": "Utwory: {count} · tworzy {owner} · dodaje osób: {members}",
         "playlist_join": "Dołącz do playlisty",
+        "playlist_protected": "Ta playlista ma hasło — otwórz ją w Nokturnie i wpisz je, żeby dołączyć.",
         "missing_title": "Nie ma takiego linku",
         "missing_room": "Ten pokój został zamknięty. Pokoje znikają chwilę po wyjściu wszystkich.",
         "missing_other": "Ten link nie istnieje albo został usunięty.",
@@ -175,6 +177,8 @@ def room_page(lang, preview, url):
 
 def playlist_page(lang, playlist, covers, url):
     s = STRINGS[lang]
+    if playlist.get("protected"):   # nothing about it but whose it is
+        playlist = dict(playlist, name=s["playlist"], description=s["playlist_protected"], count="?", members=[])
     desc = s["playlist_desc"].format(count=playlist["count"], owner=playlist["owner"]["name"],
                                      members=len(playlist["members"]))
     if len(covers) >= 4:
