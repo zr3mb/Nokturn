@@ -128,6 +128,8 @@ public:
     Q_INVOKABLE void joinRoom(const QString &codeOrLink);
     Q_INVOKABLE void leaveRoom();
     Q_INVOKABLE void addToRoom(const QVariantList &rows, bool next = false);
+    Q_INVOKABLE void shuffleRoom();   // what is still to play; the playing track stays
+    Q_INVOKABLE void clearRoomQueue();
     Q_INVOKABLE void removeFromRoom(const QString &itemId);
     Q_INVOKABLE void playInRoom(const QString &itemId);
     Q_INVOKABLE void setRoomMode(const QString &mode);

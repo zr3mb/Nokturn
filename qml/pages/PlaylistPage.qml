@@ -526,10 +526,10 @@ Item {
                 visible: Online.inRoom && Online.room.canControl === true && page.rows.length > 0
                 Layout.fillWidth: true
                 icon: "group"
-                text: qsTr("Add to the listening room")
+                text: qsTr("Add to the listening room…")
                 onTriggered: {
                     playlistMenu.close()
-                    Online.addToRoom(page.rows)
+                    Nav.addToRoom(page.rows, page.info.name || "")
                 }
             }
             MenuEntry {

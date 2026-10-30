@@ -325,6 +325,18 @@ Item {
                         Online.addToRoom([root.trackIndex], true)
                     }
                 }
+                MenuEntry {
+                    // this track and the ones after it in the list it's in (a playlist, an album)
+                    readonly property int at: root.queue ? root.queue.indexOf(root.trackIndex) : -1
+                    visible: Online.inRoom && Online.room.canControl === true && at >= 0 && at < root.queue.length - 1
+                    Layout.fillWidth: true
+                    icon: "queue"
+                    text: qsTr("Add to the room from here on")
+                    onTriggered: {
+                        menu.close()
+                        Online.addToRoom(root.queue.slice(at))
+                    }
+                }
 
                 // ---- Spotify: the YouTube Music version it plays from ----
                 Rectangle {
