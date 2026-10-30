@@ -9,6 +9,7 @@ Modes:
   "host" — only the host adds and controls, the others listen along.
 """
 
+import random
 import secrets
 import time
 
@@ -196,6 +197,30 @@ class Room:
         self.queue.insert(to, item)
         if playing_id:
             self.current = self._index(playing_id)
+        self.revision += 1
+
+    def _upcoming_start(self):
+        # The tracks after the one playing; all of them once the queue has run out past its end.
+        return len(self.queue) if self.finished else self.current + 1
+
+    def shuffle(self, user_id):
+        """Shuffles what is still to play; the track playing stays where it is."""
+        self._require_control(user_id)
+        start = self._upcoming_start()
+        rest = self.queue[start:]
+        if len(rest) < 2:
+            return
+        random.shuffle(rest)
+        self.queue[start:] = rest
+        self.revision += 1
+
+    def clear(self, user_id):
+        """Drops what is still to play; the track playing and what has played stay."""
+        self._require_control(user_id)
+        start = self._upcoming_start()
+        if start >= len(self.queue):
+            return
+        del self.queue[start:]
         self.revision += 1
 
     def _index(self, item_id):

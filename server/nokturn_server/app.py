@@ -922,6 +922,10 @@ async def handle_message(app, conn, data):
         room.remove(user_id, str(data.get("itemId")))
     elif kind == "room.move":
         room.move(user_id, str(data.get("itemId")), int(data.get("to")))
+    elif kind == "room.shuffle":
+        room.shuffle(user_id)
+    elif kind == "room.clear":
+        room.clear(user_id)
     elif kind == "room.play":
         room.play_item(user_id, str(data.get("itemId")))
     elif kind == "room.pause":
