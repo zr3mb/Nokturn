@@ -200,6 +200,17 @@ ApplicationWindow {
             }
         }
 
+        // A playlist, all of it or a part, into the listening room
+        Loader {
+            id: roomAddDialog
+            active: false
+            sourceComponent: RoomAddDialog { onClosed: roomAddDialog.active = false }
+            function show(rows, title) {
+                active = true
+                item.show(rows, title)
+            }
+        }
+
         // Playlist folders: a new one, renaming / deleting one, a playlist's folder
         Loader {
             id: playlistFolderDialog
@@ -379,6 +390,7 @@ ApplicationWindow {
         }
         function onPasswordDialogRequested(playlistId) { passwordDialog.edit(playlistId) }
         function onAccountDialogRequested(mode) { accountDialog.show(mode) }
+        function onRoomAddRequested(rows, title) { roomAddDialog.show(rows, title) }
         function onFolderDialogRequested(mode, folderId, playlistIndex) { playlistFolderDialog.show(mode, folderId, playlistIndex) }
         function onPlaylistDialogRequested(mode, index, rows) {
             playlistDialog.show(mode, index, rows)

@@ -551,6 +551,25 @@ class RoomLogicTest(unittest.TestCase):
         r.remove("a", r.queue[0]["itemId"])
         self.assertTrue(r.finished)
 
+    def test_shuffle_and_clear_upcoming(self):
+        r = self.room
+        tracks = [dict(YT, id=f"yt:track{i:06d}") for i in range(12)]
+        r.add("a", tracks)
+        r.next("a")
+        playing = r.current_item()["itemId"]
+        before = [i["itemId"] for i in r.queue]
+        r.shuffle("b")
+        after = [i["itemId"] for i in r.queue]
+        self.assertEqual(after[:2], before[:2])            # the played and the playing track stay put
+        self.assertEqual(sorted(after[2:]), sorted(before[2:]))
+        self.assertEqual(r.current_item()["itemId"], playing)
+        r.clear("b")
+        self.assertEqual([i["itemId"] for i in r.queue], before[:2])
+        self.assertEqual(r.current_item()["itemId"], playing)
+        r.set_mode("a", "host")
+        with self.assertRaises(RoomError):
+            r.clear("b")
+
     def test_overdue_track_advances(self):
         r = self.room
         r.add("a", [YT, YT2])

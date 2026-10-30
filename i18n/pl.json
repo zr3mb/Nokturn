@@ -1108,5 +1108,24 @@
   "Sets a new password if you forget it. Lost the old one? Get a new key.": "Pozwala ustawić nowe hasło, gdy zapomnisz starego. Klucz zaginął? Wygeneruj nowy.",
   "New key": "Nowy klucz",
   "What others see in listening rooms and shared playlists.": "To widzą inni w pokojach słuchania i wspólnych playlistach.",
-  "From another device: this one signs in to that device's Nokturn account and brings along what it has here (likes, shared playlists).": "Z innego urządzenia: to urządzenie zaloguje się na tamto konto Nokturna i zabierze ze sobą to, co ma tutaj (polubione, wspólne playlisty)."
+  "From another device: this one signs in to that device's Nokturn account and brings along what it has here (likes, shared playlists).": "Z innego urządzenia: to urządzenie zaloguje się na tamto konto Nokturna i zabierze ze sobą to, co ma tutaj (polubione, wspólne playlisty).",
+  "Add to the listening room…": "Dodaj do pokoju słuchania…",
+  "Add to the room from here on": "Dodaj do pokoju od tego miejsca",
+  "TRACKS": "UTWORY",
+  "of %1": "z %1",
+  "%1 … %2": "%1 … %2",
+  "ORDER": "KOLEJNOŚĆ",
+  "As in the playlist": "Jak w playliście",
+  "Shuffled": "Wymieszane",
+  "WHERE": "GDZIE",
+  "At the end of the queue": "Na koniec kolejki",
+  "Play next": "Jako następne",
+  "A room's queue holds up to %1 tracks — the first %1 go in.": "Kolejka pokoju mieści do %1 utworów — trafi do niej pierwsze %1.",
+  "Shuffle the queue": "Wymieszaj",
+  "Clear the queue": "Wyczyść",
+  "Add %n tracks": [
+    "Dodaj %n utwór",
+    "Dodaj %n utwory",
+    "Dodaj %n utworów"
+  ]
 }

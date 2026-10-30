@@ -283,7 +283,31 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 6
-                    Heading { text: qsTr("Up next") }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Heading { text: qsTr("Up next"); Layout.fillWidth: true }
+                        PillButton {
+                            visible: page.control && page.upcoming.length > 1
+                            Layout.topMargin: 6
+                            kind: "ghost"
+                            icon: "shuffle"
+                            text: qsTr("Shuffle the queue")
+                            fontSize: 13
+                            implicitHeight: 34
+                            onClicked: Online.shuffleRoom()
+                        }
+                        PillButton {
+                            visible: page.control && page.upcoming.length > 0
+                            Layout.topMargin: 6
+                            kind: "ghost"
+                            icon: "close"
+                            text: qsTr("Clear the queue")
+                            fontSize: 13
+                            implicitHeight: 34
+                            onClicked: Online.clearRoomQueue()
+                        }
+                    }
                     Hint {
                         visible: page.upcoming.length === 0
                         text: page.control ? qsTr("Nothing queued. Add tracks with ⋯ → Add to the listening room, or “Play next in the room”.")

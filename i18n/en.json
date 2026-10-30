@@ -99,5 +99,9 @@
   "Password changed — %n other device(s) signed out": [
     "Password changed — %n other device signed out",
     "Password changed — %n other devices signed out"
+  ],
+  "Add %n tracks": [
+    "Add %n track",
+    "Add %n tracks"
   ]
 }

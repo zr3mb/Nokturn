@@ -591,6 +591,26 @@ Item {
         })
         return s
     }
+    // A playlist into a listening room (--tour-room-add, with NOKTURN_SERVER): a new room, the dialog,
+    // over a hundred tracks at once, then shuffling and clearing what is still to play.
+    readonly property bool withRoomAdd: Qt.application.arguments.indexOf("--tour-room-add") >= 0
+    readonly property var roomAddSteps: {
+        if (!withRoomAdd)
+            return []
+        const rows = () => Library.libraryRows().filter(r => Library.tracks.get(r).source === "youtube").slice(0, 130)
+        const queue = () => (Online.room.queue || []).length
+        return [
+            { name: "RA1-create", run: () => { Nav.finishOnboarding(); Player.muted = true; Online.createRoom("Tour room", "open") } },
+            { name: "RA2-dialog", run: () => { console.log("tour: in room", Online.inRoom, "| rows", rows().length); Nav.addToRoom(rows(), "Tour") } },
+            { name: "RA3-add", run: () => { Nav.navigate("room"); Online.addToRoom(rows()) } },
+            { name: "RA4-added", run: () => { console.log("tour: queue", queue(), "| upcoming", JSON.stringify((Online.room.queue || []).slice(1, 4).map(i => i.row))) } },
+            { name: "RA5-shuffle", run: () => Online.shuffleRoom() },
+            { name: "RA6-shuffled", run: () => console.log("tour: after shuffle", queue(), "| upcoming", JSON.stringify((Online.room.queue || []).slice(1, 4).map(i => i.row))) },
+            { name: "RA7-clear", run: () => Online.clearRoomQueue() },
+            { name: "RA8-cleared", run: () => { console.log("tour: after clear", queue(), "| playing", Online.room.currentRow); Online.leaveRoom() } }
+        ]
+    }
+
     // Online features against a server (--tour-online "<room code>;<playlist id>;<share code>", with
     // NOKTURN_SERVER and NOKTURN_ONLINE_DEBUG): a share link, joining a shared playlist and a room,
     // the player's buttons going to the room, the dialogs, leaving.
@@ -954,7 +974,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

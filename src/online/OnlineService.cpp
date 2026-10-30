@@ -39,6 +39,7 @@
 namespace {
 
 constexpr int kRoomBatch = 100;   // tracks per room message (the server's limit)
+constexpr int kRoomQueue = 500;   // tracks a room's queue holds (the server's limit)
 
 QString cacheFile() { return AppPaths::dataDir() + QStringLiteral("/shared-playlists.json"); }
 
@@ -878,12 +879,20 @@ void OnlineService::addToRoom(const QVariantList &rows, bool next)
         emit notice(tr("Only the host controls this room"), QStringLiteral("close"));
         return;
     }
-    portableTracks(rows.mid(0, kRoomBatch), [this, next](const QList<Track> &tracks, int skipped) {
+    portableTracks(rows.mid(0, kRoomQueue), [this, next](const QList<Track> &tracks, int skipped) {
         if (tracks.isEmpty()) {
             emit notice(tr("No YouTube Music version of this track was found to share"), QStringLiteral("close"));
             return;
         }
-        roomSend(QStringLiteral("room.add"), { { "tracks", tracksJson(tracks) }, { "next", next } });
+        // In messages of kRoomBatch. "next" puts each one right after the playing track, so the last
+        // batch goes first to keep the order.
+        QList<QList<Track>> batches;
+        for (qsizetype i = 0; i < tracks.size(); i += kRoomBatch)
+            batches << tracks.mid(i, kRoomBatch);
+        if (next)
+            std::reverse(batches.begin(), batches.end());
+        for (const auto &batch : batches)
+            roomSend(QStringLiteral("room.add"), { { "tracks", tracksJson(batch) }, { "next", next } });
         const QString text = tracks.size() == 1 ? tr("Added %1 to the room").arg(tracks.first().title)
                                                 : tr("Added %n tracks to the room", "", int(tracks.size()));
         emit notice(skipped > 0 ? text + QStringLiteral(" — ") + tr("%n without a YouTube Music version skipped", "", skipped) : text,
@@ -891,6 +900,8 @@ void OnlineService::addToRoom(const QVariantList &rows, bool next)
     });
 }
 
+void OnlineService::shuffleRoom() { roomSend(QStringLiteral("room.shuffle")); }
+void OnlineService::clearRoomQueue() { roomSend(QStringLiteral("room.clear")); }
 void OnlineService::removeFromRoom(const QString &itemId) { roomSend(QStringLiteral("room.remove"), { { "itemId", itemId } }); }
 void OnlineService::playInRoom(const QString &itemId) { roomSend(QStringLiteral("room.play"), { { "itemId", itemId } }); }
 void OnlineService::setRoomMode(const QString &mode) { roomSend(QStringLiteral("room.mode"), { { "mode", mode } }); }

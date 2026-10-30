@@ -48,6 +48,7 @@ QtObject {
     signal passwordDialogRequested(string playlistId)   // the owner sets a shared playlist's password
     signal accountDialogRequested(string mode)          // AccountDialog: "create" | "signin" | "password" | "newkey"
     signal folderDialogRequested(string mode, string folderId, int playlistIndex)   // FolderDialog
+    signal roomAddRequested(var rows, string title)     // RoomAddDialog: a playlist, or part of it, into the room
 
     // New playlist (optionally with tracks — rows of Library.tracks) / editing an existing one (PlaylistDialog).
     function createPlaylist(rows) {
@@ -55,6 +56,7 @@ QtObject {
     }
     function editPlaylistPassword(playlistId) { passwordDialogRequested(playlistId) }
     function account(mode) { accountDialogRequested(mode) }
+    function addToRoom(rows, title) { roomAddRequested(rows, title || "") }
     function createFolder(playlistIndex) { folderDialogRequested("create", "", playlistIndex) }
     function editFolder(folderId) { folderDialogRequested("edit", folderId, -1) }
     function moveToFolder(playlistIndex) { folderDialogRequested("pick", "", playlistIndex) }
