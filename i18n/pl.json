@@ -1122,5 +1122,6 @@
   "QUEUE": "KOLEJKA",
   "and %1 more…": "i jeszcze %1…",
   "Couldn't share the cover with the others: %1": "Nie udało się udostępnić okładki pozostałym: %1",
-  "Couldn't remove the cover: %1": "Nie udało się usunąć okładki: %1"
+  "Couldn't remove the cover: %1": "Nie udało się usunąć okładki: %1",
+  "Couldn't open %1": "Nie udało się otworzyć: %1"
 }

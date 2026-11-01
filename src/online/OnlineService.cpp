@@ -1150,6 +1150,58 @@ void OnlineService::applyPlaylist(const QJsonObject &o)
     emit playlistsChanged();
 }
 
+// ---- YouTube Music's home page, through the server (as the browser version shows it) ---------
+
+QVariantList OnlineService::storeMusicTracks(const QJsonArray &tracks)
+{
+    QVariantList rows;
+    for (const QJsonValue &v : tracks) {
+        const QJsonObject m = v.toObject();
+        // the search's shape ({ id, videoId, … }) as the server's shared tracks have it
+        const Track t = storeTrack({ { "id", m.value("id") }, { "source", "youtube" }, { "path", m.value("videoId") },
+                                     { "title", m.value("title") }, { "artist", m.value("artist") },
+                                     { "artistId", m.value("artistId") }, { "album", m.value("album") },
+                                     { "duration", m.value("duration") }, { "cover", m.value("cover") } });
+        if (const int row = Library::instance()->tracks()->rowOf(t.id); row >= 0)
+            rows << row;
+    }
+    return rows;
+}
+
+void OnlineService::loadMusicShelves()
+{
+    request("GET", QStringLiteral("/music/home"), {}, [this](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty())
+            return;   // the home page goes on without them
+        QVariantList shelves;
+        for (const QJsonValue &v : reply.value("shelves").toArray()) {
+            const QJsonObject s = v.toObject();
+            QVariantMap shelf { { "title", s.value("title").toString() }, { "kind", s.value("kind").toString() } };
+            if (shelf.value("kind") == QLatin1String("tracks"))
+                shelf.insert("rows", storeMusicTracks(s.value("items").toArray()));
+            else
+                shelf.insert("items", s.value("items").toArray().toVariantList());
+            shelves << shelf;
+        }
+        m_musicShelves = shelves;
+        emit musicShelvesChanged();
+    });
+}
+
+void OnlineService::playCollection(const QString &id, const QString &title)
+{
+    request("GET", QStringLiteral("/music/collection/") + QString::fromLatin1(QUrl::toPercentEncoding(id)), {},
+            [this, title](const QJsonObject &reply, const QString &error) {
+        const QVariantList rows = error.isEmpty() ? storeMusicTracks(reply.value("tracks").toArray()) : QVariantList();
+        if (rows.isEmpty()) {
+            emit notice(tr("Couldn't open %1").arg(title), QStringLiteral("close"));
+            return;
+        }
+        if (m_player)
+            m_player->playFrom(rows, rows.first().toInt(), QStringLiteral("ytmusic:") + title);
+    });
+}
+
 void OnlineService::fetchPlaylist(const QString &id)
 {
     request("GET", QStringLiteral("/playlists/") + id, {}, [this](const QJsonObject &reply, const QString &error) {
