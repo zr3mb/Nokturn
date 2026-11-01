@@ -672,6 +672,7 @@ Item {
             return []
         const query = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-mobile") + 1]
         return [
+            { name: "P0-home", run: () => { Player.muted = true; Nav.navigate("home") } },
             { name: "P1-room", run: () => Nav.navigate("room") },
             { name: "P2-equalizer", run: () => Nav.navigate("equalizer") },
             { name: "P3-stats", run: () => Nav.navigate("stats") },
@@ -689,7 +690,9 @@ Item {
             { name: "P11-mini", run: () => Nav.navigate("library") },
             { name: "P12-immersive", run: () => Nav.immersive = true },
             { name: "P13-artist", run: () => { Nav.immersive = false; Nav.openArtist(Player.artist, Player.artistId) } },
-            { name: "P14-artist-loaded", run: () => {} }
+            { name: "P14-artist-loaded", run: () => {} },
+            { name: "P15-home-later", run: () => { console.log("tour: shelves", Online.musicShelves.length); Nav.navigate("home") } },
+            { name: "P16-home-scrolled", run: () => {} }
         ]
     }
     readonly property bool withOnline: Qt.application.arguments.indexOf("--tour-online") >= 0

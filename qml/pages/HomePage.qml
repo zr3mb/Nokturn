@@ -34,6 +34,20 @@ Item {
     }
     property bool allRecommended: false
 
+    // Phone: YouTube Music's home shelves through the server, as in the browser version (it answers in English).
+    Component.onCompleted: if (Nav.mobile && Online.musicShelves.length === 0) Online.loadMusicShelves()
+    function shelfName(t) {
+        return ({ "Quick picks": qsTr("Quick picks"), "Trending songs for you": qsTr("Trending now"),
+                  "New releases": qsTr("New releases"), "Featured playlists for you": qsTr("Featured playlists"),
+                  "Take it easy": qsTr("Take it easy"), "All hits": qsTr("All hits"), "Listen again": qsTr("Listen again"),
+                  "Mixed for you": qsTr("Mixed for you"), "Long listens": qsTr("Long listens"),
+                  "Recommended music videos": qsTr("Recommended music videos"), "Charts": qsTr("Charts"),
+                  "The sound of autumn": qsTr("The sound of autumn"), "Trick or treat?": qsTr("Trick or treat?") })[t] || t
+    }
+    function kindName(t) {
+        return (t || "").replace(/^(Album|Single|EP)/, w => ({ "Album": qsTr("Album"), "Single": qsTr("Single"), "EP": "EP" })[w])
+    }
+
     function rowsOf(p, index) {
         if (p.kind === "radio") return Library.search("", "radio", 1)
         if (p.kind === "all" || p.kind === "mix") return Library.localTracks()
@@ -143,6 +157,10 @@ Item {
         id: albumShadow
         size: albumGrid.cellW
     }
+    CardShadow {
+        id: shelfShadow
+        size: 140
+    }
 
     PageFlick {
         anchors.fill: parent
@@ -240,7 +258,8 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: Theme.cat ? qsTr("Back for more music? ♡")
-                                       : qsTr("Your music from disk, YouTube Music and radio — in one place.")
+                                    : Nav.mobile ? qsTr("Your music from YouTube Music — in your pocket.")
+                                    : qsTr("Your music from disk, YouTube Music and radio — in one place.")
                     color: Theme.textDim
                     font.pixelSize: 15
                     wrapMode: Text.WordWrap
@@ -256,7 +275,10 @@ Item {
                 columns: width > 800 ? 2 : 1
                 columnSpacing: 18
                 rowSpacing: 14
-                HeroCard { Layout.alignment: Qt.AlignTop }
+                HeroCard {
+                    Layout.alignment: Qt.AlignTop
+                    visible: !Nav.mobile   // a phone starts from YouTube Music, not from a folder
+                }
                 // The built-in lists, beside the card (below it, in two columns, in a narrow window)
                 Grid {
                     id: shortcutList
@@ -279,8 +301,62 @@ Item {
             }
         }
 
+        // Phone: YouTube Music's shelves — tracks play from where they're tapped, a playlist or an album plays whole
+        Repeater {
+            model: Nav.mobile ? Online.musicShelves : []
+            Reveal {
+                id: shelf
+                required property var modelData
+                required property int index
+                delay: 100 + index * 40
+                ColumnLayout {
+                    width: parent.width
+                    spacing: 12
+                    SectionHeader {
+                        Layout.fillWidth: true
+                        title: page.shelfName(shelf.modelData.title)
+                    }
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 140 + 62
+                        orientation: ListView.Horizontal
+                        spacing: 14
+                        clip: false
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: shelf.modelData.kind === "tracks" ? shelf.modelData.rows : shelf.modelData.items
+                        delegate: AlbumCard {
+                            required property var modelData
+                            required property int index
+                            readonly property var t: shelf.modelData.kind === "tracks" && Library.tracks.revision >= 0
+                                                     ? Library.tracks.get(modelData) : null
+                            width: 140
+                            shadow: shelfShadow
+                            animateIn: false
+                            title: t ? t.title : modelData.title
+                            subtitle: t ? t.artist : page.kindName(modelData.subtitle)
+                            cover: t ? (t.cover || "") : (modelData.cover || "")
+                            colorA: t ? t.colorA : Theme.accent
+                            colorB: t ? t.colorB : Theme.accent2
+                            seed: t ? t.seed : index
+                            onClicked: play()
+                            onPlayClicked: play()
+                            function play() {
+                                if (t) {
+                                    Player.playFrom(shelf.modelData.rows, modelData, "ytmusic:" + shelf.modelData.title)
+                                } else {
+                                    Online.playCollection(modelData.id, modelData.title)
+                                    Nav.toast(qsTr("Playing %1").arg(modelData.title), "play")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Reveal {
             delay: 140
+            visible: !Nav.mobile || Library.localCount > 0   // the phone has no sample albums
             ColumnLayout {
                 width: parent.width
                 spacing: 18

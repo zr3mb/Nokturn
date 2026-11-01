@@ -190,33 +190,56 @@ Item {
                 transform: Translate { x: root.enter * 40 }
 
                 Text {
+                    visible: !Nav.mobile   // the phone: title, artist and the heart, as in the browser version
                     text: Player.playing ? qsTr("NOW PLAYING") : qsTr("PAUSED")
                     color: Qt.lighter(Theme.accent, 1.15)
                     font.pixelSize: 12
                     font.weight: Font.Bold
                     font.letterSpacing: 3
                 }
-                Text {
+                RowLayout {
                     Layout.fillWidth: true
-                    text: Player.title
-                    color: Theme.text
-                    font.family: Theme.fontDisplay
-                    font.pixelSize: Nav.mobile ? 28 : 56
-                    font.weight: Font.Bold
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                    lineHeight: 0.95
-                }
-                ArtistLink {
-                    Layout.fillWidth: true
-                    text: Player.artist
-                    artistId: Player.artistId
-                    linkEnabled: Player.hasTrack
-                    font.pixelSize: Nav.mobile ? 17 : 22
-                    elide: Text.ElideRight
+                    spacing: 12
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Nav.mobile ? 2 : 10
+                        Text {
+                            Layout.fillWidth: true
+                            text: Player.title
+                            color: Theme.text
+                            font.family: Theme.fontDisplay
+                            font.pixelSize: Nav.mobile ? 24 : 56
+                            font.weight: Font.Bold
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: Nav.mobile ? 1 : 2
+                            elide: Text.ElideRight
+                            lineHeight: 0.95
+                        }
+                        ArtistLink {
+                            Layout.fillWidth: true
+                            text: Player.artist
+                            artistId: Player.artistId
+                            linkEnabled: Player.hasTrack
+                            font.pixelSize: Nav.mobile ? 16 : 22
+                            elide: Text.ElideRight
+                        }
+                    }
+                    IconButton {
+                        visible: Nav.mobile
+                        icon: Player.liked ? "heart" : "heartOutline"
+                        iconSize: 26
+                        implicitWidth: 44; implicitHeight: 44
+                        active: Player.liked
+                        enabled: Player.hasTrack
+                        showDot: false
+                        onClicked: {
+                            Player.toggleLiked()
+                            Nav.toast(Player.liked ? qsTr("Added to Liked") : qsTr("Removed from Liked"), "heart")
+                        }
+                    }
                 }
                 RowLayout {
+                    visible: !Nav.mobile
                     spacing: 10
                     SourceBadge { source: Player.source; visible: Player.hasTrack }
                     Text {
@@ -255,7 +278,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: 8
-                    spacing: Nav.mobile ? 4 : 18
+                    spacing: Nav.mobile ? 0 : 18   // the phone: spread across the width (the spacers)
 
                     IconButton {
                         icon: "shuffle"
@@ -263,6 +286,7 @@ Item {
                         active: Player.shuffle
                         onClicked: Player.shuffle = !Player.shuffle
                     }
+                    Item { visible: Nav.mobile; Layout.fillWidth: true }
                     IconButton {
                         icon: "prev"
                         iconSize: 32
@@ -271,10 +295,12 @@ Item {
                         showDot: false
                         onClicked: Player.previous()
                     }
+                    Item { visible: Nav.mobile; Layout.fillWidth: true }
                     PlayButton {
                         size: Nav.mobile ? 64 : 70
                         onClicked: Player.toggle()
                     }
+                    Item { visible: Nav.mobile; Layout.fillWidth: true }
                     IconButton {
                         icon: "next"
                         iconSize: 32
@@ -283,14 +309,16 @@ Item {
                         showDot: false
                         onClicked: Player.next()
                     }
+                    Item { visible: Nav.mobile; Layout.fillWidth: true }
                     IconButton {
                         icon: Player.repeatMode === 2 ? "repeatOne" : "repeat"
                         iconSize: 22
                         active: Player.repeatMode > 0
                         onClicked: Player.cycleRepeat()
                     }
-                    Item { Layout.fillWidth: true }
+                    Item { Layout.fillWidth: true; visible: !Nav.mobile }
                     IconButton {
+                        visible: !Nav.mobile   // beside the title on the phone
                         icon: Player.liked ? "heart" : "heartOutline"
                         iconSize: 24
                         active: Player.liked
