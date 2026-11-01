@@ -52,6 +52,9 @@ class OnlineService : public QObject
     // { code, name, mode, url, isHost, canControl, playing, finished, members: [{ id, name, online, host, me }],
     //   queue: [{ itemId, row, addedBy, current, played }], currentRow }
     Q_PROPERTY(QVariantMap room READ room NOTIFY roomChanged)
+    // YouTube Music's home page through the server: shelves of { title, kind: "tracks", rows } or
+    // { title, kind: "cards", items: [{ kind, id, title, subtitle, cover }] } (playlists and albums).
+    Q_PROPERTY(QVariantList musicShelves READ musicShelves NOTIFY musicShelvesChanged)
     Q_PROPERTY(bool librarySync READ librarySync WRITE setLibrarySync NOTIFY settingsChanged)
     Q_PROPERTY(QString pairCode READ pairCode NOTIFY pairChanged)          // shown for another device to enter
     Q_PROPERTY(double pairExpires READ pairExpires NOTIFY pairChanged)     // ms since the epoch
@@ -152,6 +155,10 @@ public:
     void deleteOrLeavePlaylist(const QString &id);   // the owner deletes it, a member leaves
     Q_INVOKABLE void copyPlaylistLink(const QString &id);
     Q_INVOKABLE void refreshPlaylists();
+    QVariantList musicShelves() const { return m_musicShelves; }
+    Q_INVOKABLE void loadMusicShelves();
+    // A playlist or an album from a shelf: its tracks play, in the queue named `title`.
+    Q_INVOKABLE void playCollection(const QString &id, const QString &title);
     Q_INVOKABLE bool isPlaylistOwner(const QString &id) const;
     Q_INVOKABLE QVariantMap playlistInfo(const QString &id) const;   // { owner, members, url, isOwner, protected }
     Q_INVOKABLE void setPlaylistPassword(const QString &id, const QString &password);   // empty removes it
@@ -169,6 +176,7 @@ public:
 
 signals:
     void settingsChanged();
+    void musicShelvesChanged();
     void accountChanged();
     void connectionChanged();
     void busyChanged();
@@ -221,6 +229,7 @@ private:
 
     // tracks
     Track storeTrack(const QJsonObject &o);
+    QVariantList storeMusicTracks(const QJsonArray &tracks);   // model rows of the server's YouTube Music tracks
     static QJsonObject trackJson(const Track &t);
     void portableTracks(const QVariantList &rows, TracksCallback done);
     QJsonArray tracksJson(const QList<Track> &tracks) const;
@@ -278,6 +287,7 @@ private:
     QString m_server;
     QString m_name;
     QString m_token;
+    QVariantList m_musicShelves;
     QString m_userId;
     QString m_login;
     QVariantList m_devices;
