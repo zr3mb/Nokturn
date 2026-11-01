@@ -3,7 +3,8 @@ import QtQuick.Controls.Basic
 import Nokturn
 
 // The queue over the full-screen player (Nav.immersiveQueue: "half" or "full", "" = closed). Its header drags
-// it between the two heights or down to close it; a click on the header switches them.
+// it between the two heights or down to close it; a click on the header switches them. A click above it
+// (ImmersiveView) or the back button closes the queue alone.
 Item {
     id: root
     property real topInset: 64           // the full height stops under the top bar
