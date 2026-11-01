@@ -323,6 +323,21 @@ Item {
         anchors.fill: parent
         active: root.built
         sourceComponent: Item {
+            // A click above the open queue closes it (the top bar stays usable)
+            MouseArea {
+                anchors { fill: parent; topMargin: 64 }
+                enabled: Nav.immersiveQueue !== ""
+                acceptedButtons: Qt.AllButtons
+                onClicked: Nav.immersiveQueue = ""
+                onWheel: wheel => wheel.accepted = true
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "#000000"
+                    opacity: Nav.immersiveQueue !== "" ? 0.35 : 0
+                    Behavior on opacity { NumberAnimation { duration: 380; easing.type: Easing.OutQuint } }
+                }
+            }
             QueueDrawer {}
         }
     }
