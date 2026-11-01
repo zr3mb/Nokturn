@@ -45,6 +45,14 @@ CREATE TABLE IF NOT EXISTS playlist_members (
     PRIMARY KEY (playlist_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS playlist_members_user ON playlist_members(user_id);
+-- A picture a member chose for a shared playlist: everyone in it sees the same cover.
+CREATE TABLE IF NOT EXISTS playlist_covers (
+    playlist_id TEXT PRIMARY KEY REFERENCES playlists(id) ON DELETE CASCADE,
+    image BLOB NOT NULL,
+    type TEXT NOT NULL,
+    updated INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS playlist_tracks (
     entry_id    TEXT PRIMARY KEY,
     playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
@@ -537,10 +545,32 @@ class Database:
             "members": [{"id": m, "name": names.get(m, "")} for m in member_ids],
             "version": p["version"], "created": p["created"], "updated": p["updated"], "count": count,
             "origin": p["origin"], "protected": bool(p["password"]),
+            "coverVersion": self.cover_version(playlist_id),
         }
         if with_tracks:
             out["tracks"] = tracks
         return out
+
+    def cover_version(self, playlist_id):
+        row = self.conn.execute("SELECT updated FROM playlist_covers WHERE playlist_id = ?", (playlist_id,)).fetchone()
+        return row["updated"] if row else 0
+
+    def cover(self, playlist_id):
+        return self.conn.execute("SELECT image, type, updated FROM playlist_covers WHERE playlist_id = ?",
+                                 (playlist_id,)).fetchone()
+
+    def set_cover(self, playlist_id, image, kind=""):
+        """The playlist's own picture (None removes it); the members get a new version of the playlist."""
+        with self._tx():
+            if image is None:
+                self.conn.execute("DELETE FROM playlist_covers WHERE playlist_id = ?", (playlist_id,))
+            else:
+                # strictly newer than the last one: the version is part of the picture's address
+                updated = max(now_ms(), self.cover_version(playlist_id) + 1)
+                self.conn.execute("INSERT INTO playlist_covers (playlist_id, image, type, updated) VALUES (?, ?, ?, ?) "
+                                  "ON CONFLICT(playlist_id) DO UPDATE SET image = excluded.image, type = excluded.type, "
+                                  "updated = excluded.updated", (playlist_id, image, kind, updated))
+            self._touch(playlist_id)
 
     def preview_covers(self, playlist_id, limit=4):
         covers = []

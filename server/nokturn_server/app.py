@@ -631,8 +631,14 @@ async def get_share(request):
 # ---- REST: shared playlists -----------------------------------------------------
 
 
+MAX_COVER = 400 * 1024
+COVER_TYPES = ((b"\xff\xd8\xff", "image/jpeg"), (b"\x89PNG\r\n\x1a\n", "image/png"))
+
+
 def playlist_json(request, p):
     p["url"] = f'{request.app[CONFIG].public_url}/p/{p["id"]}'
+    version = p.pop("coverVersion", 0)
+    p["cover"] = f'{request.app[CONFIG].public_url}/api/v1/playlists/{p["id"]}/cover?v={version}' if version else ""
     return p
 
 
@@ -677,7 +683,7 @@ async def get_playlist(request):
         preview = db.playlist(p["id"], with_tracks=False)
         preview["member"] = False
         if preview["protected"]:
-            preview.update(name="", description="", count=0, members=[])
+            preview.update(name="", description="", count=0, members=[], coverVersion=0)
         return web.json_response(playlist_json(request, preview))
     out = db.playlist(p["id"])
     out["member"] = True
@@ -753,6 +759,44 @@ async def update_playlist(request):
     db.update_playlist(p["id"], name, description)
     await request.app[HUB].playlist_changed(p["id"])
     return web.json_response(playlist_json(request, db.playlist(p["id"])))
+
+
+@require_user
+async def set_playlist_cover(request):
+    """A member's picture for the playlist (a JPEG or PNG, as sent): the cover every member sees."""
+    p = _playlist_or_404(request)
+    _require_member(request, p)
+    if request.content_length and request.content_length > MAX_COVER:
+        return error(413, "too_large", "the picture is too large")
+    image = await request.read()
+    kind = next((t for magic, t in COVER_TYPES if image.startswith(magic)), None)
+    if len(image) > MAX_COVER:
+        return error(413, "too_large", "the picture is too large")
+    if not kind:
+        return error(400, "bad_image", "a JPEG or PNG picture is expected")
+    db = request.app[DB]
+    db.set_cover(p["id"], image, kind)
+    await request.app[HUB].playlist_changed(p["id"])
+    return web.json_response(playlist_json(request, db.playlist(p["id"])))
+
+
+@require_user
+async def delete_playlist_cover(request):
+    p = _playlist_or_404(request)
+    _require_member(request, p)
+    db = request.app[DB]
+    db.set_cover(p["id"], None)
+    await request.app[HUB].playlist_changed(p["id"])
+    return web.json_response(playlist_json(request, db.playlist(p["id"])))
+
+
+async def playlist_cover(request):
+    row = request.app[DB].cover(request.match_info["id"])
+    if not row:
+        return error(404, "not_found", "the playlist has no picture of its own")
+    # the address carries the version (?v=), so a changed picture is a new address
+    cache = "public, max-age=31536000, immutable" if request.query.get("v") == str(row["updated"]) else "no-cache"
+    return web.Response(body=row["image"], content_type=row["type"], headers={"Cache-Control": cache})
 
 
 @require_user
@@ -1104,6 +1148,9 @@ def create_app(config):
     r.add_get(f"{API}/playlists/{{id}}", get_playlist)
     r.add_patch(f"{API}/playlists/{{id}}", update_playlist)
     r.add_delete(f"{API}/playlists/{{id}}", delete_playlist)
+    r.add_get(f"{API}/playlists/{{id}}/cover", playlist_cover)
+    r.add_put(f"{API}/playlists/{{id}}/cover", set_playlist_cover)
+    r.add_delete(f"{API}/playlists/{{id}}/cover", delete_playlist_cover)
     r.add_post(f"{API}/playlists/{{id}}/join", join_playlist)
     r.add_post(f"{API}/playlists/{{id}}/leave", leave_playlist)
     r.add_post(f"{API}/playlists/{{id}}/tracks", add_playlist_tracks)
