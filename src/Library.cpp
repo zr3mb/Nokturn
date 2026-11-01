@@ -14,6 +14,7 @@
 #  include "platform/AndroidSupport.h"
 #endif
 
+#include <QBuffer>
 #include <QCollator>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -501,7 +502,7 @@ void Library::rebuildPlaylists()
         m_playlists << QVariantMap {
             { "name", p.name }, { "kind", "shared" }, { "sharedId", p.id }, { "description", p.description },
             { "owner", p.ownerName }, { "members", p.memberNames.size() },
-            { "icon", "" }, { "cover", QString() }, { "count", p.trackIds.size() },
+            { "icon", "" }, { "cover", p.cover }, { "count", p.trackIds.size() },
             { "colorA", a }, { "colorB", b }, { "seed", Scanner::stableSeed(p.id) } };
     }
     for (const QVariant &v : yt->playlists()) {
@@ -866,6 +867,12 @@ void Library::applyPlaylistCover(QVariantMap &p) const
     const QString key = coverKey(p);
     p.insert("coverKey", key);
     p.remove("mosaic");
+    // A shared playlist's own picture lives on the server: every member sees the same one.
+    if (p.value("kind").toString() == QLatin1String("shared") && !p.value("sourceCover").toString().isEmpty()) {
+        p.insert("customCover", true);
+        p.insert("cover", p.value("sourceCover").toString());
+        return;
+    }
     const QString custom = customCoverFile(key);
     p.insert("customCover", !custom.isEmpty());
     if (!custom.isEmpty()) {
@@ -979,6 +986,22 @@ bool Library::setPlaylistCover(int index, const QUrl &image)
         QFile::remove(old);
     AppPaths::settings()->setValue(QStringLiteral("playlistCover/") + safeKey(key), name);
     refreshPlaylistCover(index);
+
+    // A shared playlist's goes to the server for the others too; the copy here is kept only if that fails.
+    const QVariantMap p = m_playlists.at(index).toMap();
+    if (p.value("kind").toString() == QLatin1String("shared")) {
+        QByteArray jpeg;
+        QBuffer buffer(&jpeg);
+        buffer.open(QIODevice::WriteOnly);
+        img.save(&buffer, "JPG", 88);
+        OnlineService::instance()->setPlaylistCover(p.value("sharedId").toString(), jpeg, [key](bool ok) {
+            if (!ok)
+                return;
+            if (const QString old = customCoverFile(key); !old.isEmpty())
+                QFile::remove(old);
+            AppPaths::settings()->remove(QStringLiteral("playlistCover/") + safeKey(key));
+        });
+    }
     return true;
 }
 
@@ -986,10 +1009,13 @@ void Library::resetPlaylistCover(int index)
 {
     if (index < 0 || index >= m_playlists.size())
         return;
-    const QString key = coverKey(m_playlists.at(index).toMap());
+    const QVariantMap p = m_playlists.at(index).toMap();
+    const QString key = coverKey(p);
     if (const QString old = customCoverFile(key); !old.isEmpty())
         QFile::remove(old);
     AppPaths::settings()->remove(QStringLiteral("playlistCover/") + safeKey(key));
+    if (p.value("kind").toString() == QLatin1String("shared") && !p.value("sourceCover").toString().isEmpty())
+        OnlineService::instance()->removePlaylistCover(p.value("sharedId").toString());   // for every member
     refreshPlaylistCover(index);
 }
 

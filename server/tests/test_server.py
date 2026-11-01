@@ -62,6 +62,45 @@ class ServerTest(AioHTTPTestCase):
             if condition(room):
                 return room
 
+    # ---- playlist covers ------------------------------------------------
+
+    async def test_playlist_cover(self):
+        a, _ = await self.register("Ala")
+        b, _ = await self.register("Bob")
+        c, _ = await self.register("Cyd")
+        r = await self.client.post("/api/v1/playlists", json={"name": "Ours", "tracks": [YT]}, headers=self.auth(a))
+        p = await r.json()
+        self.assertEqual(p["cover"], "")
+        await self.client.post(f"/api/v1/playlists/{p['id']}/join", headers=self.auth(b))
+        ws = await self.ws(a)
+        jpeg = b"\xff\xd8\xff\xe0" + b"x" * 100
+        # a member sets it; everyone in the playlist sees it, the owner hears of the change
+        r = await self.client.put(f"/api/v1/playlists/{p['id']}/cover", data=jpeg, headers=self.auth(b))
+        self.assertEqual(r.status, 200)
+        url = (await r.json())["cover"]
+        self.assertTrue(url.startswith(f"https://nokturn.example/api/v1/playlists/{p['id']}/cover?v="))
+        self.assertEqual((await self.next_of(ws, "playlist"))["id"], p["id"])
+        got = await (await self.client.get(f"/api/v1/playlists/{p['id']}", headers=self.auth(a))).json()
+        self.assertEqual(got["cover"], url)
+        r = await self.client.get(url.replace("https://nokturn.example", ""))
+        self.assertEqual((r.status, r.content_type, await r.read()), (200, "image/jpeg", jpeg))
+        self.assertIn("immutable", r.headers["Cache-Control"])
+        # a newer picture is a new address
+        r = await self.client.put(f"/api/v1/playlists/{p['id']}/cover", data=b"\x89PNG\r\n\x1a\n" + b"y" * 10, headers=self.auth(a))
+        self.assertNotEqual((await r.json())["cover"], url)
+        # only members, only pictures, not too large
+        r = await self.client.put(f"/api/v1/playlists/{p['id']}/cover", data=jpeg, headers=self.auth(c))
+        self.assertEqual(r.status, 403)
+        r = await self.client.put(f"/api/v1/playlists/{p['id']}/cover", data=b"<svg/>", headers=self.auth(a))
+        self.assertEqual((await r.json())["error"], "bad_image")
+        r = await self.client.put(f"/api/v1/playlists/{p['id']}/cover", data=jpeg + b"x" * 400 * 1024, headers=self.auth(a))
+        self.assertEqual(r.status, 413)
+        # removed: back to the tracks' covers
+        r = await self.client.delete(f"/api/v1/playlists/{p['id']}/cover", headers=self.auth(b))
+        self.assertEqual((await r.json())["cover"], "")
+        self.assertEqual((await self.client.get(f"/api/v1/playlists/{p['id']}/cover")).status, 404)
+        await ws.close()
+
     # ---- accounts -------------------------------------------------------
 
     async def test_login_and_devices(self):
