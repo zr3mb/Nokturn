@@ -35,7 +35,11 @@ Item {
         hoverEnabled: true
         acceptedButtons: Qt.AllButtons
         onWheel: wheel => wheel.accepted = true
-        onPressed: mouse => { if (mouse.button === Qt.BackButton) Nav.immersive = false }   // the mouse's back button leaves full screen
+        // the mouse's back button closes the queue, then leaves full screen
+        onPressed: mouse => {
+            if (mouse.button === Qt.BackButton)
+                Nav.immersiveQueue !== "" ? Nav.immersiveQueue = "" : Nav.immersive = false
+        }
     }
 
     Loader {
@@ -88,7 +92,7 @@ Item {
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    width: Math.min(implicitWidth, root.width - 150)
+                    width: Math.min(implicitWidth, root.width - 200)
                     text: Player.album || (Player.source === "youtube" ? "YouTube Music" : Player.artist)
                     color: Theme.text
                     font.pixelSize: 13
@@ -98,6 +102,15 @@ Item {
             }
 
             IconButton {
+                anchors { right: lyricsButton.left; rightMargin: 4; verticalCenter: parent.verticalCenter }
+                icon: "queue"
+                iconSize: 22
+                active: Nav.immersiveQueue !== ""
+                onClicked: Nav.immersiveQueue = Nav.immersiveQueue !== "" ? "" : "half"
+            }
+
+            IconButton {
+                id: lyricsButton
                 anchors { right: windowControls.left; rightMargin: Nav.mobile ? 0 : 12; verticalCenter: parent.verticalCenter }
                 icon: "lyrics"
                 iconSize: 22
@@ -121,7 +134,7 @@ Item {
     // Desktop: cover, controls (and lyrics) side by side; phone: one column.
     GridLayout {
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: Nav.mobile ? 0 : -30
+        anchors.verticalCenterOffset: Nav.mobile ? -40 : -30   // room for "Up next" at the bottom
         columns: Nav.mobile ? 1 : 3
         rowSpacing: 26
         columnSpacing: Math.min(root.showLyrics ? 60 : 90, root.width * 0.05)
@@ -322,6 +335,22 @@ Item {
                 fontSize: Math.max(20, Math.min(30, root.width / 56))
                 lineSpacing: 14
             }
+        }
+    }
+
+    Loader {
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 24 }
+        width: Math.min(440, root.width - 48)
+        active: root.built && Player.hasTrack
+        sourceComponent: UpNextBar { opacity: 1 - root.enter }
+    }
+
+    // The queue, over the player
+    Loader {
+        anchors.fill: parent
+        active: root.built
+        sourceComponent: Item {
+            QueueDrawer {}
         }
     }
 }

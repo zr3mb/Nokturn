@@ -611,6 +611,26 @@ Item {
         ]
     }
 
+    // The queue over the full-screen player (--tour-queue): the "Up next" bar, half and full height, a jump.
+    readonly property bool withQueue: Qt.application.arguments.indexOf("--tour-queue") >= 0
+    readonly property var queueSteps: {
+        if (!withQueue)
+            return []
+        const log = () => console.log("tour: queue", Nav.immersiveQueue || "closed", "| left", Player.queueLeft, "| shown",
+                                      Player.queueAhead.length, "| seconds", Player.queueSeconds, "| playing", Player.title)
+        return [
+            { name: "Q1-immersive", run: () => { Nav.finishOnboarding(); Player.muted = true
+                                                const rows = Library.libraryRows()
+                                                Player.playFrom(rows, rows[0]); Nav.immersive = true } },
+            { name: "Q2-half", run: () => { log(); Nav.immersiveQueue = "half" } },
+            { name: "Q3-full", run: () => { log(); Nav.immersiveQueue = "full" } },
+            { name: "Q4-jump", run: () => { console.log("tour: shuffle", Player.shuffle, "| next", Player.queueAhead.slice(0, 3).map(r => Library.tracks.get(r).title).join(" / "))
+                                           Player.jumpTo(Player.queueAhead[2]) } },
+            { name: "Q5-closed", run: () => { log(); Nav.immersiveQueue = "" } },
+            { name: "Q6-left", run: () => { log(); Nav.immersive = false } }
+        ]
+    }
+
     // Online features against a server (--tour-online "<room code>;<playlist id>;<share code>", with
     // NOKTURN_SERVER and NOKTURN_ONLINE_DEBUG): a share link, joining a shared playlist and a room,
     // the player's buttons going to the room, the dialogs, leaving.
@@ -974,7 +994,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

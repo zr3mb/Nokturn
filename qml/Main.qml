@@ -21,12 +21,15 @@ ApplicationWindow {
             Nav.finishOnboarding()
     }
 
-    // Android's back button: the full-screen player first, then the page history.
+    // Android's back button: the queue over the full-screen player first, the player, then the page history.
     onClosing: close => {
         if (!mobile)
             return
         if (moreSheet.opened) {
             moreSheet.close()
+            close.accepted = false
+        } else if (Nav.immersiveQueue !== "") {
+            Nav.immersiveQueue = ""
             close.accepted = false
         } else if (Nav.immersive) {
             Nav.immersive = false
@@ -496,5 +499,9 @@ ApplicationWindow {
     Shortcut { sequence: "Alt+Left"; onActivated: Nav.back() }
     Shortcut { sequence: "Alt+Right"; onActivated: Nav.forward() }
     Shortcut { sequence: "F11"; onActivated: Nav.immersive = !Nav.immersive }
-    Shortcut { sequence: "Esc"; enabled: Nav.immersive; onActivated: Nav.immersive = false }
+    Shortcut {
+        sequence: "Esc"
+        enabled: Nav.immersive
+        onActivated: Nav.immersiveQueue !== "" ? Nav.immersiveQueue = "" : Nav.immersive = false   // the queue first
+    }
 }
