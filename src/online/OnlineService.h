@@ -72,6 +72,7 @@ public:
         QHash<QString, QString> entryOf;   // track id -> the server's entry id (for removing)
         int version = 0;
         bool locked = false;               // joining it needs a password
+        QString cover;                     // the members' own picture on the server, "" = none
     };
 
     static OnlineService *instance();
@@ -150,6 +151,9 @@ public:
     Q_INVOKABLE bool isPlaylistOwner(const QString &id) const;
     Q_INVOKABLE QVariantMap playlistInfo(const QString &id) const;   // { owner, members, url, isOwner, protected }
     Q_INVOKABLE void setPlaylistPassword(const QString &id, const QString &password);   // empty removes it
+    // The playlist's own picture for every member (a JPEG); `done` tells whether the server took it.
+    void setPlaylistCover(const QString &id, const QByteArray &jpeg, std::function<void(bool)> done);
+    void removePlaylistCover(const QString &id);
     Q_INVOKABLE void joinWithPassword(const QString &id, const QString &password);
     const QList<SharedPlaylist> &playlists() const { return m_playlists; }
     QStringList playlistTrackIds(const QString &id) const;
@@ -194,6 +198,7 @@ private:
     // account and requests
     void ensureAccount(std::function<void(bool ok)> then);
     void request(const QByteArray &method, const QString &path, const QJsonObject &body, JsonCallback done);
+    void send(const QByteArray &method, const QString &path, const QByteArray &data, const QByteArray &type, JsonCallback done);
     QString tokenFile() const;
     void loadAccount();
     void switchAccount(const QString &token, const QJsonObject &user);

@@ -405,15 +405,21 @@ void OnlineService::switchAccount(const QString &token, const QJsonObject &user)
 
 void OnlineService::request(const QByteArray &method, const QString &path, const QJsonObject &body, JsonCallback done)
 {
+    const QByteArray data = (method == "GET" || method == "DELETE") && body.isEmpty()
+                                ? QByteArray() : QJsonDocument(body).toJson(QJsonDocument::Compact);
+    send(method, path, data, "application/json", std::move(done));
+}
+
+void OnlineService::send(const QByteArray &method, const QString &path, const QByteArray &data, const QByteArray &type,
+                         JsonCallback done)
+{
     QNetworkRequest req(QUrl(m_server + QStringLiteral("/api/v1") + path));
-    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QString::fromLatin1(type));
     req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Nokturn/" NOKTURN_VERSION));
     req.setTransferTimeout(15'000);
     if (!m_token.isEmpty())
         req.setRawHeader("Authorization", "Bearer " + m_token.toUtf8());
     req.setRawHeader("X-Nokturn-Device", deviceName().toUtf8());   // its name in the account's list of devices
-    const QByteArray data = (method == "GET" || method == "DELETE") && body.isEmpty()
-                                ? QByteArray() : QJsonDocument(body).toJson(QJsonDocument::Compact);
     QNetworkReply *reply = m_net.sendCustomRequest(req, method, data);
     beginBusy();
     connect(reply, &QNetworkReply::finished, this, [this, reply, done = std::move(done)] {
@@ -1125,6 +1131,7 @@ void OnlineService::applyPlaylist(const QJsonObject &o)
     p.url = o.value("url").toString();
     p.version = o.value("version").toInt();
     p.locked = o.value("protected").toBool();
+    p.cover = o.value("cover").toString();
     for (const QJsonValue &m : o.value("members").toArray())
         p.memberNames << m.toObject().value("name").toString();
     for (const QJsonValue &v : o.value("tracks").toArray()) {
@@ -1257,6 +1264,29 @@ void OnlineService::setPlaylistPassword(const QString &id, const QString &passwo
         applyPlaylist(reply);
         emit notice(password.isEmpty() ? tr("Password removed — anyone with the link can join")
                                        : tr("Password set — others need it to join"), QStringLiteral("check"));
+    });
+}
+
+void OnlineService::setPlaylistCover(const QString &id, const QByteArray &jpeg, std::function<void(bool)> done)
+{
+    send("PUT", QStringLiteral("/playlists/") + id + QStringLiteral("/cover"), jpeg, "image/jpeg",
+         [this, done = std::move(done)](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty())
+            emit notice(tr("Couldn't share the cover with the others: %1").arg(error), QStringLiteral("close"));
+        else
+            applyPlaylist(reply);
+        done(error.isEmpty());
+    });
+}
+
+void OnlineService::removePlaylistCover(const QString &id)
+{
+    request("DELETE", QStringLiteral("/playlists/") + id + QStringLiteral("/cover"), {},
+            [this](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty())
+            emit notice(tr("Couldn't remove the cover: %1").arg(error), QStringLiteral("close"));
+        else
+            applyPlaylist(reply);
     });
 }
 
@@ -1405,6 +1435,7 @@ void OnlineService::loadPlaylists()
         p.ownerName = o.value("ownerName").toString();
         p.url = o.value("url").toString();
         p.version = o.value("version").toInt();
+        p.cover = o.value("cover").toString();
         for (const QJsonValue &m : o.value("members").toArray())
             p.memberNames << m.toString();
         for (const QJsonValue &e : o.value("tracks").toArray()) {
@@ -1451,7 +1482,7 @@ void OnlineService::savePlaylists() const
         playlists.append(QJsonObject { { "id", p.id }, { "name", p.name }, { "description", p.description },
                                        { "ownerId", p.ownerId }, { "ownerName", p.ownerName }, { "url", p.url },
                                        { "version", p.version }, { "members", QJsonArray::fromStringList(p.memberNames) },
-                                       { "tracks", tracks } });
+                                       { "cover", p.cover }, { "tracks", tracks } });
     }
     QSaveFile f(cacheFile());
     if (f.open(QIODevice::WriteOnly)) {
