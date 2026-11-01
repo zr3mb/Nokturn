@@ -1266,6 +1266,7 @@ void OnlineService::refreshPlaylists()
         if (!m_playlists.isEmpty())
             connectSocket();   // live changes from the others
         m_mirrorsListed = true;
+        emit mirrorsChanged();
         scheduleMirrors();
     });
 }
@@ -1351,13 +1352,13 @@ void OnlineService::setPlaylistPassword(const QString &id, const QString &passwo
     });
 }
 
-void OnlineService::setPlaylistCover(const QString &id, const QByteArray &jpeg, std::function<void(bool)> done)
+void OnlineService::setPlaylistCover(const QString &id, const QByteArray &jpeg, std::function<void(bool)> done, bool quiet)
 {
     send("PUT", QStringLiteral("/playlists/") + id + QStringLiteral("/cover"), jpeg, "image/jpeg",
-         [this, done = std::move(done)](const QJsonObject &reply, const QString &error) {
-        if (!error.isEmpty())
+         [this, quiet, done = std::move(done)](const QJsonObject &reply, const QString &error) {
+        if (!error.isEmpty() && !quiet)
             emit notice(tr("Couldn't share the cover with the others: %1").arg(error), QStringLiteral("close"));
-        else
+        else if (error.isEmpty())
             applyPlaylist(reply);
         done(error.isEmpty());
     });
@@ -2047,6 +2048,7 @@ void OnlineService::pushMirror(const QString &origin, const QString &name, const
                         return;
                     }
                     m_mirrors.insert(origin, id);
+                    emit mirrorsChanged();
                     (*append)(id);
                 });
         return;

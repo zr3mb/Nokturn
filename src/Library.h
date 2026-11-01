@@ -154,6 +154,7 @@ private:
     static QString coverKey(const QVariantMap &playlist);
     void applyPlaylistCover(QVariantMap &playlist) const;
     void refreshPlaylistCover(int index);
+    void sendCustomCovers();
     void onScanFinished();
     QList<Track> demoTracks() const;
 
@@ -181,6 +182,7 @@ private:
     QFutureWatcher<Scanner::Result> m_watcher;
     QNetworkAccessManager m_net;
     QSet<QString> m_paletteDone;
+    QSet<QString> m_sendingCovers;   // cover keys on their way to the server
     bool m_rescanPending = false;
     bool m_manualScan = false;
 };

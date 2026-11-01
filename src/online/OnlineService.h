@@ -163,7 +163,10 @@ public:
     Q_INVOKABLE QVariantMap playlistInfo(const QString &id) const;   // { owner, members, url, isOwner, protected }
     Q_INVOKABLE void setPlaylistPassword(const QString &id, const QString &password);   // empty removes it
     // The playlist's own picture for every member (a JPEG); `done` tells whether the server took it.
-    void setPlaylistCover(const QString &id, const QByteArray &jpeg, std::function<void(bool)> done);
+    // `quiet`: no notice when it fails (a cover sent on its own, tried again later).
+    void setPlaylistCover(const QString &id, const QByteArray &jpeg, std::function<void(bool)> done, bool quiet = false);
+    // The server's copy of a YouTube Music, Spotify or SoundCloud playlist ("ytmusic:<id>", …), "" = none yet.
+    QString mirrorId(const QString &origin) const { return m_mirrors.value(origin); }
     void removePlaylistCover(const QString &id);
     Q_INVOKABLE void joinWithPassword(const QString &id, const QString &password);
     const QList<SharedPlaylist> &playlists() const { return m_playlists; }
@@ -182,6 +185,7 @@ signals:
     void busyChanged();
     void roomChanged();
     void playlistsChanged();
+    void mirrorsChanged();   // the server's copies of the account's playlists are known (or one more was made)
     void tracksAdded(const QList<Track> &tracks);   // new tracks for the end of the model
     void notice(const QString &text, const QString &icon);
     void roomOpened();                               // QML shows the room page

@@ -189,7 +189,9 @@ Library::Library(QObject *parent)
     connect(OnlineService::instance(), &OnlineService::playlistsChanged, this, [this] {
         rebuildPlaylists();
         emit playlistsChanged();
+        sendCustomCovers();
     });
+    connect(OnlineService::instance(), &OnlineService::mirrorsChanged, this, &Library::sendCustomCovers);
     // Source and playlist names, demo tracks — everything built here follows the interface language.
     connect(Language::instance(), &Language::changed, this, [this] {
         buildSources();
@@ -844,7 +846,67 @@ QString customCoverFile(const QString &key)
     return QFileInfo::exists(path) ? path : QString();
 }
 
+// The server's copy of a YouTube Music, Spotify or SoundCloud playlist is known by where it comes from.
+QString mirrorOrigin(const QVariantMap &p)
+{
+    const QString kind = p.value("kind").toString();
+    if (kind == QLatin1String("ytplaylist"))
+        return QStringLiteral("ytmusic:") + p.value("ytId").toString();
+    if (kind == QLatin1String("spplaylist"))
+        return QStringLiteral("spotify:") + p.value("spId").toString();
+    if (kind == QLatin1String("scplaylist"))
+        return QStringLiteral("soundcloud:") + p.value("scId").toString();
+    if (kind == QLatin1String("spotifyliked"))
+        return QStringLiteral("spotify:liked");
+    if (kind == QLatin1String("scliked"))
+        return QStringLiteral("soundcloud:liked");
+    return {};
+}
+
+QString coverSentKey(const QString &key) { return QStringLiteral("playlistCoverSent/") + safeKey(key); }
+
 } // namespace
+
+// Covers chosen on this device go to the server's playlist too, so the browser version and the other devices
+// show them: a shared playlist's (when nobody has set one there yet, e.g. one chosen before covers were
+// shared) and those of the copies the server keeps of YouTube Music, Spotify and SoundCloud playlists. Each
+// picture goes once (the setting remembers which file went where); a failed one is tried again later.
+void Library::sendCustomCovers()
+{
+    OnlineService *online = OnlineService::instance();
+    for (const QVariant &v : std::as_const(m_playlists)) {
+        const QVariantMap p = v.toMap();
+        const QString key = p.value("coverKey").toString();
+        const QString file = customCoverFile(key);
+        if (key.isEmpty() || file.isEmpty() || m_sendingCovers.contains(key))
+            continue;
+        const bool shared = p.value("kind").toString() == QLatin1String("shared");
+        if (shared && !p.value("sourceCover").toString().isEmpty())
+            continue;   // the others' picture is there already
+        const QString origin = shared ? QString() : mirrorOrigin(p);
+        const QString serverId = shared ? p.value("sharedId").toString() : origin.isEmpty() ? QString() : online->mirrorId(origin);
+        if (serverId.isEmpty())
+            continue;
+        const QString mark = serverId + QLatin1Char(':') + QFileInfo(file).fileName();
+        if (AppPaths::settings()->value(coverSentKey(key)).toString() == mark)
+            continue;
+        QFile f(file);
+        if (!f.open(QIODevice::ReadOnly))
+            continue;
+        m_sendingCovers.insert(key);
+        online->setPlaylistCover(serverId, f.readAll(), [this, key, mark, shared](bool ok) {
+            m_sendingCovers.remove(key);
+            if (!ok)
+                return;
+            AppPaths::settings()->setValue(coverSentKey(key), mark);
+            if (shared) {   // the server's picture is shown from now on
+                if (const QString old = customCoverFile(key); !old.isEmpty())
+                    QFile::remove(old);
+                AppPaths::settings()->remove(QStringLiteral("playlistCover/") + safeKey(key));
+            }
+        }, true);
+    }
+}
 
 QString Library::coverKey(const QVariantMap &p)
 {
@@ -988,8 +1050,11 @@ bool Library::setPlaylistCover(int index, const QUrl &image)
     refreshPlaylistCover(index);
 
     // A shared playlist's goes to the server for the others too; the copy here is kept only if that fails.
+    // A copy of a YouTube Music, Spotify or SoundCloud playlist on the server gets it as well.
     const QVariantMap p = m_playlists.at(index).toMap();
-    if (p.value("kind").toString() == QLatin1String("shared")) {
+    if (p.value("kind").toString() != QLatin1String("shared"))
+        sendCustomCovers();
+    else {
         QByteArray jpeg;
         QBuffer buffer(&jpeg);
         buffer.open(QIODevice::WriteOnly);
@@ -1016,6 +1081,12 @@ void Library::resetPlaylistCover(int index)
     AppPaths::settings()->remove(QStringLiteral("playlistCover/") + safeKey(key));
     if (p.value("kind").toString() == QLatin1String("shared") && !p.value("sourceCover").toString().isEmpty())
         OnlineService::instance()->removePlaylistCover(p.value("sharedId").toString());   // for every member
+    // a copy's on the server too, once it went there
+    const QString sent = AppPaths::settings()->value(coverSentKey(key)).toString();
+    if (const QString id = sent.section(QLatin1Char(':'), 0, 0); !id.isEmpty() && p.value("kind").toString() != QLatin1String("shared")) {
+        OnlineService::instance()->removePlaylistCover(id);
+        AppPaths::settings()->remove(coverSentKey(key));
+    }
     refreshPlaylistCover(index);
 }
 
