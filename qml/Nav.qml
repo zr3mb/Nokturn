@@ -15,6 +15,8 @@ QtObject {
     property string panelTab: "queue"      // "Now playing" panel: "queue" | "lyrics"
     property bool immersiveLyrics: Prefs.boolValue("ui/immersiveLyrics", true)   // lyrics next to the cover in full-screen mode
     property bool immersive: false
+    property string immersiveQueue: ""     // the queue over the full-screen player: "" | "half" | "full"
+    onImmersiveChanged: if (!immersive) immersiveQueue = ""
     property bool sidebarCompact: Prefs.boolValue("ui/sidebarCompact", false)
     onQueueOpenChanged: Prefs.setValue("ui/queueOpen", queueOpen)
     onImmersiveLyricsChanged: Prefs.setValue("ui/immersiveLyrics", immersiveLyrics)

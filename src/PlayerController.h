@@ -59,6 +59,10 @@ class PlayerController : public QObject
     Q_PROPERTY(bool shuffle READ shuffle WRITE setShuffle NOTIFY shuffleChanged)
     Q_PROPERTY(int repeatMode READ repeatMode WRITE setRepeatMode NOTIFY repeatModeChanged)
     Q_PROPERTY(QVariantList upNext READ upNext NOTIFY queueChanged)
+    // The queue after the current track for the full-screen player: its first 200 rows, how many there are, their length
+    Q_PROPERTY(QVariantList queueAhead READ queueAhead NOTIFY queueChanged)
+    Q_PROPERTY(int queueLeft READ queueLeft NOTIFY queueChanged)
+    Q_PROPERTY(int queueSeconds READ queueSeconds NOTIFY queueChanged)
     Q_PROPERTY(QList<qreal> spectrum READ spectrum NOTIFY spectrumChanged)
     Q_PROPERTY(qreal level READ level NOTIFY spectrumChanged)
 
@@ -105,7 +109,10 @@ public:
     bool muted() const { return m_muted; }
     bool shuffle() const { return m_shuffle; }
     int repeatMode() const { return m_repeat; }
-    QVariantList upNext() const;
+    QVariantList upNext() const { return rowsAhead(6); }
+    QVariantList queueAhead() const { return rowsAhead(200); }
+    int queueLeft() const;
+    int queueSeconds() const;
     QList<qreal> spectrum() const { return m_spectrum; }
     qreal level() const { return m_level; }
 
@@ -196,6 +203,8 @@ signals:
 
 private:
     static constexpr int kBars = 48;
+
+    QVariantList rowsAhead(int limit) const;   // library rows after the current track, in play order
 
     struct Deck
     {

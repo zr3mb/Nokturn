@@ -35,7 +35,11 @@ Item {
         hoverEnabled: true
         acceptedButtons: Qt.AllButtons
         onWheel: wheel => wheel.accepted = true
-        onPressed: mouse => { if (mouse.button === Qt.BackButton) Nav.immersive = false }   // the mouse's back button leaves full screen
+        // the mouse's back button closes the queue, then leaves full screen
+        onPressed: mouse => {
+            if (mouse.button === Qt.BackButton)
+                Nav.immersiveQueue !== "" ? Nav.immersiveQueue = "" : Nav.immersive = false
+        }
     }
 
     Loader {
@@ -95,6 +99,15 @@ Item {
             }
 
             IconButton {
+                anchors { right: lyricsButton.left; rightMargin: 4; verticalCenter: parent.verticalCenter }
+                icon: "queue"
+                iconSize: 22
+                active: Nav.immersiveQueue !== ""
+                onClicked: Nav.immersiveQueue = Nav.immersiveQueue !== "" ? "" : "half"
+            }
+
+            IconButton {
+                id: lyricsButton
                 anchors { right: windowControls.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
                 icon: "lyrics"
                 iconSize: 22
@@ -295,6 +308,22 @@ Item {
                 fontSize: Math.max(20, Math.min(30, root.width / 56))
                 lineSpacing: 14
             }
+        }
+    }
+
+    Loader {
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 24 }
+        width: Math.min(440, root.width - 48)
+        active: root.built && Player.hasTrack
+        sourceComponent: UpNextBar { opacity: 1 - root.enter }
+    }
+
+    // The queue, over the player
+    Loader {
+        anchors.fill: parent
+        active: root.built
+        sourceComponent: Item {
+            QueueDrawer {}
         }
     }
 }

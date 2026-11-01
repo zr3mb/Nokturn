@@ -364,5 +364,9 @@ ApplicationWindow {
     Shortcut { sequence: "Alt+Left"; onActivated: Nav.back() }
     Shortcut { sequence: "Alt+Right"; onActivated: Nav.forward() }
     Shortcut { sequence: "F11"; onActivated: Nav.immersive = !Nav.immersive }
-    Shortcut { sequence: "Esc"; enabled: Nav.immersive; onActivated: Nav.immersive = false }
+    Shortcut {
+        sequence: "Esc"
+        enabled: Nav.immersive
+        onActivated: Nav.immersiveQueue !== "" ? Nav.immersiveQueue = "" : Nav.immersive = false   // the queue first
+    }
 }

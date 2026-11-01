@@ -316,12 +316,12 @@ bool PlayerController::buffering() const
     return s == QMediaPlayer::LoadingMedia || s == QMediaPlayer::StalledMedia;
 }
 
-QVariantList PlayerController::upNext() const
+QVariantList PlayerController::rowsAhead(int limit) const
 {
     QVariantList out;
     if (m_queue.isEmpty())
         return out;
-    for (int k = 1; k < m_queue.size() && out.size() < 6; ++k) {
+    for (int k = 1; k < m_queue.size() && out.size() < limit; ++k) {
         int pos = m_queuePos + k;
         if (pos >= m_queue.size()) {
             if (m_repeat != 1 || inRoom())
@@ -333,6 +333,27 @@ QVariantList PlayerController::upNext() const
             out << row;
     }
     return out;
+}
+
+int PlayerController::queueLeft() const
+{
+    if (m_queue.isEmpty())
+        return 0;
+    if (m_repeat == 1 && !inRoom())   // repeating the queue: everything else comes round again
+        return int(m_queue.size()) - 1;
+    return std::max(0, int(m_queue.size()) - 1 - m_queuePos);
+}
+
+int PlayerController::queueSeconds() const
+{
+    int total = 0;
+    const int left = queueLeft();
+    for (int k = 1; k <= left; ++k) {
+        const int row = m_tracks->rowOf(m_queue.at((m_queuePos + k) % m_queue.size()));
+        if (row >= 0)
+            total += m_tracks->at(row).duration;
+    }
+    return total;
 }
 
 // ---- settings -----------------------------------------------------------------

@@ -96,7 +96,9 @@ qt_add_qml_module(Nokturn
         qml/components/PasswordDialog.qml
         qml/components/AccountDialog.qml
         qml/components/PlaylistFolderDialog.qml
+        qml/components/QueueDrawer.qml
         qml/components/RoomAddDialog.qml
+        qml/components/UpNextBar.qml
         qml/components/MenuEntry.qml
         qml/components/PlaylistDialog.qml
         qml/components/LogoMark.qml
