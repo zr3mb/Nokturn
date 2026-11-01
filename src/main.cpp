@@ -18,6 +18,11 @@
 #include <QStandardPaths>
 #include <QTimer>
 
+#ifdef Q_OS_ANDROID
+#  include "platform/AndroidSupport.h"
+#  include <QtWebView/QtWebView>
+#endif
+
 namespace {
 
 // Covers from the web are kept on disk, so a list scrolled again or the app opened again shows them without
@@ -41,10 +46,6 @@ private:
 };
 
 } // namespace
-#ifdef Q_OS_ANDROID
-#  include "platform/AndroidSupport.h"
-#  include <QtWebView/QtWebView>
-#endif
 
 int main(int argc, char *argv[])
 {
