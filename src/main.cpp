@@ -1,22 +1,54 @@
+#include "AppPaths.h"
 #include "Language.h"
 #include "online/OnlineService.h"
 #include "platform/GameOverlay.h"
 
+#include <QAtomicInt>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QGuiApplication>
+#include <QNetworkAccessManager>
+#include <QNetworkDiskCache>
 #include <QQmlApplicationEngine>
+#include <QQmlNetworkAccessManagerFactory>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QTimer>
+
+namespace {
+
+// Covers from the web are kept on disk, so a list scrolled again or the app opened again shows them without
+// downloading them anew. QML asks for an access manager per thread (the images load on their own); each gets
+// its own directory, as two disk caches mustn't share one.
+class CachedNetworkFactory : public QQmlNetworkAccessManagerFactory
+{
+public:
+    QNetworkAccessManager *create(QObject *parent) override
+    {
+        auto *manager = new QNetworkAccessManager(parent);
+        auto *cache = new QNetworkDiskCache(manager);
+        cache->setCacheDirectory(AppPaths::dataDir() + QStringLiteral("/image-cache/") + QString::number(m_made.fetchAndAddRelaxed(1)));
+        cache->setMaximumCacheSize(150LL * 1024 * 1024);
+        manager->setCache(cache);
+        return manager;
+    }
+
+private:
+    QAtomicInt m_made;
+};
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
     // Images (covers) give up their memory copy once they're uploaded to the GPU, and skip the shared
     // texture atlas — covers are drawn from a mipmapped copy of their own, so the atlas only kept a
-    // second one. Variables set by the user win.
+    // second one. Variables set by the user win. Not on Android: it drops the GPU's copies whenever the app
+    // goes to the background, and every cover would be loaded again each time it comes back.
+#ifndef Q_OS_ANDROID
     if (!qEnvironmentVariableIsSet("QSG_TRANSIENT_IMAGES"))
         qputenv("QSG_TRANSIENT_IMAGES", "1");
+#endif
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_SIZE_LIMIT"))
         qputenv("QSG_ATLAS_SIZE_LIMIT", "1");
 
@@ -56,6 +88,8 @@ int main(int argc, char *argv[])
     Language::instance()->apply();
 
     QQmlApplicationEngine engine;
+    static CachedNetworkFactory networkFactory;
+    engine.setNetworkAccessManagerFactory(&networkFactory);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
         [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
@@ -72,7 +106,8 @@ int main(int argc, char *argv[])
     // After a GPU reset the scene graph rebuilds its textures from the images' memory copies, which
     // QSG_TRANSIENT_IMAGES dropped — so the images are loaded again (Theme.imageEpoch changes their URLs).
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
-    if (QObject *theme = engine.singletonInstance<QObject *>("Nokturn", "Theme"); window && theme) {
+    if (QObject *theme = engine.singletonInstance<QObject *>("Nokturn", "Theme");
+        window && theme && qgetenv("QSG_TRANSIENT_IMAGES") == "1") {
         QObject::connect(window, &QQuickWindow::sceneGraphInvalidated, theme, [theme] {
             theme->setProperty("imageEpoch", theme->property("imageEpoch").toInt() + 1);
         }, Qt::QueuedConnection);
