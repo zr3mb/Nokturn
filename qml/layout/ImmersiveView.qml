@@ -15,6 +15,9 @@ Item {
     opacity: open ? 1 : 0
     Behavior on opacity { NumberAnimation { duration: 460; easing.type: Easing.OutCubic } }
 
+    // Short windows (a small second screen, a laptop): type, buttons and gaps shrink with the height
+    readonly property real k: Math.max(0.62, Math.min(1, (height - 64) / 760))
+
     property real enter: open ? 0 : 1
     Behavior on enter { NumberAnimation { duration: 800; easing.type: Easing.OutQuint } }
 
@@ -44,7 +47,7 @@ Item {
 
     Loader {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 24; rightMargin: 24 }
-        height: Nav.mobile ? 90 : 150
+        height: Nav.mobile ? 90 : 150 * root.k
         active: root.built
         sourceComponent: Visualizer {
             bars: 80
@@ -131,10 +134,17 @@ Item {
     // Phone: the lyrics take the cover's place while this is on (the lyrics button in the top bar).
     property bool phoneLyrics: false
 
+    // The room between the top bar and "Up next"
+    Item {
+        id: stage
+        anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom
+                  topMargin: 64; bottomMargin: Player.hasTrack ? 100 : 24 }
+    }
+
     // Desktop: cover, controls (and lyrics) side by side; phone: one column.
     GridLayout {
-        anchors.centerIn: parent
-        anchors.verticalCenterOffset: Nav.mobile ? -40 : -30   // room for "Up next" at the bottom
+        anchors.centerIn: Nav.mobile ? parent : stage
+        anchors.verticalCenterOffset: Nav.mobile ? -40 : 0   // room for "Up next" at the bottom
         columns: Nav.mobile ? 1 : 3
         rowSpacing: 26
         columnSpacing: Math.min(root.showLyrics ? 60 : 90, root.width * 0.05)
@@ -143,7 +153,7 @@ Item {
             id: coverBox
             visible: !(Nav.mobile && root.phoneLyrics)
             readonly property real s: Nav.mobile ? Math.min(root.width - 56, root.height * 0.42)
-                                                 : Math.min(root.height * 0.52, root.width * (root.showLyrics ? 0.24 : 0.34), 500)
+                                                 : Math.min(stage.height * 0.7, root.height * 0.52, root.width * (root.showLyrics ? 0.24 : 0.34), 500)
             Layout.preferredWidth: s
             Layout.preferredHeight: s
             Layout.alignment: Qt.AlignHCenter
@@ -185,12 +195,12 @@ Item {
             Layout.preferredWidth: Nav.mobile ? root.width - 48 : Math.min(540, root.width * (root.showLyrics ? 0.3 : 0.4))
             active: root.built
             sourceComponent: ColumnLayout {
-                spacing: Nav.mobile ? 6 : 10
+                spacing: Nav.mobile ? 6 : 10 * root.k
                 opacity: 1 - root.enter
                 transform: Translate { x: root.enter * 40 }
 
                 Text {
-                    visible: !Nav.mobile   // the phone: title, artist and the heart, as in the browser version
+                    visible: !Nav.mobile && root.height >= 640   // the phone: title, artist and the heart, as in the browser version
                     text: Player.playing ? qsTr("NOW PLAYING") : qsTr("PAUSED")
                     color: Qt.lighter(Theme.accent, 1.15)
                     font.pixelSize: 12
@@ -208,7 +218,7 @@ Item {
                             text: Player.title
                             color: Theme.text
                             font.family: Theme.fontDisplay
-                            font.pixelSize: Nav.mobile ? 24 : 56
+                            font.pixelSize: Nav.mobile ? 24 : Math.round(56 * root.k)
                             font.weight: Font.Bold
                             wrapMode: Text.WordWrap
                             maximumLineCount: Nav.mobile ? 1 : 2
@@ -220,7 +230,7 @@ Item {
                             text: Player.artist
                             artistId: Player.artistId
                             linkEnabled: Player.hasTrack
-                            font.pixelSize: Nav.mobile ? 16 : 22
+                            font.pixelSize: Nav.mobile ? 16 : Math.max(16, Math.round(22 * root.k))
                             elide: Text.ElideRight
                         }
                     }
@@ -249,7 +259,7 @@ Item {
                     }
                 }
 
-                Item { Layout.preferredHeight: Nav.mobile ? 10 : 22 }
+                Item { Layout.preferredHeight: Nav.mobile ? 10 : 22 * root.k }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -277,7 +287,7 @@ Item {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.topMargin: 8
+                    Layout.topMargin: 8 * root.k
                     spacing: Nav.mobile ? 0 : 18   // the phone: spread across the width (the spacers)
 
                     IconButton {
@@ -297,7 +307,7 @@ Item {
                     }
                     Item { visible: Nav.mobile; Layout.fillWidth: true }
                     PlayButton {
-                        size: Nav.mobile ? 64 : 70
+                        size: Nav.mobile ? 64 : Math.max(54, Math.round(70 * root.k))
                         onClicked: Player.toggle()
                     }
                     Item { visible: Nav.mobile; Layout.fillWidth: true }

@@ -572,6 +572,25 @@ Item {
             s.push({ name: "Z10-" + i, run: () => log("mixing") })
         return s
     }
+    // The full-screen player in small windows (--tour-small "<query>", "_" = space): a 1024x550 second
+    // screen, the queue over it, a laptop's height, then the usual size.
+    readonly property bool withSmall: Qt.application.arguments.indexOf("--tour-small") >= 0
+    readonly property var smallSteps: {
+        if (!withSmall)
+            return []
+        const q = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-small") + 1].replace(/_/g, " ")
+        const size = (w, h) => { const win = root.Window.window; win.width = w; win.height = h }
+        return [
+            { name: "M0", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("search", { query: q, filter: 2 }) } },
+            { name: "M1-wait", run: () => {} },
+            { name: "M2-play", run: () => { const r = Library.onlineResults(); if (r.length) Player.playFrom(r, r[0], "search")
+                                           size(1024, 550); Nav.immersive = true } },
+            { name: "M3-1024x550", run: () => {} },
+            { name: "M4-queue", run: () => { Nav.immersiveQueue = "half" } },
+            { name: "M5-1366x700", run: () => { Nav.immersiveQueue = ""; size(1366, 700) } },
+            { name: "M6-1600x960", run: () => size(1600, 960) }
+        ]
+    }
     // Listening to a few tracks muted, with the lyrics open (--tour-listen "<q1>;<q2>", "_" = space):
     // with NOKTURN_AUDIO_DEBUG the log shows whether the sound keeps up (buffer underruns).
     readonly property bool withListen: Qt.application.arguments.indexOf("--tour-listen") >= 0
@@ -1017,7 +1036,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
