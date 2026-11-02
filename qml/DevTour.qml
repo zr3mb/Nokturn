@@ -583,10 +583,16 @@ Item {
         return [
             { name: "M0", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("search", { query: q, filter: 2 }) } },
             { name: "M1-wait", run: () => {} },
-            { name: "M2-play", run: () => { const r = Library.onlineResults(); if (r.length) Player.playFrom(r, r[0], "search")
-                                           size(1024, 550); Nav.immersive = true } },
-            { name: "M3-1024x550", run: () => {} },
-            { name: "M4-queue", run: () => { Nav.immersiveQueue = "half" } },
+            { name: "M2-play", run: () => { const r = Library.onlineResults()   // a song (with an album), so it has lyrics
+                                           const song = r.find(i => Library.tracks.get(i).album) ?? r[0]
+                                           if (r.length) Player.playFrom(r, song, "search")
+                                           size(1024, 550); Nav.immersiveLyrics = true; Nav.immersive = true } },
+            { name: "M3-1024x550", run: () => { const win = root.Window.window
+                                               console.log("tour: window", win.width, "x", win.height, "| min", win.minimumWidth, "| lyrics", Lyrics.state) } },
+            { name: "M3b-lyrics", run: () => console.log("tour: lyrics", Lyrics.state) },
+            { name: "M3c-cover", run: () => { Nav.immersiveLyrics = false } },
+            { name: "M4-queue", run: () => { Nav.immersiveLyrics = true; Nav.immersiveQueue = "half" } },
+            { name: "M4b-queue", run: () => {} },
             { name: "M5-1366x700", run: () => { Nav.immersiveQueue = ""; size(1366, 700) } },
             { name: "M6-1600x960", run: () => size(1600, 960) }
         ]
