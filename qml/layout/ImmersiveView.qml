@@ -15,6 +15,9 @@ Item {
     opacity: open ? 1 : 0
     Behavior on opacity { NumberAnimation { duration: 460; easing.type: Easing.OutCubic } }
 
+    // Short windows (a small second screen, a laptop): type, buttons and gaps shrink with the height
+    readonly property real k: Math.max(0.62, Math.min(1, (height - 64) / 760))
+
     property real enter: open ? 0 : 1
     Behavior on enter { NumberAnimation { duration: 800; easing.type: Easing.OutQuint } }
 
@@ -44,7 +47,7 @@ Item {
 
     Loader {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 24; rightMargin: 24 }
-        height: 150
+        height: 150 * root.k
         active: root.built
         sourceComponent: Visualizer {
             bars: 80
@@ -91,10 +94,12 @@ Item {
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(implicitWidth, root.width - 200)
                     text: Player.album || (Player.source === "youtube" ? "YouTube Music" : Player.artist)
                     color: Theme.text
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
+                    elide: Text.ElideRight
                 }
             }
 
@@ -124,14 +129,20 @@ Item {
 
     readonly property bool showLyrics: Nav.immersiveLyrics && root.width > 1100 && Lyrics.state !== "none"
 
+    // The room between the top bar and "Up next"
+    Item {
+        id: stage
+        anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom
+                  topMargin: 64; bottomMargin: Player.hasTrack ? 100 : 24 }
+    }
+
     RowLayout {
-        anchors.centerIn: parent
-        anchors.verticalCenterOffset: -30
+        anchors.centerIn: stage
         spacing: Math.min(root.showLyrics ? 60 : 90, root.width * 0.05)
 
         Item {
             id: coverBox
-            readonly property real s: Math.min(root.height * 0.52, root.width * (root.showLyrics ? 0.24 : 0.34), 500)
+            readonly property real s: Math.min(stage.height * 0.7, root.height * 0.52, root.width * (root.showLyrics ? 0.24 : 0.34), 500)
             Layout.preferredWidth: s
             Layout.preferredHeight: s
             transform: Translate { y: root.enter * 60 }
@@ -159,11 +170,12 @@ Item {
             Layout.preferredWidth: Math.min(540, root.width * (root.showLyrics ? 0.3 : 0.4))
             active: root.built
             sourceComponent: ColumnLayout {
-                spacing: 10
+                spacing: 10 * root.k
                 opacity: 1 - root.enter
                 transform: Translate { x: root.enter * 40 }
 
                 Text {
+                    visible: root.height >= 640
                     text: Player.playing ? qsTr("NOW PLAYING") : qsTr("PAUSED")
                     color: Qt.lighter(Theme.accent, 1.15)
                     font.pixelSize: 12
@@ -175,7 +187,7 @@ Item {
                     text: Player.title
                     color: Theme.text
                     font.family: Theme.fontDisplay
-                    font.pixelSize: 56
+                    font.pixelSize: Math.round(56 * root.k)
                     font.weight: Font.Bold
                     wrapMode: Text.WordWrap
                     maximumLineCount: 2
@@ -187,7 +199,7 @@ Item {
                     text: Player.artist
                     artistId: Player.artistId
                     linkEnabled: Player.hasTrack
-                    font.pixelSize: 22
+                    font.pixelSize: Math.max(16, Math.round(22 * root.k))
                     elide: Text.ElideRight
                 }
                 RowLayout {
@@ -200,7 +212,7 @@ Item {
                     }
                 }
 
-                Item { Layout.preferredHeight: 22 }
+                Item { Layout.preferredHeight: 22 * root.k }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -228,7 +240,7 @@ Item {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.topMargin: 8
+                    Layout.topMargin: 8 * root.k
                     spacing: 18
 
                     IconButton {
@@ -246,7 +258,7 @@ Item {
                         onClicked: Player.previous()
                     }
                     PlayButton {
-                        size: 70
+                        size: Math.max(54, Math.round(70 * root.k))
                         onClicked: Player.toggle()
                     }
                     IconButton {
