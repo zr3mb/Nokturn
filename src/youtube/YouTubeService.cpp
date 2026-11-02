@@ -529,7 +529,8 @@ void YouTubeService::search(const QString &query)
     m_searchQuery = q;
     emit searchingChanged();
     // The unfiltered search mixes its shelves (top result, covers, videos, episodes) in no useful order —
-    // the "Songs" chip comes first (the official recordings, by relevance), then the "Videos" chip.
+    // the "Songs" and "Videos" chips are interleaved by rank instead (a song, then a video), so an upload
+    // that's what was searched for (a DJ's mix) isn't buried under twenty merely related songs.
     m_api.search(q, [this, serial, q](const QList<Track> &songs, const QString &error) {
         if (serial != m_searchSerial)
             return;   // a newer query has already arrived
@@ -546,11 +547,11 @@ void YouTubeService::search(const QString &query)
             storeTracks(videos, true);
             QList<Track> all;
             QSet<QString> seen;
-            for (const QList<Track> *list : { &songs, &videos })
-                for (const Track &t : *list)
-                    if (!seen.contains(t.id)) {
-                        seen.insert(t.id);
-                        all << t;
+            for (qsizetype i = 0; i < std::max(songs.size(), videos.size()); ++i)
+                for (const QList<Track> *list : { &songs, &videos })
+                    if (i < list->size() && !seen.contains(list->at(i).id)) {
+                        seen.insert(list->at(i).id);
+                        all << list->at(i);
                     }
             // For niche tracks the "Songs" chip fills up with merely related songs while the track itself
             // is only a video — whatever has the typed words in its title / artist goes first.
