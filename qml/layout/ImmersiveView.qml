@@ -131,8 +131,10 @@ Item {
     }
 
     readonly property bool showLyrics: !Nav.mobile && Nav.immersiveLyrics && root.width >= 640 && Lyrics.state !== "none"
-    // Narrow windows (a small second screen): the lyrics take the cover's place
-    readonly property bool lyricsOverCover: showLyrics && root.width <= 1100
+    // Narrow windows (a small second screen): a smaller cover, controls and lyrics squeeze side by side;
+    // below 900 px the lyrics take the cover's place
+    readonly property bool narrowLyrics: showLyrics && root.width <= 1100
+    readonly property bool lyricsOverCover: showLyrics && root.width < 900
     // Phone: the lyrics take the cover's place while this is on (the lyrics button in the top bar).
     property bool phoneLyrics: false
 
@@ -149,13 +151,13 @@ Item {
         anchors.verticalCenterOffset: Nav.mobile ? -40 : 0   // room for "Up next" at the bottom
         columns: Nav.mobile ? 1 : 3
         rowSpacing: 26
-        columnSpacing: Math.min(root.showLyrics ? 60 : 90, root.width * 0.05)
+        columnSpacing: Math.min(root.showLyrics ? 60 : 90, root.width * (root.narrowLyrics ? 0.03 : 0.05))
 
         Item {
             id: coverBox
             visible: !(Nav.mobile && root.phoneLyrics) && !root.lyricsOverCover
             readonly property real s: Nav.mobile ? Math.min(root.width - 56, root.height * 0.42)
-                                                 : Math.min(stage.height * 0.7, root.height * 0.52, root.width * (root.showLyrics ? 0.24 : 0.34), 500)
+                                                 : Math.min(stage.height * 0.7, root.height * 0.52, root.width * (root.narrowLyrics ? 0.2 : root.showLyrics ? 0.24 : 0.34), 500)
             Layout.preferredWidth: s
             Layout.preferredHeight: s
             Layout.alignment: Qt.AlignHCenter
@@ -194,7 +196,7 @@ Item {
         }
 
         Loader {
-            Layout.preferredWidth: Nav.mobile ? root.width - 48 : Math.min(540, root.width * (root.lyricsOverCover ? 0.42 : root.showLyrics ? 0.3 : 0.4))
+            Layout.preferredWidth: Nav.mobile ? root.width - 48 : Math.min(540, root.width * (root.lyricsOverCover ? 0.42 : root.narrowLyrics ? 0.38 : root.showLyrics ? 0.3 : 0.4))
             active: root.built
             sourceComponent: ColumnLayout {
                 spacing: Nav.mobile ? 6 : 10 * root.k
@@ -365,8 +367,8 @@ Item {
 
         Loader {
             visible: root.showLyrics
-            Layout.preferredWidth: Math.min(520, root.width * (root.lyricsOverCover ? 0.44 : 0.3))
-            Layout.preferredHeight: Math.min(root.lyricsOverCover ? stage.height : root.height * 0.66, 640)
+            Layout.preferredWidth: Math.min(520, root.width * (root.lyricsOverCover ? 0.44 : root.narrowLyrics ? 0.32 : 0.3))
+            Layout.preferredHeight: Math.min(root.narrowLyrics ? stage.height : root.height * 0.66, 640)
             active: root.built && root.showLyrics
             sourceComponent: LyricsView {
                 opacity: 1 - root.enter
