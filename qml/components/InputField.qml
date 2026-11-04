@@ -28,8 +28,8 @@ TextField {
             border.color: Theme.alpha(Theme.accent, 0.16)
             opacity: root.activeFocus ? 1 : 0
             scale: root.activeFocus ? 1 : 0.97
-            Behavior on opacity { NumberAnimation { duration: 260 } }
-            Behavior on scale { NumberAnimation { duration: 360; easing.type: Easing.OutBack } }
+            Behavior on opacity { NumberAnimation { duration: Theme.ms(260) } }
+            Behavior on scale { NumberAnimation { duration: Theme.ms(360); easing.type: Easing.OutBack } }
         }
         Rectangle {
             anchors.fill: parent

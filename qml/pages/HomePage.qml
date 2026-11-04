@@ -111,8 +111,8 @@ Item {
             color: Theme.alpha(mini.modelData.color, 0.15)
             scale: miniHover.hovered ? 1.06 : 1
             rotation: miniHover.hovered ? -5 : 0
-            Behavior on scale { NumberAnimation { duration: 320; easing.type: Easing.OutBack } }
-            Behavior on rotation { NumberAnimation { duration: 320; easing.type: Easing.OutBack } }
+            Behavior on scale { NumberAnimation { duration: Theme.ms(320); easing.type: Easing.OutBack } }
+            Behavior on rotation { NumberAnimation { duration: Theme.ms(320); easing.type: Easing.OutBack } }
             Icon {
                 anchors.centerIn: parent
                 name: mini.modelData.icon

@@ -14,9 +14,9 @@ Item {
 
     ParallelAnimation {
         id: swap
-        NumberAnimation { target: cover; property: "scale"; from: 0.8; to: 1; duration: 560; easing.type: Easing.OutBack }
-        NumberAnimation { target: info; property: "opacity"; from: 0; to: 1; duration: 420; easing.type: Easing.OutCubic }
-        NumberAnimation { target: infoShift; property: "x"; from: 16; to: 0; duration: 600; easing.type: Easing.OutQuint }
+        NumberAnimation { target: cover; property: "scale"; from: 0.8; to: 1; duration: Theme.ms(560); easing.type: Easing.OutBack }
+        NumberAnimation { target: info; property: "opacity"; from: 0; to: 1; duration: Theme.ms(420); easing.type: Easing.OutCubic }
+        NumberAnimation { target: infoShift; property: "x"; from: 16; to: 0; duration: Theme.ms(600); easing.type: Easing.OutQuint }
     }
 
     // ---- Left: current track ------------------------------------------------
@@ -234,7 +234,7 @@ Item {
             width: implicitWidth
             minHeight: 3
             opacity: Player.playing ? 1 : 0.35
-            Behavior on opacity { NumberAnimation { duration: 500 } }
+            Behavior on opacity { NumberAnimation { duration: Theme.ms(500) } }
         }
         Item { width: 12; height: 1 }
         IconButton {

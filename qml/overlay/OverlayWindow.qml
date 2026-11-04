@@ -334,7 +334,7 @@ Window {
             height: 110 * menu.s
             readonly property real spacing: 190 * menu.s
             // Not while the window takes its size (it would slide in apart from the items).
-            Behavior on x { enabled: win.appeared; NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+            Behavior on x { enabled: win.appeared; NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutCubic } }
 
             Repeater {
                 model: menu.categories
@@ -347,7 +347,7 @@ Window {
                     width: row.spacing
                     height: row.height
                     opacity: current ? 1 : (menu.sub ? 0.18 : 0.42)
-                    Behavior on opacity { NumberAnimation { duration: 260 } }
+                    Behavior on opacity { NumberAnimation { duration: Theme.ms(260) } }
 
                     Icon {
                         id: catIcon
@@ -355,7 +355,7 @@ Window {
                         size: (catItem.current ? 64 : 46) * menu.s
                         color: Theme.text
                         y: (64 * menu.s - size) / 2
-                        Behavior on size { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+                        Behavior on size { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutCubic } }
                     }
                     Text {
                         y: 76 * menu.s
@@ -415,7 +415,7 @@ Window {
             // A new list (another category, a playlist opened) slides in.
             property string key: menu.cat + "/" + (menu.sub ? menu.sub.index : "")
             onKeyChanged: enter.restart()
-            NumberAnimation { id: enter; target: list; property: "opacity"; from: 0; to: 1; duration: 260; easing.type: Easing.OutCubic }
+            NumberAnimation { id: enter; target: list; property: "opacity"; from: 0; to: 1; duration: Theme.ms(260); easing.type: Easing.OutCubic }
 
             delegate: Item {
                 id: entry
@@ -428,10 +428,10 @@ Window {
                 // The further from the selection, the fainter (above the row most of all).
                 readonly property int distance: Math.abs(index - list.currentIndex)
                 opacity: (item.disabled ? 0.4 : current ? 1 : above ? 0.36 : 0.62) * Math.max(0.15, 1 - Math.max(0, distance - 2) * (above ? 0.3 : 0.12))
-                Behavior on opacity { NumberAnimation { duration: 200 } }
+                Behavior on opacity { NumberAnimation { duration: Theme.ms(200) } }
                 transform: Translate {
                     y: entry.above ? -menu.rowH - menu.itemH * 0.4 : 0
-                    Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    Behavior on y { NumberAnimation { duration: Theme.ms(220); easing.type: Easing.OutCubic } }
                 }
 
                 Row {
@@ -439,7 +439,7 @@ Window {
                     spacing: 20 * menu.s
                     scale: entry.current ? 1 : 0.86
                     transformOrigin: Item.Left
-                    Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: Theme.ms(220); easing.type: Easing.OutCubic } }
 
                     Item {
                         width: 66 * menu.s

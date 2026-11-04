@@ -20,9 +20,9 @@ Panel {
 
     ParallelAnimation {
         id: enter
-        NumberAnimation { target: details; property: "opacity"; from: 0; to: 1; duration: 450; easing.type: Easing.OutCubic }
-        NumberAnimation { target: detailsShift; property: "y"; from: 14; to: 0; duration: 650; easing.type: Easing.OutQuint }
-        NumberAnimation { target: art; property: "scale"; from: 0.94; to: 1; duration: 700; easing.type: Easing.OutBack }
+        NumberAnimation { target: details; property: "opacity"; from: 0; to: 1; duration: Theme.ms(450); easing.type: Easing.OutCubic }
+        NumberAnimation { target: detailsShift; property: "y"; from: 14; to: 0; duration: Theme.ms(650); easing.type: Easing.OutQuint }
+        NumberAnimation { target: art; property: "scale"; from: 0.94; to: 1; duration: Theme.ms(700); easing.type: Easing.OutBack }
     }
 
     Item {
@@ -30,7 +30,7 @@ Panel {
         width: 344
         height: parent.height
         opacity: root.width > 240 ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 220 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.ms(220) } }
 
         Flickable {
             id: flick
@@ -79,7 +79,7 @@ Panel {
                         height: width
                         anchors.verticalCenter: parent.verticalCenter
                         x: Player.playing ? art.width - width : (art.coverSize - width) / 2
-                        Behavior on x { NumberAnimation { duration: 1100; easing.type: Easing.OutQuint } }
+                        Behavior on x { NumberAnimation { duration: Theme.ms(1100); easing.type: Easing.OutQuint } }
 
                         Item {
                             id: disc
@@ -258,7 +258,7 @@ Panel {
                     colorBottom: Theme.alpha(Theme.accent, 0.35)
                     minHeight: 2
                     opacity: Player.playing ? 1 : 0.35
-                    Behavior on opacity { NumberAnimation { duration: 600 } }
+                    Behavior on opacity { NumberAnimation { duration: Theme.ms(600) } }
                 }
 
                 Rectangle {

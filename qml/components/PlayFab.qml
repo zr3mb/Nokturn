@@ -20,7 +20,7 @@ Item {
         radius: width / 2
         color: mouse.containsMouse ? Qt.lighter(Theme.accent, 1.1) : Theme.accent
         scale: mouse.pressed ? 0.9 : mouse.containsMouse ? 1.08 : 1
-        Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
         Behavior on color { ColorAnimation { duration: Theme.fast } }
 
         layer.enabled: root.opacity > 0   // cards show the button on hover: no shadow textures while hidden

@@ -23,8 +23,8 @@ Item {
         y: root.pill ? 0 : root.height - 2
         radius: root.pill ? height / 2 : 1
         color: root.pill ? Theme.selection : Theme.accent
-        Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutQuint } }
-        Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutQuint } }
+        Behavior on x { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutQuint } }
+        Behavior on width { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutQuint } }
     }
 
     Row {

@@ -20,7 +20,7 @@ Item {
         asynchronous: true
         cache: false
         opacity: status === Image.Ready ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 600 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.ms(600) } }
     }
 
     Rectangle {

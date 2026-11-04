@@ -208,8 +208,8 @@ Item {
                 radius: width / 2
                 color: Theme.alpha(node.col, 0.22)
                 opacity: node.sel ? 1 : 0
-                Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
-                Behavior on opacity { NumberAnimation { duration: 200 } }
+                Behavior on width { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
+                Behavior on opacity { NumberAnimation { duration: Theme.ms(200) } }
             }
             Rectangle {
                 anchors.fill: parent
@@ -219,7 +219,7 @@ Item {
                 border.color: node.col
                 opacity: node.band.enabled ? 1 : 0.6
                 scale: mouse.pressed ? 1.18 : mouse.containsMouse ? 1.08 : 1
-                Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                Behavior on scale { NumberAnimation { duration: Theme.ms(200); easing.type: Easing.OutBack } }
 
                 Text {
                     anchors.centerIn: parent

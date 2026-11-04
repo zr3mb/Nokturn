@@ -49,6 +49,8 @@ private:
 
 int main(int argc, char *argv[])
 {
+    QElapsedTimer startClock;   // NOKTURN_PERF_DEBUG: how long the start takes
+    startClock.start();
     // Images (covers) give up their memory copy once they're uploaded to the GPU, and skip the shared
     // texture atlas — covers are drawn from a mipmapped copy of their own, so the atlas only kept a
     // second one. Variables set by the user win. Not on Android: it drops the GPU's copies whenever the app
@@ -59,6 +61,13 @@ int main(int argc, char *argv[])
 #endif
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_SIZE_LIMIT"))
         qputenv("QSG_ATLAS_SIZE_LIMIT", "1");
+    // Nokturn plays audio only, but Qt's FFmpeg backend probes every hardware video decoder (CUDA,
+    // Vulkan, QSV…) the first time it loads, which held the start for well over a second. An unknown
+    // device name leaves the lists empty, so nothing is probed.
+    if (!qEnvironmentVariableIsSet("QT_FFMPEG_DECODING_HW_DEVICE_TYPES"))
+        qputenv("QT_FFMPEG_DECODING_HW_DEVICE_TYPES", "none");
+    if (!qEnvironmentVariableIsSet("QT_FFMPEG_ENCODING_HW_DEVICE_TYPES"))
+        qputenv("QT_FFMPEG_ENCODING_HW_DEVICE_TYPES", "none");
 
 #ifdef Q_OS_ANDROID
     QtWebView::initialize();   // the in-app sign-in page (before the application object)
@@ -106,6 +115,9 @@ int main(int argc, char *argv[])
         [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
     engine.loadFromModule("Nokturn", "Main");
+    const bool perfDebug = qEnvironmentVariableIsSet("NOKTURN_PERF_DEBUG");
+    if (perfDebug)
+        qInfo("perf: the interface was built %lld ms after start", startClock.elapsed());
     QObject::connect(GameOverlay::instance(), &GameOverlay::linkReceived, OnlineService::instance(), &OnlineService::openLink);
     if (!link.isEmpty())
         QTimer::singleShot(1200, OnlineService::instance(), [link] { OnlineService::instance()->openLink(link); });
@@ -142,7 +154,15 @@ int main(int argc, char *argv[])
     // through it, so a stall over ~200 ms is heard as a gap.
     QTimer stallProbe;
     QElapsedTimer stallClock;
-    if (qEnvironmentVariableIsSet("NOKTURN_PERF_DEBUG")) {
+    if (perfDebug && window) {
+        auto *once = new QMetaObject::Connection;
+        *once = QObject::connect(window, &QQuickWindow::frameSwapped, window, [once, startClock] {
+            qInfo("perf: first frame on screen %lld ms after start", startClock.elapsed());
+            QObject::disconnect(*once);
+            delete once;
+        });
+    }
+    if (perfDebug) {
         stallProbe.setInterval(10);
         stallProbe.setTimerType(Qt::PreciseTimer);
         QObject::connect(&stallProbe, &QTimer::timeout, [&stallClock] {

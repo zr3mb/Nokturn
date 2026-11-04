@@ -24,8 +24,8 @@ Item {
         y: 3
         x: root.checked ? root.width - width - 3 : 3
         color: root.checked ? Theme.onAccent : Theme.text
-        Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.6 } }
-        Behavior on width { NumberAnimation { duration: 160 } }
+        Behavior on x { NumberAnimation { duration: Theme.ms(340); easing.type: Easing.OutBack; easing.overshoot: 1.6 } }
+        Behavior on width { NumberAnimation { duration: Theme.ms(160) } }
         Behavior on color { ColorAnimation { duration: Theme.normal } }
     }
 

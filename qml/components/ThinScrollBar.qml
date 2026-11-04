@@ -13,9 +13,9 @@ ScrollBar {
         radius: width / 2
         color: Theme.alpha(Theme.text, control.pressed ? 0.36 : control.hovered ? 0.26 : 0.15)
         opacity: control.active || control.hovered ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 420 } }
-        Behavior on implicitWidth { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-        Behavior on color { ColorAnimation { duration: 160 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.ms(420) } }
+        Behavior on implicitWidth { NumberAnimation { duration: Theme.ms(160); easing.type: Easing.OutCubic } }
+        Behavior on color { ColorAnimation { duration: Theme.ms(160) } }
     }
     background: Item {}
 }

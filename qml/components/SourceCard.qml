@@ -14,10 +14,10 @@ Item {
     readonly property string frame: Theme.roundedRectPath(width, height, 20)
 
     property real glow: hover.hovered ? 1 : 0
-    Behavior on glow { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+    Behavior on glow { NumberAnimation { duration: Theme.ms(400); easing.type: Easing.OutCubic } }
 
     property real animatedHeight: col.implicitHeight + 46
-    Behavior on animatedHeight { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
+    Behavior on animatedHeight { NumberAnimation { duration: Theme.ms(520); easing.type: Easing.OutQuint } }
 
     Layout.fillWidth: true
     implicitHeight: animatedHeight

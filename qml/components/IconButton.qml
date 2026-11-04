@@ -34,7 +34,7 @@ Item {
         color: root.active ? root.activeColor : mouse.containsMouse ? root.hoverColor : root.color
         scale: mouse.pressed ? 0.84 : 1
         Behavior on color { ColorAnimation { duration: Theme.normal } }
-        Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
     }
 
     Rectangle {
@@ -45,13 +45,13 @@ Item {
         opacity: root.active ? 1 : 0
         scale: root.active ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.normal } }
-        Behavior on scale { NumberAnimation { duration: 320; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(320); easing.type: Easing.OutBack } }
     }
 
     SequentialAnimation {
         id: pop
-        NumberAnimation { target: glyph; property: "scale"; to: 1.35; duration: 140; easing.type: Easing.OutCubic }
-        NumberAnimation { target: glyph; property: "scale"; to: 1.0; duration: 420; easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.5 }
+        NumberAnimation { target: glyph; property: "scale"; to: 1.35; duration: Theme.ms(140); easing.type: Easing.OutCubic }
+        NumberAnimation { target: glyph; property: "scale"; to: 1.0; duration: Theme.ms(420); easing.type: Easing.OutElastic; easing.amplitude: 1.2; easing.period: 0.5 }
     }
     onActiveChanged: if (active && popOnActivate) pop.restart()
 
