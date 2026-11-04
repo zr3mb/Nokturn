@@ -18,17 +18,28 @@ Item {
     readonly property bool empty: (stats.plays || 0) === 0
 
     component Tile: Rectangle {
+        id: tile
         property string value: ""
         property string label: ""
+        property string icon: ""
         Layout.fillWidth: true
-        Layout.preferredHeight: 104
+        Layout.preferredHeight: 112
         radius: 18
-        color: Theme.alpha(Theme.text, 0.04)
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0; color: Theme.alpha(Theme.accent, 0.10) }
+            GradientStop { position: 1; color: Theme.alpha(Theme.text, 0.03) }
+        }
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.06)
+        Rectangle {
+            anchors { top: parent.top; right: parent.right; margins: 14 }
+            width: 32; height: 32; radius: 16
+            color: Theme.alpha(Theme.accent, 0.16)
+            Icon { anchors.centerIn: parent; name: tile.icon; size: 17; color: Theme.accent }
+        }
         ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 18
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 18 }
             spacing: 2
             Text {
                 text: parent.parent.value
@@ -103,13 +114,13 @@ Item {
             visible: !page.empty
             GridLayout {
                 width: parent.width
-                columns: width > 760 ? 4 : 2
+                columns: width > 640 ? 4 : 2
                 columnSpacing: 14
                 rowSpacing: 14
-                Tile { value: page.hours(page.stats.minutes || 0); label: qsTr("of music") }
-                Tile { value: String(page.stats.plays || 0); label: qsTr("plays") }
-                Tile { value: String(page.stats.artists || 0); label: qsTr("artists") }
-                Tile { value: String(page.stats.days || 0); label: qsTr("days with music") }
+                Tile { icon: "clock"; value: page.hours(page.stats.minutes || 0); label: qsTr("of music") }
+                Tile { icon: "playCircle"; value: String(page.stats.plays || 0); label: qsTr("plays") }
+                Tile { icon: "person"; value: String(page.stats.artists || 0); label: qsTr("artists") }
+                Tile { icon: "chart"; value: String(page.stats.days || 0); label: qsTr("days with music") }
             }
         }
 

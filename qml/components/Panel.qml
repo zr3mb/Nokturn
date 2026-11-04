@@ -10,6 +10,7 @@ Item {
     // Off for panels whose content never reaches the corners: a plain rectangular clip then does the
     // same without an offscreen copy of the panel.
     property bool roundedClip: true
+    property bool outlined: true
     default property alias content: body.data
 
     Rectangle {
@@ -36,6 +37,7 @@ Item {
     }
 
     Rectangle {
+        visible: root.outlined
         anchors.fill: parent
         radius: root.radius
         color: "transparent"

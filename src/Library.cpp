@@ -1175,6 +1175,8 @@ void Library::rebuildCollections()
                 a.data["year"] = t.year;
         }
 
+        if (artist.trimmed().isEmpty())
+            continue;   // no artist to show (a card without a name would be all that's left)
         if (!artists.contains(artist)) {
             artistOrder << artist;
             artists.insert(artist, QVariantMap {

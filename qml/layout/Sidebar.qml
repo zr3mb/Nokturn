@@ -7,7 +7,9 @@ Panel {
     id: root
     readonly property bool compact: Nav.sidebarCompact
     property Item selectedItem: null
-    tint: Theme.alpha(Theme.surface, 0.55)
+    // No box of its own: the menu sits right on the window's background, next to the content panel.
+    tint: "transparent"
+    outlined: false
     roundedClip: false   // the logo, the list and the footer all stay clear of the corners
 
     // Ctrl + drag a playlist: where it would land (the line shows it), and the move when it's let go.
@@ -52,7 +54,7 @@ Panel {
     Item {
         id: logo
         width: parent.width
-        height: 78
+        height: 70
 
         LogoMark {
             id: mark
@@ -135,18 +137,6 @@ Panel {
                 width: parent.width
                 spacing: 2
 
-                Text {
-                    width: parent.width
-                    height: 28
-                    leftPadding: 14
-                    verticalAlignment: Text.AlignVCenter
-                    text: root.compact ? "" : qsTr("MENU")
-                    color: Theme.textFaint
-                    font.pixelSize: 11
-                    font.weight: Font.DemiBold
-                    font.letterSpacing: 1.6
-                }
-
                 Repeater {
                     model: [
                         { key: "home", label: qsTr("Home"), icon: "home" },
@@ -171,7 +161,7 @@ Panel {
                     }
                 }
 
-                Item { width: 1; height: 14 }
+                Item { width: 1; height: 12 }
 
                 Item {
                     width: parent.width
@@ -313,7 +303,7 @@ Panel {
                                     return "SoundCloud · " + qsTr("%n tracks", "", Library.playlistRows(plIndex).length)
                                 if (pl.kind === "shared")
                                     return qsTr("Shared · %n tracks", "", pl.count)
-                                return qsTr("Playlist · %n tracks", "", Library.playlistRows(plIndex).length)
+                                return qsTr("%n tracks", "", Library.playlistRows(plIndex).length)
                             }
                             colorA: pl.colorA || "#888888"
                             colorB: pl.colorB || "#444444"

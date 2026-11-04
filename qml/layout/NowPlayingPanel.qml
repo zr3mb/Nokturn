@@ -227,28 +227,24 @@ Panel {
                         Layout.topMargin: 4
                         spacing: 8
                         SourceBadge { source: Player.source; visible: Player.hasTrack }
-                        Rectangle {
+                        Text {
                             visible: Player.quality !== ""
-                            width: qualityText.implicitWidth + 18
                             height: 24
-                            radius: 12
-                            color: Theme.alpha(Theme.text, 0.06)
-                            Text {
-                                id: qualityText
-                                anchors.centerIn: parent
-                                text: Player.quality
-                                color: Theme.textDim
-                                font.pixelSize: 11
-                                font.weight: Font.DemiBold
-                            }
+                            verticalAlignment: Text.AlignVCenter
+                            text: Player.quality
+                            color: Theme.textFaint
+                            font.pixelSize: 12
                         }
                     }
                 }
 
+                // Folds away while paused: an empty strip would only push the queue down.
                 Visualizer {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 100
-                    Layout.preferredHeight: 44
+                    Layout.preferredHeight: Player.playing ? 44 : 0
+                    Behavior on Layout.preferredHeight { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutCubic } }
+                    visible: Layout.preferredHeight > 0.5
                     bars: 40
                     spacing: 2
                     barWidth: (width - spacing * (bars - 1)) / bars
@@ -259,12 +255,6 @@ Panel {
                     minHeight: 2
                     opacity: Player.playing ? 1 : 0.35
                     Behavior on opacity { NumberAnimation { duration: Theme.ms(600) } }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Qt.rgba(1, 1, 1, 0.06)
                 }
 
                 RowLayout {

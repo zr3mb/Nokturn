@@ -237,7 +237,8 @@ Item {
                                                        playlist: { name: p.title, cover: p.cover || "", seed: i + 2, icon: "wavecloud" } }))
         return own.concat(pub, sc)
     }
-    readonly property bool sideShown: page.width > 760 && page.searching && filter !== 1 && filter !== 4
+    // Only where the tracks keep a comfortable width next to it (the field and filters need ~500 px).
+    readonly property bool sideShown: page.width > 1000 && page.searching && filter !== 1 && filter !== 4
     readonly property bool lookingUp: (onlineEnabled && YouTube.searching) || (soundcloudEnabled && SoundCloud.searching)
 
     Rectangle {

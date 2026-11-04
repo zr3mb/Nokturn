@@ -66,6 +66,18 @@ Item {
                 shadowOpacity: 0.55
                 shadowVerticalOffset: 12
             }
+
+            // The cover opens the full-screen player (it replaces a separate button).
+            Rectangle {
+                anchors.fill: parent
+                radius: 16
+                color: "#66000000"
+                opacity: coverHover.hovered && Player.hasTrack ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+                Icon { anchors.centerIn: parent; name: "expand"; size: 30; color: "#ffffff" }
+            }
+            HoverHandler { id: coverHover; cursorShape: Player.hasTrack ? Qt.PointingHandCursor : Qt.ArrowCursor }
+            TapHandler { enabled: Player.hasTrack; onTapped: Nav.immersive = true }
         }
 
         ColumnLayout {
@@ -73,27 +85,15 @@ Item {
             Layout.fillHeight: true
             spacing: 6
 
-            RowLayout {
+            Text {
                 Layout.fillWidth: true
-                Text {
-                    Layout.fillWidth: true
-                    text: Player.playing ? qsTr("NOW PLAYING")
-                        : Player.hasTrack ? qsTr("CONTINUE LISTENING")
-                        : Library.localCount > 0 ? qsTr("READY TO PLAY") : qsTr("START HERE")
-                    color: Qt.lighter(Theme.accent, 1.15)
-                    font.pixelSize: 11
-                    font.weight: Font.Bold
-                    font.letterSpacing: 2.2
-                }
-                PillButton {
-                    kind: "ghost"
-                    icon: "expand"
-                    text: qsTr("Full screen")
-                    fontSize: 13
-                    implicitHeight: 34
-                    visible: Player.hasTrack && !Nav.mobile
-                    onClicked: Nav.immersive = true
-                }
+                text: Player.playing ? qsTr("NOW PLAYING")
+                    : Player.hasTrack ? qsTr("CONTINUE LISTENING")
+                    : Library.localCount > 0 ? qsTr("READY TO PLAY") : qsTr("START HERE")
+                color: Qt.lighter(Theme.accent, 1.15)
+                font.pixelSize: 11
+                font.weight: Font.Bold
+                font.letterSpacing: 2.2
             }
             Text {
                 Layout.fillWidth: true

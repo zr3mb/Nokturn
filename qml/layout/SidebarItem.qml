@@ -20,7 +20,7 @@ Item {
     signal clicked
 
     width: parent ? parent.width : 220
-    height: cover ? 54 : 44
+    height: cover ? 50 : 40
 
     Rectangle {
         anchors.fill: parent
@@ -35,7 +35,7 @@ Item {
         x: 15
         anchors.verticalCenter: parent.verticalCenter
         name: root.icon
-        size: 22
+        size: 20
         color: root.selected || mouse.containsMouse ? Theme.text : Theme.textDim
         scale: mouse.pressed ? 0.84 : 1
         Behavior on color { ColorAnimation { duration: Theme.normal } }

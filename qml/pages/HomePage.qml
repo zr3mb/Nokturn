@@ -257,9 +257,8 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: Theme.cat ? qsTr("Back for more music? ♡")
-                                    : Nav.mobile ? qsTr("Your music from YouTube Music — in your pocket.")
-                                    : qsTr("Your music from disk, YouTube Music and radio — in one place.")
+                    visible: Theme.cat
+                    text: qsTr("Back for more music? ♡")
                     color: Theme.textDim
                     font.pixelSize: 15
                     wrapMode: Text.WordWrap

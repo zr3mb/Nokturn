@@ -201,11 +201,12 @@ Item {
         }
 
         Item {
-            visible: !root.compact && !Nav.mobile && root.width > 560
+            visible: !root.compact && !Nav.mobile && root.width > 860   // the title comes first in narrower lists
             Layout.preferredWidth: 132
             Layout.fillHeight: true
             SourceBadge {
                 anchors.verticalCenter: parent.verticalCenter
+                plain: true
                 source: root.t.source
             }
         }

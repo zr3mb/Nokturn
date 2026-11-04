@@ -6,6 +6,7 @@ Rectangle {
     id: root
     property string source: "local"
     property bool showLabel: true
+    property bool plain: false   // icon and name only, without the pill (lists, where every row has one)
 
     readonly property var info: ({
         local:   { label: qsTr("Local"),       icon: "folder",     color: "#9fbfa8" },
@@ -16,16 +17,17 @@ Rectangle {
         stream:  { label: qsTr("Stream"),      icon: "link",       color: "#93a8c3" }
     })[source] || { label: source, icon: "music", color: "#a19e98" }
 
-    implicitWidth: row.implicitWidth + (showLabel ? 18 : 12)
+    implicitWidth: row.implicitWidth + (plain ? 0 : showLabel ? 18 : 12)
     implicitHeight: 24
     radius: height / 2
-    color: Theme.alpha(info.color, 0.12)
-    border.width: 1
+    color: plain ? "transparent" : Theme.alpha(info.color, 0.12)
+    border.width: plain ? 0 : 1
     border.color: Theme.alpha(info.color, 0.2)
 
     Row {
         id: row
-        anchors.centerIn: parent
+        anchors.centerIn: root.plain ? undefined : parent
+        anchors.verticalCenter: root.plain ? parent.verticalCenter : undefined
         spacing: 6
 
         Icon {
@@ -38,9 +40,9 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.showLabel
             text: root.info.label
-            color: Qt.lighter(root.info.color, 1.12)
-            font.pixelSize: 11
-            font.weight: Font.DemiBold
+            color: root.plain ? Theme.textDim : Qt.lighter(root.info.color, 1.12)
+            font.pixelSize: root.plain ? 13 : 11
+            font.weight: root.plain ? Font.Normal : Font.DemiBold
         }
     }
 }
