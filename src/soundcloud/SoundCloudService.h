@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QTimer>
 #include <QSet>
 #include <QUrl>
 #include <QUrlQuery>
@@ -139,7 +140,8 @@ private:
 
     void saveToken() const;
     void loadCache();
-    void saveCache() const;
+    void saveCache();               // soon, in the background (a burst of changes writes once)
+    void writeCache(bool wait);     // now: built and written on a worker thread, or here
     void clearAccountData();
 
     QNetworkAccessManager m_net;
@@ -175,4 +177,5 @@ private:
     int m_resultsRevision = 0;
     bool m_syncing = false;
     QDateTime m_lastSync;
+    QTimer m_saveTimer;
 };

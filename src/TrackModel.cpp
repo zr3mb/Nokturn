@@ -77,8 +77,12 @@ QHash<int, QByteArray> TrackModel::roleNames() const
     };
 }
 
-void TrackModel::setTracks(QList<Track> tracks)
+bool TrackModel::setTracks(QList<Track> tracks)
 {
+    // A service refreshed on start usually brings back what its cache already had: the same list
+    // keeps the rows (and every list in the interface) as they are.
+    if (tracks == m_tracks)
+        return false;
     beginResetModel();
     m_tracks = std::move(tracks);
     m_rowById.clear();
@@ -89,6 +93,7 @@ void TrackModel::setTracks(QList<Track> tracks)
     emit countChanged();
     ++m_revision;
     emit revisionChanged();
+    return true;
 }
 
 void TrackModel::appendTracks(const QList<Track> &tracks)

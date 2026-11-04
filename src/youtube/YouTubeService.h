@@ -9,6 +9,7 @@
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
+#include <QTimer>
 #include <QSet>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
@@ -159,7 +160,8 @@ private:
     void setLikedList(const QStringList &ids);
     void clearAccountData();
     void loadCache();
-    void saveCache() const;
+    void saveCache();               // soon, in the background (a burst of changes writes once)
+    void writeCache(bool wait);     // now: built and written on a worker thread, or here
 
     YtCookies m_cookies;
     BrowserLogin m_login;
@@ -196,4 +198,5 @@ private:
     int m_pendingSync = 0;
     QString m_syncError;
     QDateTime m_lastSync;
+    QTimer m_saveTimer;
 };

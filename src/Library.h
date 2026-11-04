@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QTimer>
 #include <QSet>
 #include <QUrl>
 #include <QVariantList>
@@ -144,6 +145,7 @@ private:
     void saveFolders() const;
     void applyLocalTracks(QList<Track> local);
     void rebuildModel();
+    void requestRebuild();      // rebuildModel() once for a burst of changes
     void buildSources();
     void rebuildCollections();
     void rebuildPlaylists();
@@ -180,6 +182,7 @@ private:
     int m_genresChanges = 0;
 
     QFutureWatcher<Scanner::Result> m_watcher;
+    QTimer m_rebuildTimer;
     QNetworkAccessManager m_net;
     QSet<QString> m_paletteDone;
     QSet<QString> m_sendingCovers;   // cover keys on their way to the server

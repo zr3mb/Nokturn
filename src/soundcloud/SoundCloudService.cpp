@@ -1,5 +1,7 @@
 #include "SoundCloudService.h"
 
+#include <QThreadPool>
+
 #include "AppPaths.h"
 #include "LibraryScanner.h"
 #include "youtube/YouTubeService.h"
@@ -147,6 +149,16 @@ SoundCloudService *SoundCloudService::create(QQmlEngine *, QJSEngine *)
 SoundCloudService::SoundCloudService(QObject *parent)
     : QObject(parent)
 {
+    m_saveTimer.setSingleShot(true);
+    m_saveTimer.setInterval(1000);
+    connect(&m_saveTimer, &QTimer::timeout, this, [this] { writeCache(false); });
+    // A save still waiting when the app quits is written before it ends.
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this] {
+        if (m_saveTimer.isActive())
+            writeCache(true);
+        QThreadPool::globalInstance()->waitForDone(3000);
+    });
+
     m_login.setSite(BrowserLogin::Site::SoundCloud);
     connect(&m_login, &BrowserLogin::runningChanged, this, &SoundCloudService::loggingInChanged);
     connect(&m_login, &BrowserLogin::statusChanged, this, &SoundCloudService::loggingInChanged);
@@ -299,6 +311,8 @@ void SoundCloudService::logout()
     m_token.clear();
     m_tokenSuspect = m_tokenDead = false;
     QFile::remove(tokenFile());
+    m_saveTimer.stop();
+    QThreadPool::globalInstance()->waitForDone(3000);   // a write on its way would bring the file back
     QFile::remove(cacheFile());
     QDir(browserProfile()).removeRecursively();   // the session in the browser profile goes too
     clearAccountData();
@@ -956,26 +970,41 @@ void SoundCloudService::loadCache()
     m_lastSync = QDateTime::fromString(root.value("lastSync").toString(), Qt::ISODate);
 }
 
-void SoundCloudService::saveCache() const
+void SoundCloudService::saveCache()
 {
-    QJsonArray tracks;
-    for (const Track &t : m_tracks)
-        if (!t.transient)
-            tracks.append(toJson(t, t.quality == qualityText(true)));
-    QJsonObject lists;
-    for (auto it = m_playlistTracks.cbegin(); it != m_playlistTracks.cend(); ++it)
-        lists.insert(it.key(), toArray(it.value()));
-    const QJsonObject root {
-        { "account", QJsonObject { { "id", double(m_userId) }, { "name", m_accountName }, { "photo", m_accountPhoto } } },
-        { "tracks", tracks },
-        { "liked", toArray(m_liked) },
-        { "playlists", QJsonArray::fromVariantList(m_playlists) },
-        { "playlistTracks", lists },
-        { "lastSync", m_lastSync.toString(Qt::ISODate) },
+    m_saveTimer.start();
+}
+
+void SoundCloudService::writeCache(bool wait)
+{
+    m_saveTimer.stop();
+    // Built and written from copies of the data (cheap, shared until changed) on a worker thread.
+    auto job = [tracks = m_tracks, liked = m_liked, playlists = m_playlists, lists = m_playlistTracks,
+                userId = m_userId, name = m_accountName, photo = m_accountPhoto, lastSync = m_lastSync,
+                preview = qualityText(true), path = cacheFile()] {
+        QJsonArray trackArray;
+        for (const Track &t : tracks)
+            if (!t.transient)
+                trackArray.append(toJson(t, t.quality == preview));
+        QJsonObject listObject;
+        for (auto it = lists.cbegin(); it != lists.cend(); ++it)
+            listObject.insert(it.key(), toArray(it.value()));
+        const QJsonObject root {
+            { "account", QJsonObject { { "id", double(userId) }, { "name", name }, { "photo", photo } } },
+            { "tracks", trackArray },
+            { "liked", toArray(liked) },
+            { "playlists", QJsonArray::fromVariantList(playlists) },
+            { "playlistTracks", listObject },
+            { "lastSync", lastSync.toString(Qt::ISODate) },
+        };
+        QSaveFile file(path);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+            file.commit();
+        }
     };
-    QSaveFile file(cacheFile());
-    if (file.open(QIODevice::WriteOnly)) {
-        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
-        file.commit();
-    }
+    if (wait)
+        job();
+    else
+        QThreadPool::globalInstance()->start(job);
 }

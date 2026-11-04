@@ -161,11 +161,17 @@ Library::Library(QObject *parent)
         AppPaths::settings()->setValue("library/liked", QStringList(m_liked.cbegin(), m_liked.cend()));
     });
 
+    // The services report changes in bursts after start (account, likes, playlists, each source in
+    // turn); every rebuild resets the model and re-runs the interface's bindings, so a burst makes one.
+    m_rebuildTimer.setSingleShot(true);
+    m_rebuildTimer.setInterval(30);
+    connect(&m_rebuildTimer, &QTimer::timeout, this, &Library::rebuildModel);
+
     connect(&m_watcher, &QFutureWatcher<Scanner::Result>::progressValueChanged, this, &Library::scanChanged);
     connect(&m_watcher, &QFutureWatcher<Scanner::Result>::started, this, &Library::scanChanged);
     connect(&m_watcher, &QFutureWatcher<Scanner::Result>::finished, this, &Library::onScanFinished);
 
-    connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &Library::rebuildModel);
+    connect(YouTubeService::instance(), &YouTubeService::dataChanged, this, &Library::requestRebuild);
     connect(ArtistGenres::instance(), &ArtistGenres::changed, this, [this] {
         ++m_genresChanges;
         emit genresChanged();
@@ -178,11 +184,11 @@ Library::Library(QObject *parent)
         emit playlistsChanged();
     });
     connect(YouTubeService::instance(), &YouTubeService::tracksAdded, m_tracks, &TrackModel::appendTracks);
-    connect(YouTubeService::instance(), &YouTubeService::accountChanged, this, &Library::rebuildModel);
-    connect(SpotifyService::instance(), &SpotifyService::dataChanged, this, &Library::rebuildModel);
-    connect(SpotifyService::instance(), &SpotifyService::accountChanged, this, &Library::rebuildModel);
-    connect(SoundCloudService::instance(), &SoundCloudService::dataChanged, this, &Library::rebuildModel);
-    connect(SoundCloudService::instance(), &SoundCloudService::accountChanged, this, &Library::rebuildModel);
+    connect(YouTubeService::instance(), &YouTubeService::accountChanged, this, &Library::requestRebuild);
+    connect(SpotifyService::instance(), &SpotifyService::dataChanged, this, &Library::requestRebuild);
+    connect(SpotifyService::instance(), &SpotifyService::accountChanged, this, &Library::requestRebuild);
+    connect(SoundCloudService::instance(), &SoundCloudService::dataChanged, this, &Library::requestRebuild);
+    connect(SoundCloudService::instance(), &SoundCloudService::accountChanged, this, &Library::requestRebuild);
     connect(SoundCloudService::instance(), &SoundCloudService::tracksAdded, m_tracks, &TrackModel::appendTracks);
     // Shared playlists, a listening room's queue, opened links: their tracks join the model as they come.
     connect(OnlineService::instance(), &OnlineService::tracksAdded, m_tracks, &TrackModel::appendTracks);
@@ -435,14 +441,22 @@ void Library::applyLocalTracks(QList<Track> local)
     rebuildModel();
 }
 
+void Library::requestRebuild()
+{
+    m_rebuildTimer.start();
+}
+
 void Library::rebuildModel()
 {
+    m_rebuildTimer.stop();
     static const bool perf = qEnvironmentVariableIsSet("NOKTURN_PERF_DEBUG");
     QElapsedTimer clock;
     clock.start();
+    bool changed = false;
     const auto log = qScopeGuard([&] {
         if (perf)
-            qInfo("perf: Library::rebuildModel %lld ms (%d tracks)", clock.elapsed(), m_tracks->count());
+            qInfo("perf: Library::rebuildModel %lld ms (%d tracks%s)", clock.elapsed(), m_tracks->count(),
+                  changed ? "" : ", unchanged");
     });
     YouTubeService *yt = YouTubeService::instance();
     QList<Track> all = m_local;
@@ -471,10 +485,13 @@ void Library::rebuildModel()
             continue;
         all << t;
     }
-    m_tracks->setTracks(all);
-    rebuildCollections();
+    changed = m_tracks->setTracks(all);
+    if (changed) {
+        rebuildCollections();
+        emit libraryChanged();
+    }
+    // The playlists' contents may have changed even when no track did.
     rebuildPlaylists();
-    emit libraryChanged();
     emit playlistsChanged();
 }
 

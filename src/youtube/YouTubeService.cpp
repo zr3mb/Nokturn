@@ -1,5 +1,7 @@
 #include "YouTubeService.h"
 
+#include <QThreadPool>
+
 #include "AppPaths.h"
 #ifdef Q_OS_ANDROID
 #  include "platform/AndroidSupport.h"
@@ -130,6 +132,15 @@ YouTubeService *YouTubeService::create(QQmlEngine *, QJSEngine *)
 YouTubeService::YouTubeService(QObject *parent)
     : QObject(parent)
 {
+    m_saveTimer.setSingleShot(true);
+    m_saveTimer.setInterval(1000);
+    connect(&m_saveTimer, &QTimer::timeout, this, [this] { writeCache(false); });
+    // A save still waiting when the app quits is written before it ends.
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this] {
+        if (m_saveTimer.isActive())
+            writeCache(true);
+        QThreadPool::globalInstance()->waitForDone(3000);
+    });
     BrowserLogin::findBrowser(&m_browserName);
 
     connect(&m_login, &BrowserLogin::runningChanged, this, &YouTubeService::loggingInChanged);
@@ -229,6 +240,8 @@ void YouTubeService::logout()
     m_api.setCookies({});
     m_resolver.setCookies({});
     QFile::remove(cookieFile());
+    m_saveTimer.stop();
+    QThreadPool::globalInstance()->waitForDone(3000);   // a write on its way would bring the file back
     QFile::remove(cacheFile());
     QDir(browserProfile()).removeRecursively();   // the session in the browser profile goes too
 
@@ -847,27 +860,41 @@ void YouTubeService::loadCache()
     m_lastSync = QDateTime::fromString(root.value("lastSync").toString(), Qt::ISODate);
 }
 
-void YouTubeService::saveCache() const
+void YouTubeService::saveCache()
 {
-    QJsonArray tracks;
-    for (const Track &t : m_tracks)
-        if (!t.transient)
-            tracks.append(toJson(t));
-    QJsonObject lists;
-    for (auto it = m_playlistTracks.cbegin(); it != m_playlistTracks.cend(); ++it)
-        lists.insert(it.key(), toArray(it.value()));
+    m_saveTimer.start();
+}
 
-    const QJsonObject root {
-        { "account", QJsonObject { { "name", m_account.name }, { "handle", m_account.handle }, { "photo", m_account.photo } } },
-        { "tracks", tracks },
-        { "liked", toArray(m_liked) },
-        { "playlists", QJsonArray::fromVariantList(m_playlists) },
-        { "playlistTracks", lists },
-        { "lastSync", m_lastSync.toString(Qt::ISODate) },
+void YouTubeService::writeCache(bool wait)
+{
+    m_saveTimer.stop();
+    // The cache holds every track seen (about a megabyte of JSON): it's built and written from copies
+    // of the data (cheap, shared until changed) on a worker thread, so the interface doesn't stall.
+    auto job = [tracks = m_tracks, liked = m_liked, playlists = m_playlists, lists = m_playlistTracks,
+                account = m_account, lastSync = m_lastSync, path = cacheFile()] {
+        QJsonArray trackArray;
+        for (const Track &t : tracks)
+            if (!t.transient)
+                trackArray.append(toJson(t));
+        QJsonObject listObject;
+        for (auto it = lists.cbegin(); it != lists.cend(); ++it)
+            listObject.insert(it.key(), toArray(it.value()));
+        const QJsonObject root {
+            { "account", QJsonObject { { "name", account.name }, { "handle", account.handle }, { "photo", account.photo } } },
+            { "tracks", trackArray },
+            { "liked", toArray(liked) },
+            { "playlists", QJsonArray::fromVariantList(playlists) },
+            { "playlistTracks", listObject },
+            { "lastSync", lastSync.toString(Qt::ISODate) },
+        };
+        QSaveFile file(path);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+            file.commit();
+        }
     };
-    QSaveFile file(cacheFile());
-    if (file.open(QIODevice::WriteOnly)) {
-        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
-        file.commit();
-    }
+    if (wait)
+        job();
+    else
+        QThreadPool::globalInstance()->start(job);
 }
