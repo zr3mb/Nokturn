@@ -40,7 +40,8 @@ class StreamFetch : public QObject
     Q_OBJECT
 
 public:
-    StreamFetch(QNetworkAccessManager *net, const QUrl &url, QObject *parent = nullptr);
+    // headOnly: just the first part (a track the cursor rests on); continueAll() then fetches the rest.
+    StreamFetch(QNetworkAccessManager *net, const QUrl &url, bool headOnly = false, QObject *parent = nullptr);
     ~StreamFetch() override;
 
     // A googlevideo.com stream that isn't huge (a very long mix keeps streaming from the URL).
@@ -50,6 +51,10 @@ public:
     std::shared_ptr<StreamData> data() const { return m_shared; }
     // All of it, once finished(true)
     QByteArray takeData();
+    QUrl url() const { return m_url; }
+    bool headIsReady() const { return m_headSent; }
+    bool headOnly() const { return m_headOnly; }
+    void continueAll();
 
 signals:
     void headReady();          // the start is in: a StreamDevice can be played
@@ -73,6 +78,8 @@ private:
     QList<Part> m_pending;                     // parts not asked for yet
     QList<QPointer<QNetworkReply>> m_replies;  // parts on their way
     qint64 m_received = 0;
+    qint64 m_planned = 0;                      // parts up to here are asked for (or queued)
+    bool m_headOnly = false;
     bool m_headSent = false;
     bool m_done = false;
 };

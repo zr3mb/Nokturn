@@ -273,7 +273,9 @@ private:
     void setStream(int deck, const QString &videoId, const QUrl &url);
     QString streamIdOf(const Track &t) const;
     bool retryStream(int deck);
-    void prefetchTrack(int row);
+    void prefetchTrack(int row, bool full = false);
+    void startAhead(const QString &videoId, const QUrl &url, bool full);
+    StreamFetch *takeAhead(const QString &videoId, const QUrl &url);
     void warmUp();
     void onModelReset();
     void onMediaStatus(QMediaPlayer::MediaStatus status);
@@ -287,6 +289,11 @@ private:
     AudioEngine m_engine;               // the actual output: deck mixer + equalizer + QAudioSink
     QNetworkAccessManager m_net;        // YouTube streams fetched into memory
     AudioCache m_cache;                 // ...and kept on disk afterwards
+    // Streams fetched before they're played: the start of a track the cursor rests on, the whole next
+    // track of the queue. Playing one takes its fetch over. In the order they were started.
+    QHash<QString, StreamFetch *> m_ahead;
+    QStringList m_aheadOrder;
+    QHash<QString, bool> m_wantAhead;   // waiting for their URL: videoId -> the whole track
     int m_cacheRevision = 0;
     std::array<Deck, AudioEngine::kDecks> m_decks;
     int m_active = 0;
