@@ -1046,6 +1046,10 @@ Item {
                                          Nav.navigate("home") } },
         { name: "D02-home", run: () => Player.pause() },
         { name: "D03-search", run: () => Nav.navigate("search") },
+        { name: "D03b-results", run: () => { const rows = Library.libraryRows()
+                                             Nav.navigate("search", { query: rows.length ? Library.tracks.get(rows[0]).artist : "" }) } },
+        { name: "D03c-results", run: () => Nav.queueOpen = false },
+        { name: "D03d-results-wide", run: () => Nav.queueOpen = true },
         { name: "D04-library", run: () => Nav.navigate("library") },
         { name: "D05-albums", run: () => Nav.navigate("library", { tab: 1 }) },
         { name: "D06-artists", run: () => Nav.navigate("library", { tab: 2 }) },

@@ -86,13 +86,6 @@ Item {
             Row {
                 width: parent.width
                 spacing: 8
-                SourceBadge {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: Player.source
-                    visible: Player.hasTrack && !Player.transitioning
-                    showLabel: false
-                    implicitHeight: 20
-                }
                 // During a mix: a short note about the transition
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
