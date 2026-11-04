@@ -656,31 +656,57 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
     }
     const QString marker = QStringLiteral("fetch:") + videoId;
     deck.resolving = marker;
-    deck.fetch = new StreamFetch(&m_net, url, this);
-    connect(deck.fetch, &StreamFetch::finished, this, [this, d, marker, url, videoId](bool ok) {
-        Deck &deck = m_decks[d];
-        StreamFetch *fetch = std::exchange(deck.fetch, nullptr);
-        fetch->deleteLater();
-        if (deck.resolving != marker)
-            return;   // the deck has moved on
-        deck.resolving.clear();
+    auto *fetch = new StreamFetch(&m_net, url, this);
+    deck.fetch = fetch;
+    const auto debug = [this, d](const char *what) {
         if (d == m_active && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
-            qInfo("stream: deck %d fetched (%s) %lld ms after the track change", d, ok ? "ok" : "failed", m_loadClock.elapsed());
-        if (ok) {
-            delete deck.previousMemory;
-            deck.previousMemory = std::exchange(deck.memory, new QBuffer(this));
-            deck.memory->setData(fetch->takeData());
-            deck.memory->open(QIODevice::ReadOnly);
-            m_cache.store(videoId, deck.memory->data());   // shares the bytes; written in the background
-            if (qEnvironmentVariableIsSet("NOKTURN_AUDIO_DEBUG"))
-                qInfo("audio: deck %d plays %s from memory (%.1f MB)", d, qPrintable(marker), deck.memory->size() / 1048576.0);
-            deck.player->setSourceDevice(deck.memory, url);
-        } else {
-            deck.player->setSource(url);   // couldn't fetch it — streamed as before
-        }
+            qInfo("stream: deck %d %s %lld ms after the track change", d, what, m_loadClock.elapsed());
+    };
+    const auto playDevice = [this, d, url](QIODevice *device) {
+        Deck &deck = m_decks[d];
+        delete deck.previousMemory;
+        deck.previousMemory = std::exchange(deck.memory, device);
+        deck.player->setSourceDevice(device, url);
         if (d == m_active && m_autoplayAfterResolve)
             deck.player->play();
         emit bufferingChanged();
+    };
+    // The first part is in: playback starts while the rest keeps coming (reads past it wait for it).
+    connect(fetch, &StreamFetch::headReady, this, [this, d, marker, fetch, debug, playDevice] {
+        Deck &deck = m_decks[d];
+        if (deck.fetch != fetch || deck.resolving != marker)
+            return;   // the deck has moved on
+        deck.resolving.clear();
+        debug("plays while downloading");
+        auto *device = new StreamDevice(fetch->data(), this);
+        device->open(QIODevice::ReadOnly | QIODevice::Unbuffered);
+        playDevice(device);
+    });
+    connect(fetch, &StreamFetch::finished, this, [this, d, marker, url, videoId, fetch, debug, playDevice](bool ok) {
+        Deck &deck = m_decks[d];
+        fetch->deleteLater();
+        const QByteArray bytes = ok ? fetch->takeData() : QByteArray();
+        if (ok)
+            m_cache.store(videoId, bytes);   // shares the bytes; written in the background
+        if (deck.fetch != fetch)
+            return;   // the deck has moved on
+        deck.fetch = nullptr;
+        debug(ok ? "fetched (ok)" : "fetched (failed)");
+        if (deck.resolving != marker)
+            return;   // already playing while it downloaded (a failure then shows as a player error)
+        deck.resolving.clear();
+        if (ok) {
+            // It came whole before any part was announced (a server that ignored the ranges)
+            auto *buffer = new QBuffer(this);
+            buffer->setData(bytes);
+            buffer->open(QIODevice::ReadOnly);
+            playDevice(buffer);
+        } else {
+            deck.player->setSource(url);   // couldn't fetch it — streamed as before
+            if (d == m_active && m_autoplayAfterResolve)
+                deck.player->play();
+            emit bufferingChanged();
+        }
     });
 }
 
