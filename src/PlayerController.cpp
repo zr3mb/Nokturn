@@ -192,6 +192,8 @@ void PlayerController::setupDeck(int d)
     connect(deck.player, &QMediaPlayer::playbackStateChanged, this, [this, d] {
         if (d != m_active)
             return;
+        if (playing() && m_loadClock.isValid() && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+            qInfo("stream: deck %d playing %lld ms after the track change", d, m_loadClock.elapsed());
         m_engine.setPaused(!playing());
         emit playingChanged();
         emit positionChanged();
@@ -483,6 +485,7 @@ void PlayerController::load(const QString &id, bool autoplay, bool flushAudio)
 
     Deck &deck = m_decks[m_active];
     deck.trackId = id;
+    m_loadClock.start();
     const Track &t = m_tracks->at(row);
     if (t.source == QLatin1String("youtube") || t.source == QLatin1String("spotify") || t.source == QLatin1String("soundcloud")) {
         m_autoplayAfterResolve = autoplay;
@@ -608,6 +611,8 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
     // A YouTube stream comes into memory first (see StreamFetch) — the deck stays "resolving" meanwhile,
     // so it shows as loading and play / seek wait for it. Other streams play from the URL.
     Deck &deck = m_decks[d];
+    if (d == m_active && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+        qInfo("stream: deck %d has its URL %lld ms after the track change", d, m_loadClock.elapsed());
     delete std::exchange(deck.fetch, nullptr);
     if (!StreamFetch::suits(url)) {
         deck.resolving.clear();
@@ -626,6 +631,8 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
         if (deck.resolving != marker)
             return;   // the deck has moved on
         deck.resolving.clear();
+        if (d == m_active && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+            qInfo("stream: deck %d fetched (%s) %lld ms after the track change", d, ok ? "ok" : "failed", m_loadClock.elapsed());
         if (ok) {
             delete deck.previousMemory;
             deck.previousMemory = std::exchange(deck.memory, new QBuffer(this));
