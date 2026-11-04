@@ -28,6 +28,7 @@
 
 #include <QAudioFormat>
 #include <QBuffer>
+#include <QDataStream>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -157,6 +158,10 @@ PlayerController::PlayerController(QObject *parent)
         emit mixChanged();
     });
 
+    // The first track of a session waited ~0.1 s more than the next ones while Qt Multimedia built
+    // its codec list; a moment after start that's done ahead of the first click.
+    QTimer::singleShot(1500, this, &PlayerController::warmUp);
+
     // Restore the last played track (paused, at the same position).
     const QString lastId = settings->value("player/lastId").toString();
     const int row = m_tracks->rowOf(lastId);
@@ -172,6 +177,35 @@ PlayerController::PlayerController(QObject *parent)
 PlayerController::~PlayerController()
 {
     saveState();
+}
+
+void PlayerController::warmUp()
+{
+    // A tenth of a second of silence (WAV) played into nothing: a player with no audio output
+    // makes no sound and doesn't touch the decks.
+    constexpr int rate = 8000, samples = rate / 10;
+    QByteArray wav;
+    QDataStream out(&wav, QIODevice::WriteOnly);
+    out.setByteOrder(QDataStream::LittleEndian);
+    out.writeRawData("RIFF", 4);
+    out << quint32(36 + samples * 2);
+    out.writeRawData("WAVEfmt ", 8);
+    out << quint32(16) << quint16(1) << quint16(1) << quint32(rate) << quint32(rate * 2) << quint16(2) << quint16(16);
+    out.writeRawData("data", 4);
+    out << quint32(samples * 2);
+    wav.append(QByteArray(samples * 2, '\0'));
+
+    auto *player = new QMediaPlayer(this);
+    auto *data = new QBuffer(player);
+    data->setData(wav);
+    data->open(QIODevice::ReadOnly);
+    connect(player, &QMediaPlayer::mediaStatusChanged, player, [player](QMediaPlayer::MediaStatus status) {
+        if (status == QMediaPlayer::EndOfMedia || status == QMediaPlayer::InvalidMedia)
+            player->deleteLater();
+    });
+    QTimer::singleShot(5000, player, &QObject::deleteLater);   // in any case
+    player->setSourceDevice(data, QUrl(QStringLiteral("warmup.wav")));
+    player->play();
 }
 
 void PlayerController::setupDeck(int d)
