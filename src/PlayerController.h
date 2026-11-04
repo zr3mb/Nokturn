@@ -228,8 +228,8 @@ private:
         QString trackId;
         QString resolving;                      // videoId whose URL we're waiting for
         StreamFetch *fetch = nullptr;           // a YouTube stream coming into memory
-        QBuffer *memory = nullptr;              // the stream it plays from
-        QBuffer *previousMemory = nullptr;      // kept a track longer — the player may still be closing it
+        QIODevice *memory = nullptr;            // the stream it plays from (in memory or still coming in)
+        QIODevice *previousMemory = nullptr;      // kept a track longer — the player may still be closing it
     };
 
     struct MixConfig
