@@ -238,10 +238,13 @@ Panel {
                     }
                 }
 
+                // Folds away while paused: an empty strip would only push the queue down.
                 Visualizer {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 100
-                    Layout.preferredHeight: 44
+                    Layout.preferredHeight: Player.playing ? 44 : 0
+                    Behavior on Layout.preferredHeight { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutCubic } }
+                    visible: Layout.preferredHeight > 0.5
                     bars: 40
                     spacing: 2
                     barWidth: (width - spacing * (bars - 1)) / bars

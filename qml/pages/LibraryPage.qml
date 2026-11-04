@@ -253,7 +253,7 @@ Item {
                     round: true
                     shadow: artistsView.cardShadow
                     title: artistCell.modelData.name
-                    subtitle: qsTr("Artist · %n tracks", "", artistCell.modelData.count)
+                    subtitle: qsTr("%n tracks", "", artistCell.modelData.count)
                     colorA: artistCell.modelData.colorA
                     colorB: artistCell.modelData.colorB
                     seed: artistCell.modelData.seed

@@ -266,12 +266,12 @@ Item {
                                 text: page.info.title
                                 color: Theme.text
                                 font.family: Theme.fontDisplay
-                                font.pixelSize: page.info.title.length > 16 ? 48 : 64
+                                // One line: a long name gets a smaller font before it is cut.
+                                font.pixelSize: 60
+                                fontSizeMode: Text.HorizontalFit
+                                minimumPixelSize: 34
                                 font.weight: Font.Bold
-                                wrapMode: Text.WordWrap
-                                maximumLineCount: 2
                                 elide: Text.ElideRight
-                                lineHeight: 0.95
                             }
                             Text {
                                 Layout.fillWidth: true
@@ -294,6 +294,7 @@ Item {
                         spacing: 12
 
                         PlayFab {
+                            visible: page.info.rows.length > 0
                             size: 58
                             playing: page.playingHere
                             enabled: page.info.rows.length > 0
@@ -301,6 +302,7 @@ Item {
                             onClicked: page.playingHere ? Player.toggle() : Player.playFrom(page.rows, page.rows[0], page.context)
                         }
                         IconButton {
+                            visible: page.info.rows.length > 1
                             icon: "shuffle"
                             iconSize: 24
                             implicitWidth: 46; implicitHeight: 46
@@ -308,7 +310,7 @@ Item {
                         }
                         // "Mix" like in Spotify: smooth, DJ-style transitions between this playlist's tracks.
                         PillButton {
-                            visible: page.context !== ""
+                            visible: page.context !== "" && page.info.rows.length > 1
                             kind: page.mix.enabled ? "primary" : "ghost"
                             icon: "mix"
                             text: page.mix.enabled ? qsTr("Mix") + " · " + Player.mixStyleName(page.mix.style) : qsTr("Mix")
@@ -357,7 +359,7 @@ Item {
 
                     ColumnLayout {
                         visible: page.info.rows.length === 0
-                        Layout.alignment: Qt.AlignHCenter
+                        Layout.fillWidth: true
                         Layout.topMargin: 40
                         spacing: 10
                         Icon {
@@ -367,14 +369,17 @@ Item {
                             color: Theme.textFaint
                         }
                         Text {
-                            Layout.alignment: Qt.AlignHCenter
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
                             text: page.info.loading ? qsTr("Loading the playlist…") : qsTr("Nothing here yet")
                             color: Theme.text
                             font.pixelSize: 18
                             font.weight: Font.DemiBold
                         }
                         Text {
-                            Layout.alignment: Qt.AlignHCenter
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
                             text: page.info.loading ? qsTr("Fetching tracks from YouTube Music")
                                   : page.info.editable === true ? qsTr("Add tracks with ⋯ → Add to playlist on any track.")
                                   : qsTr("Like a track with the heart and it will show up here.")
