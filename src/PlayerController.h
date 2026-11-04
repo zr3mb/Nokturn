@@ -274,6 +274,7 @@ private:
     QString streamIdOf(const Track &t) const;
     bool retryStream(int deck);
     void prefetchTrack(int row);
+    void warmUp();
     void onModelReset();
     void onMediaStatus(QMediaPlayer::MediaStatus status);
     void ensureTicking();
