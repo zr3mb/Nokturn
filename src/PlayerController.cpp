@@ -102,6 +102,11 @@ PlayerController::PlayerController(QObject *parent)
     // Tracks from YouTube: the stream URL comes from yt-dlp (asynchronously).
     StreamResolver *resolver = YouTubeService::instance()->resolver();
     connect(resolver, &StreamResolver::resolved, this, [this](const QString &videoId, const QUrl &url) {
+        // The stream's server is known: its connection is opened now, not with the first request.
+        if (url.host().endsWith(QLatin1String("googlevideo.com")))
+            m_net.connectToHostEncrypted(url.host());
+        if (m_wantAhead.contains(videoId))
+            startAhead(videoId, url, m_wantAhead.take(videoId));
         for (int d = 0; d < AudioEngine::kDecks; ++d) {
             Deck &deck = m_decks[d];
             if (deck.resolving != videoId)
@@ -572,7 +577,8 @@ void PlayerController::prefetchNext()
     }
     if (next < 0)
         return;
-    prefetchTrack(m_tracks->rowOf(m_queue.at(next)));
+    // The whole next track comes ahead (into the disk cache), so skipping to it plays at once.
+    prefetchTrack(m_tracks->rowOf(m_queue.at(next)), m_cache.limitBytes() > 0);
 }
 
 void PlayerController::prefetch(int row)
@@ -580,21 +586,82 @@ void PlayerController::prefetch(int row)
     prefetchTrack(row);
 }
 
-void PlayerController::prefetchTrack(int row)
+void PlayerController::prefetchTrack(int row, bool full)
 {
     if (!m_tracks->isValidRow(row) || m_tracks->at(row).demo)
         return;
+    // The URL first; for a YouTube stream then its start (or all of it, see startAhead).
+    const auto want = [this, full](const QString &videoId) {
+        if (videoId.isEmpty() || m_cache.has(videoId))
+            return;
+        StreamResolver *resolver = YouTubeService::instance()->resolver();
+        resolver->prefetch(videoId);
+        if (const QUrl url = resolver->cachedUrl(videoId); url.isValid())
+            startAhead(videoId, url, full);
+        else
+            m_wantAhead[videoId] = m_wantAhead.value(videoId) || full;
+    };
     const Track &t = m_tracks->at(row);
     if (t.source == QLatin1String("youtube")) {
-        YouTubeService::instance()->resolver()->prefetch(t.path);
+        want(t.path);
     } else if (t.source == QLatin1String("soundcloud")) {
         YouTubeService::instance()->resolver()->prefetch(t.id);
     } else if (t.source == QLatin1String("spotify")) {
-        SpotifyService::instance()->match(t.id, [](const QString &videoId) {
-            if (!videoId.isEmpty())
-                YouTubeService::instance()->resolver()->prefetch(videoId);
-        });
+        SpotifyService::instance()->match(t.id, want);
     }
+}
+
+void PlayerController::startAhead(const QString &videoId, const QUrl &url, bool full)
+{
+    if (m_cache.has(videoId) || !StreamFetch::suits(url))
+        return;
+    for (const Deck &deck : m_decks)
+        if (deck.fetch && deck.fetch->url() == url)
+            return;   // a deck is fetching it already
+    if (StreamFetch *existing = m_ahead.value(videoId)) {
+        if (full)
+            existing->continueAll();
+        return;
+    }
+    // Only the latest few starts are kept: an older one is dropped (and its download stopped).
+    int heads = 0;
+    for (const QString &id : std::as_const(m_aheadOrder))
+        heads += m_ahead.value(id)->headOnly() ? 1 : 0;
+    for (int i = 0; heads >= 3 && i < m_aheadOrder.size(); ) {
+        StreamFetch *old = m_ahead.value(m_aheadOrder.at(i));
+        if (!old->headOnly()) {
+            ++i;
+            continue;
+        }
+        m_ahead.remove(m_aheadOrder.takeAt(i));
+        delete old;
+        --heads;
+    }
+    auto *fetch = new StreamFetch(&m_net, url, !full, this);
+    m_ahead.insert(videoId, fetch);
+    m_aheadOrder << videoId;
+    connect(fetch, &StreamFetch::finished, this, [this, videoId, fetch](bool ok) {
+        if (ok)
+            m_cache.store(videoId, fetch->takeData());
+        m_ahead.remove(videoId);
+        m_aheadOrder.removeAll(videoId);
+        fetch->deleteLater();
+    });
+}
+
+StreamFetch *PlayerController::takeAhead(const QString &videoId, const QUrl &url)
+{
+    StreamFetch *fetch = m_ahead.take(videoId);
+    if (!fetch)
+        return nullptr;
+    m_aheadOrder.removeAll(videoId);
+    disconnect(fetch, nullptr, this, nullptr);
+    if (fetch->url() != url) {   // a different URL by now (a fresh one after an error)
+        delete fetch;
+        return nullptr;
+    }
+    fetch->continueAll();
+    return fetch;
 }
 
 bool PlayerController::cached(int row) const
@@ -694,7 +761,11 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
     }
     const QString marker = QStringLiteral("fetch:") + videoId;
     deck.resolving = marker;
-    auto *fetch = new StreamFetch(&m_net, url, this);
+    // Already coming in when the cursor rested on it, or as the next track: that fetch goes on here.
+    StreamFetch *fetch = takeAhead(videoId, url);
+    const bool adopted = fetch != nullptr;
+    if (!fetch)
+        fetch = new StreamFetch(&m_net, url, false, this);
     deck.fetch = fetch;
     const auto debug = [this, d](const char *what) {
         if (d == m_active && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
@@ -710,16 +781,17 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
         emit bufferingChanged();
     };
     // The first part is in: playback starts while the rest keeps coming (reads past it wait for it).
-    connect(fetch, &StreamFetch::headReady, this, [this, d, marker, fetch, debug, playDevice] {
+    const auto onHead = [this, d, marker, fetch, debug, playDevice, adopted] {
         Deck &deck = m_decks[d];
         if (deck.fetch != fetch || deck.resolving != marker)
             return;   // the deck has moved on
         deck.resolving.clear();
-        debug("plays while downloading");
+        debug(adopted ? "plays a start fetched ahead" : "plays while downloading");
         auto *device = new StreamDevice(fetch->data(), this);
         device->open(QIODevice::ReadOnly | QIODevice::Unbuffered);
         playDevice(device);
-    });
+    };
+    connect(fetch, &StreamFetch::headReady, this, onHead);
     connect(fetch, &StreamFetch::finished, this, [this, d, marker, url, videoId, fetch, debug, playDevice](bool ok) {
         Deck &deck = m_decks[d];
         fetch->deleteLater();
@@ -746,6 +818,8 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
             emit bufferingChanged();
         }
     });
+    if (adopted && fetch->headIsReady())
+        onHead();
 }
 
 bool PlayerController::retryStream(int d)

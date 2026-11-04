@@ -16,7 +16,7 @@
 namespace {
 
 constexpr qint64 kPart = 1024 * 1024;
-constexpr qint64 kHead = kPart;                   // playback starts once this much of the start is in
+constexpr qint64 kHead = 512 * 1024;              // the first part, smaller: playback starts once it's in
 constexpr int kParallel = 4;
 constexpr qint64 kMaxSize = 96 * 1024 * 1024;   // ~1.5 h of audio — longer ones stream from the URL
 constexpr int kReadWaitMs = 20000;               // a read waiting longer than this for its bytes fails
@@ -39,17 +39,30 @@ void abortAll(QList<QPointer<QNetworkReply>> replies, QObject *receiver)
 
 } // namespace
 
-StreamFetch::StreamFetch(QNetworkAccessManager *net, const QUrl &url, QObject *parent)
+StreamFetch::StreamFetch(QNetworkAccessManager *net, const QUrl &url, bool headOnly, QObject *parent)
     : QObject(parent)
     , m_net(net)
     , m_url(url)
+    , m_headOnly(headOnly)
 {
     if (const qint64 length = declaredLength(url); length > 0) {
         allocate(length);
         plan(0);
         startMore();
     } else {
-        request({ 0, kPart - 1 });   // the first part also tells the size (Content-Range)
+        m_planned = kHead;
+        request({ 0, kHead - 1 });   // the first part also tells the size (Content-Range)
+    }
+}
+
+void StreamFetch::continueAll()
+{
+    if (!m_headOnly)
+        return;
+    m_headOnly = false;
+    if (m_total > 0) {
+        plan(m_planned);
+        startMore();
     }
 }
 
@@ -91,8 +104,15 @@ void StreamFetch::allocate(qint64 total)
 
 void StreamFetch::plan(qint64 from)
 {
-    for (qint64 at = from; at < m_total; at += kPart)
-        m_pending << Part{ at, std::min(at + kPart, m_total) - 1 };
+    // The first part is the small head; a head-only fetch stops after it.
+    for (qint64 at = from; at < m_total; ) {
+        const qint64 end = std::min(at == 0 ? kHead : at + kPart, m_total);
+        m_pending << Part{ at, end - 1 };
+        at = end;
+        m_planned = end;
+        if (m_headOnly)
+            break;
+    }
 }
 
 void StreamFetch::startMore()
@@ -180,7 +200,8 @@ void StreamFetch::request(Part part)
                 return;
             }
             allocate(total);
-            plan(std::min(part.to + 1, total));
+            if (!m_headOnly)
+                plan(std::min(part.to + 1, total));
             part.to = std::min(part.to, total - 1);
         }
         const qint64 expected = m_total > 0 ? std::min(part.to, m_total - 1) - part.from + 1 : -1;

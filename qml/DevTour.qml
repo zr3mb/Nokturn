@@ -602,6 +602,25 @@ Item {
             { name: "M6-1600x960", run: () => size(1600, 960) }
         ]
     }
+    // Streams fetched ahead (--tour-ahead "<query>", "_" = space): the cursor rests on a found song,
+    // then it's played; the whole next track should come in meanwhile, and skipping to it is instant.
+    readonly property bool withAhead: Qt.application.arguments.indexOf("--tour-ahead") >= 0
+    readonly property var aheadSteps: {
+        if (!withAhead)
+            return []
+        const q = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-ahead") + 1].replace(/_/g, " ")
+        const song = () => { const r = Library.onlineResults(); return r.find(i => Library.tracks.get(i).album) ?? r[0] }
+        return [
+            { name: "Y0", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("search", { query: q, filter: 2 }) } },
+            { name: "Y1-wait", run: () => {} },
+            { name: "Y2-hover", run: () => { console.log("tour: hover"); Player.prefetch(song()) } },
+            { name: "Y3-play", run: () => { const r = Library.onlineResults(); console.log("tour: play"); Player.playFrom(r, song(), "search") } },
+            { name: "Y4-wait", run: () => console.log("tour: next cached", Player.cached(Player.upNext[0] ?? -1)) },
+            { name: "Y5-wait", run: () => console.log("tour: next cached", Player.cached(Player.upNext[0] ?? -1)) },
+            { name: "Y6-next", run: () => { console.log("tour: next"); Player.next() } },
+            { name: "Y7", run: () => console.log("tour: playing", Player.playing) }
+        ]
+    }
     // The audio cache (--tour-cache "<query>", "_" = space): plays a found song, logs which results are
     // kept on disk; run twice on one profile and the second play comes from the disk, with a bolt in the list.
     readonly property bool withCache: Qt.application.arguments.indexOf("--tour-cache") >= 0
@@ -1070,7 +1089,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withCache ? cacheSteps : withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withAhead ? aheadSteps : withCache ? cacheSteps : withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

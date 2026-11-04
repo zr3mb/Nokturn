@@ -284,7 +284,7 @@ void StreamResolver::askPlayer(const QString &videoId)
         if (reply->error() != QNetworkReply::NoError || status != QLatin1String("OK")) {
             if (status == QLatin1String("LOGIN_REQUIRED"))
                 m_visitor.clear();   // a bot check: the next call starts with a new visitor id
-            directFailed(videoId, status.isEmpty() ? reply->errorString() : status);
+            directFailed(videoId, status.isEmpty() ? reply->errorString() : status, !status.isEmpty());
             return;
         }
         // AAC audio (itag 140, what yt-dlp is asked for too) in the original language, without the
@@ -322,13 +322,14 @@ void StreamResolver::askPlayer(const QString &videoId)
     });
 }
 
-void StreamResolver::directFailed(const QString &videoId, const QString &why)
+void StreamResolver::directFailed(const QString &videoId, const QString &why, bool trackOnly)
 {
     m_directRunning.remove(videoId);
     if (qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
         qInfo("stream: %s direct lookup failed (%s), using yt-dlp", qPrintable(videoId), qPrintable(why));
-    // A few failures in a row (YouTube changed something): yt-dlp alone for a while.
-    if (++m_directFailures >= 3) {
+    // A few failures in a row (YouTube changed something): yt-dlp alone for a while. A refusal of
+    // one track (a music video that's unplayable here, an age check) says nothing about that.
+    if (!trackOnly && ++m_directFailures >= 3) {
         m_directFailures = 0;
         m_directPausedUntil = QDateTime::currentDateTimeUtc().addSecs(1800);
     }

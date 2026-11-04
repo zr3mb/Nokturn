@@ -64,7 +64,8 @@ private:
     bool directUsable() const;
     void resolveDirect(const QString &videoId);
     void askPlayer(const QString &videoId);
-    void directFailed(const QString &videoId, const QString &why);
+    // trackOnly: YouTube refused this one track (unplayable, sign-in needed), the fast path itself works
+    void directFailed(const QString &videoId, const QString &why, bool trackOnly = false);
     void fetchVisitor();
     void fallback(const QString &videoId);
     void runExternal(const QString &id);
