@@ -357,18 +357,28 @@ void YtMusicApi::browsePage(const QString &browseId, const QString &continuation
             callback(collected, error);
             return;
         }
+        // A playlist's own page also carries YouTube's "Suggestions" for it (a shelf of other songs with
+        // its own continuation): only the playlist shelf counts, and only its continuation is followed.
+        // Continuation pages are asked for that shelf alone. Albums and other lists have no such shelf.
+        QJsonValue scope = json;
+        if (continuation.isEmpty()) {
+            QList<QJsonObject> shelves;
+            collect(json, QStringLiteral("musicPlaylistShelfRenderer"), shelves);
+            if (!shelves.isEmpty())
+                scope = shelves.first();
+        }
         QSet<QString> seen;
         for (const Track &t : std::as_const(collected))
             seen.insert(t.id);
-        for (const Track &t : parseTracks(json))
+        for (const Track &t : parseTracks(scope))
             if (!seen.contains(t.id))
                 collected << t;
 
         // Next page: the new style (continuationCommand) or the old one (nextContinuationData).
         QList<QJsonObject> commands;
-        collect(json, QStringLiteral("continuationCommand"), commands);
+        collect(scope, QStringLiteral("continuationCommand"), commands);
         QList<QJsonObject> legacy;
-        collect(json, QStringLiteral("nextContinuationData"), legacy);
+        collect(scope, QStringLiteral("nextContinuationData"), legacy);
         QString next;
         bool nextCommand = false;
         if (!commands.isEmpty()) {
