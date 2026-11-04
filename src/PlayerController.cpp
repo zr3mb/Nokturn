@@ -67,6 +67,11 @@ PlayerController::PlayerController(QObject *parent)
     for (int d = 0; d < AudioEngine::kDecks; ++d)
         setupDeck(d);
 
+    connect(&m_cache, &AudioCache::changed, this, [this] {
+        ++m_cacheRevision;
+        emit cacheChanged();
+    });
+
     connect(&m_engine, &AudioEngine::transitionFinished, this, [this](int fromDeck) {
         Deck &old = m_decks[fromDeck];
         old.player->stop();
@@ -557,6 +562,17 @@ void PlayerController::prefetchTrack(int row)
     }
 }
 
+bool PlayerController::cached(int row) const
+{
+    if (!m_tracks->isValidRow(row))
+        return false;
+    const Track &t = m_tracks->at(row);
+    if (t.source != QLatin1String("youtube") && t.source != QLatin1String("spotify"))
+        return false;
+    const QString id = streamIdOf(t);
+    return !id.isEmpty() && m_cache.has(id);
+}
+
 QString PlayerController::streamIdOf(const Track &t) const
 {
     if (t.source == QLatin1String("youtube"))
@@ -595,6 +611,23 @@ void PlayerController::startStream(int d, const Track &t)
             cancelPreload();
         return;
     }
+    // Played before and kept on disk: no network at all.
+    m_cache.played(videoId);
+    QSet<QString> inUse{ videoId };
+    if (const int other = m_tracks->rowOf(m_decks[1 - d].trackId); other >= 0)
+        inUse << streamIdOf(m_tracks->at(other));
+    m_cache.setInUse(inUse);
+    if (m_cache.has(videoId)) {
+        delete std::exchange(deck.fetch, nullptr);
+        deck.resolving.clear();
+        if (d == m_active && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+            qInfo("stream: deck %d plays %s from the disk cache", d, qPrintable(videoId));
+        deck.player->setSource(QUrl::fromLocalFile(m_cache.pathOf(videoId)));
+        if (d == m_active && m_autoplayAfterResolve)
+            deck.player->play();
+        emit bufferingChanged();
+        return;
+    }
     StreamResolver *resolver = YouTubeService::instance()->resolver();
     if (d != m_active) {
         if (const QUrl url = resolver->cachedUrl(videoId); url.isValid()) {
@@ -624,7 +657,7 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
     const QString marker = QStringLiteral("fetch:") + videoId;
     deck.resolving = marker;
     deck.fetch = new StreamFetch(&m_net, url, this);
-    connect(deck.fetch, &StreamFetch::finished, this, [this, d, marker, url](bool ok) {
+    connect(deck.fetch, &StreamFetch::finished, this, [this, d, marker, url, videoId](bool ok) {
         Deck &deck = m_decks[d];
         StreamFetch *fetch = std::exchange(deck.fetch, nullptr);
         fetch->deleteLater();
@@ -638,6 +671,7 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
             deck.previousMemory = std::exchange(deck.memory, new QBuffer(this));
             deck.memory->setData(fetch->takeData());
             deck.memory->open(QIODevice::ReadOnly);
+            m_cache.store(videoId, deck.memory->data());   // shares the bytes; written in the background
             if (qEnvironmentVariableIsSet("NOKTURN_AUDIO_DEBUG"))
                 qInfo("audio: deck %d plays %s from memory (%.1f MB)", d, qPrintable(marker), deck.memory->size() / 1048576.0);
             deck.player->setSourceDevice(deck.memory, url);
@@ -668,6 +702,7 @@ bool PlayerController::retryStream(int d)
     m_streamRetried.insert(videoId);
     deck.player->stop();
     deck.player->setSource(QUrl());
+    m_cache.remove(videoId);   // a damaged copy on disk
     deck.resolving = videoId;
     if (d == m_active)
         m_autoplayAfterResolve = m_wantPlay;

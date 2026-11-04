@@ -597,6 +597,29 @@ Item {
             { name: "M6-1600x960", run: () => size(1600, 960) }
         ]
     }
+    // The audio cache (--tour-cache "<query>", "_" = space): plays a found song, logs which results are
+    // kept on disk; run twice on one profile and the second play comes from the disk, with a bolt in the list.
+    readonly property bool withCache: Qt.application.arguments.indexOf("--tour-cache") >= 0
+    readonly property var cacheSteps: {
+        if (!withCache)
+            return []
+        const q = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-cache") + 1].replace(/_/g, " ")
+        const log = what => console.log("tour: " + what, "| cached", JSON.stringify(Library.onlineResults().map(i => Player.cached(i))),
+                                        "| used", Player.cacheUsedMB, "MB of", Player.cacheLimitMB)
+        return [
+            { name: "K0", run: () => { Nav.finishOnboarding(); Player.muted = true; const win = root.Window.window; win.width = 1500; win.height = 1000
+                                      Nav.navigate("search", { query: q, filter: 2 }) } },
+            { name: "K1-wait", run: () => log("before") },
+            { name: "K2-play", run: () => { const r = Library.onlineResults()
+                                           const song = r.find(i => Library.tracks.get(i).album) ?? r[0]
+                                           if (r.length) Player.playFrom(r, song, "search") } },
+            { name: "K3-wait", run: () => log("playing " + Player.title) },
+            { name: "K4-list", run: () => { Player.pause(); log("after") } },
+            { name: "K5-settings", run: () => Nav.navigate("settings") },
+            { name: "K6-scroll", run: () => root.scrollPage(700) },
+            { name: "K7", run: () => {} }
+        ]
+    }
     // Listening to a few tracks muted, with the lyrics open (--tour-listen "<q1>;<q2>", "_" = space):
     // with NOKTURN_AUDIO_DEBUG the log shows whether the sound keeps up (buffer underruns).
     readonly property bool withListen: Qt.application.arguments.indexOf("--tour-listen") >= 0
@@ -1001,7 +1024,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withCache ? cacheSteps : withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

@@ -212,6 +212,29 @@ Item {
                     Toggle { checked: Player.autoplay; onToggled: c => Player.autoplay = c }
                 }
                 SettingRow {
+                    icon: "bolt"
+                    title: qsTr("Keep played tracks on disk")
+                    description: Player.cacheLimitMB > 0
+                        ? qsTr("Tracks from YouTube start at once the next time, without the network; they show a bolt next to the title. The ones you play most stay longest. In use: %1 MB.").arg(Player.cacheUsedMB)
+                        : qsTr("Off — every track is downloaded again when played.")
+                    RowLayout {
+                        spacing: 10
+                        PillButton {
+                            visible: Player.cacheUsedMB > 0
+                            kind: "secondary"
+                            text: qsTr("Clear")
+                            fontSize: 13
+                            implicitHeight: 36
+                            onClicked: Player.clearCache()
+                        }
+                        SegmentedTabs {
+                            model: [qsTr("Off"), "1 GB", "2 GB", "5 GB"]
+                            currentIndex: [0, 1024, 2048, 5120].indexOf(Player.cacheLimitMB)
+                            onActivated: i => Player.cacheLimitMB = [0, 1024, 2048, 5120][i]
+                        }
+                    }
+                }
+                SettingRow {
                     icon: "volumeUp"
                     title: qsTr("Volume normalization")
                     description: qsTr("Evens out the loudness of tracks from different sources.")
