@@ -7,6 +7,8 @@ Item {
     id: root
     property real size: 46
     property bool playing: false
+    // The row this button starts: its stream URL is prepared while the cursor rests on the button
+    property int prefetchRow: -1
     signal clicked
 
     implicitWidth: size
@@ -43,6 +45,13 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onPressed: if (root.prefetchRow >= 0 && !root.playing) Player.prefetch(root.prefetchRow)
         onClicked: root.clicked()
+    }
+
+    Timer {
+        interval: 200
+        running: mouse.containsMouse && root.prefetchRow >= 0 && !root.playing
+        onTriggered: Player.prefetch(root.prefetchRow)
     }
 }
