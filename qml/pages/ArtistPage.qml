@@ -182,6 +182,7 @@ Item {
                     size: 58
                     playing: page.playingHere
                     enabled: page.playRows.length > 0
+                    prefetchRow: page.playRows.length > 0 ? page.playRows[0] : -1
                     onClicked: page.playingHere ? Player.toggle() : Player.playFrom(page.playRows, page.playRows[0], page.context)
                 }
                 IconButton {
