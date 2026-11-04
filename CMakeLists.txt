@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Multimedia Concurrent Network WebSockets)
 find_package(TagLib 2 REQUIRED)
+# QZipReader (plugin archives) is private API: Qt 6.9+ ships it as a separate package.
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+find_package(Qt6 QUIET COMPONENTS CorePrivate)
 if(UNIX AND NOT APPLE)
     find_package(Qt6 6.8 REQUIRED COMPONENTS DBus)   # MPRIS (media keys, system panel)
 endif()
@@ -68,6 +71,7 @@ qt_add_qml_module(Nokturn
         src/platform/DiscordPresence.h src/platform/DiscordPresence.cpp
         src/platform/GameOverlay.h     src/platform/GameOverlay.cpp
         src/Updater.h           src/Updater.cpp
+        src/PluginManager.h     src/PluginManager.cpp
         src/Language.h          src/Language.cpp
         src/spotify/SpotifyService.h  src/spotify/SpotifyService.cpp
         src/spotify/SpotifyWebLogin.h src/spotify/SpotifyWebLogin.cpp
@@ -147,6 +151,8 @@ qt_add_qml_module(Nokturn
         qml/pages/SourcesPage.qml
         qml/pages/SettingsPage.qml
         qml/pages/StatsPage.qml
+        qml/pages/PluginsPage.qml
+        qml/components/PluginHost.qml
         qml/pages/RoomPage.qml
 
         qml/overlay/OverlayWindow.qml
@@ -186,7 +192,7 @@ endif()
 
 target_include_directories(Nokturn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio ${CMAKE_CURRENT_SOURCE_DIR}/src/lyrics ${CMAKE_CURRENT_SOURCE_DIR}/src/platform ${CMAKE_CURRENT_SOURCE_DIR}/src/spotify ${CMAKE_CURRENT_SOURCE_DIR}/src/soundcloud ${CMAKE_CURRENT_SOURCE_DIR}/src/online)
 target_link_libraries(Nokturn PRIVATE
-    Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia Qt6::Concurrent Qt6::Network Qt6::WebSockets
+    Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia Qt6::Concurrent Qt6::Network Qt6::WebSockets Qt6::CorePrivate
     TagLib::tag
     $<$<PLATFORM_ID:Windows>:crypt32>
 )

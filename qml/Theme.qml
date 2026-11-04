@@ -8,7 +8,7 @@ Item {
 
     // Every theme is dark: the covers, overlays and white-on-art text stay readable in all of them.
     // fixedAccent: the theme keeps its own accent instead of following the cover.
-    readonly property var themes: ({
+    readonly property var builtinThemes: ({
         nokturn: { name: "Nokturn", bg: "#101114", surface: "#1a1c20", surfaceHi: "#23262b",
                    text: "#e8e4dd", textDim: "#a19e98", textFaint: "#6e6d6a",
                    accent: "#9fb5a8", accent2: "#4a5d6e", onAccent: "#15161a", fixedAccent: false },
@@ -22,7 +22,15 @@ Item {
                   text: "#fbeaf6", textDim: "#c9a3c2", textFaint: "#8a6a86",
                   accent: "#ff7ad6", accent2: "#8a3fd0", onAccent: "#2a0a23", fixedAccent: true }
     })
-    readonly property var themeIds: ["nokturn", "midnight", "sunset", "cat"]
+    // Plugins add their own ("<plugin>/<theme>"); a missing colour comes from the Nokturn theme.
+    readonly property var themes: {
+        const all = Object.assign({}, builtinThemes)
+        const extra = Plugins.themes
+        for (const id in extra)
+            all[id] = Object.assign({}, builtinThemes.nokturn, { fixedAccent: true }, extra[id])
+        return all
+    }
+    readonly property var themeIds: ["nokturn", "midnight", "sunset", "cat"].concat(Object.keys(Plugins.themes))
 
     property string themeId: Prefs.stringValue("ui/theme", "nokturn")
     onThemeIdChanged: Prefs.setValue("ui/theme", themeId)
@@ -45,6 +53,24 @@ Item {
     readonly property color success: "#9cc0a0"
     readonly property color danger: "#c98585"
     readonly property color warning: "#cdb388"
+
+    // Plugins may bind these colours (docs/plugins.md); a Binding that goes away with its plugin
+    // leaves its last value behind, so they get the theme's own bindings back before plugins rebuild.
+    function restoreBindings() {
+        bg = Qt.binding(() => preset.bg)
+        surface = Qt.binding(() => preset.surface)
+        surfaceHi = Qt.binding(() => preset.surfaceHi)
+        text = Qt.binding(() => preset.text)
+        textDim = Qt.binding(() => preset.textDim)
+        textFaint = Qt.binding(() => preset.textFaint)
+        onAccent = Qt.binding(() => preset.onAccent)
+        accent = Qt.binding(() => followsCover ? Player.colorA : staticAccent)
+        accent2 = Qt.binding(() => followsCover ? Player.colorB : staticAccent2)
+    }
+    Connections {
+        target: Plugins
+        function onAboutToChange() { theme.restoreBindings() }
+    }
 
     // Selected pills (tabs, chips): light text color by default, the accent in the Cat theme.
     readonly property color selection: cat ? accent : text
@@ -73,8 +99,8 @@ Item {
 
     // Windows: Segoe UI Variable; Linux/macOS: the system font (e.g. Cantarell, Noto Sans, Inter).
     readonly property bool windows: Qt.platform.os === "windows"
-    readonly property string fontDisplay: windows ? "Segoe UI Variable Display" : Qt.application.font.family
-    readonly property string fontText: windows ? "Segoe UI Variable Text" : Qt.application.font.family
+    readonly property string fontDisplay: preset.fontDisplay || (windows ? "Segoe UI Variable Display" : Qt.application.font.family)
+    readonly property string fontText: preset.fontText || (windows ? "Segoe UI Variable Text" : Qt.application.font.family)
 
     // Interface motion: every transition's length goes through ms(), so one factor sets how quick the
     // app feels (looping ambient animations keep their own pace).

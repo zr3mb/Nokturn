@@ -3,9 +3,12 @@ import QtQuick.Layouts
 import Nokturn
 
 // Theme cards (Settings): a miniature of each theme's colors; clicking one switches to it.
-RowLayout {
+// Themes from plugins follow the built-in ones, four to a row.
+GridLayout {
     id: root
-    spacing: 12
+    columns: 4
+    columnSpacing: 12
+    rowSpacing: 12
 
     Repeater {
         model: Theme.themeIds

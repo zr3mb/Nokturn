@@ -1064,6 +1064,47 @@ Item {
         { name: "D15-immersive", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Nav.immersive = true } },
         { name: "D16-back", run: () => Nav.immersive = false }
     ]
+    // Plugins (--tour-plugins, with NOKTURN_PLUGIN_CATALOG pointing at a built catalog): installs everything
+    // from the catalog, plays muted with the wallpaper, picks a plugin's theme, shows an overlay, removes one.
+    readonly property bool withPlugins: Qt.application.arguments.indexOf("--tour-plugins") >= 0
+    function pluginLog(label) {
+        console.log("tour:", label, "|", Plugins.installed.map(p => p.id + (p.enabled ? "" : " (off)") + (p.error ? " ERROR " + p.error : "")).join(", ") || "none",
+                    "| themes", Object.keys(Plugins.themes).join(", "))
+    }
+    readonly property var pluginSteps: [
+        { name: "P01-catalog", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("plugins", { tab: 1 }) } },
+        { name: "P02-install", run: () => { console.log("tour: catalog", Plugins.catalogState, Plugins.catalog.map(c => c.id + " " + c.version).join(", "))
+                                            if (Plugins.catalog.length > 0) Plugins.installFromCatalog(Plugins.catalog[0].id) } },
+        { name: "P03-install", run: () => { if (Plugins.catalog.length > 1) Plugins.installFromCatalog(Plugins.catalog[1].id) } },
+        { name: "P04-install", run: () => { if (Plugins.catalog.length > 2) Plugins.installFromCatalog(Plugins.catalog[2].id) } },
+        { name: "P05-catalog-after", run: () => root.pluginLog("installed") },
+        { name: "P06-installed", run: () => Nav.navigate("plugins", { tab: 0 }) },
+        { name: "P07-home", run: () => { const rows = Library.libraryRows().slice(0, 10)
+                                         if (rows.length) Player.playFrom(rows, rows[0], "test")
+                                         Nav.navigate("home") } },
+        { name: "P08-wallpaper", run: () => {} },
+        { name: "P09-theme", run: () => { Theme.themeId = "night-themes/deep-sea"; Nav.navigate("settings") } },
+        { name: "P10-theme-home", run: () => Nav.navigate("library") },
+        { name: "P11-badge", run: () => Player.next() },
+        { name: "P12-off", run: () => { Plugins.setEnabled("spectrum-wallpaper", false); root.pluginLog("wallpaper off") } },
+        { name: "P13-remove", run: () => { Theme.themeId = "nokturn"; Plugins.remove("night-themes"); root.pluginLog("removed themes")
+                                           Nav.navigate("plugins", { tab: 0 }) } },
+        { name: "P14-file", run: () => {
+            const dir = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-plugins") + 1]
+            Plugins.installFile("file:///" + dir + "/catalog/night-themes-1.0.0.zip")
+            Plugins.installFile("file:///" + dir + "/broken-plugin/plugin.json")
+            Plugins.installFile("file:///" + dir + "/doc-hello/plugin.json")
+            Plugins.installFile("file:///" + dir + "/doc-accent/plugin.json")
+            Plugins.setEnabled("spectrum-wallpaper", false)
+            const s = Plugins.installed.find(p => p.id === "spectrum-wallpaper")
+            const c = Qt.createComponent(s.settings.toString())
+            console.log("tour: settings component", c.status === Component.Ready ? "ready" : c.errorString())
+            root.pluginLog("from files") } },
+        { name: "P15-errors", run: () => { root.pluginLog("errors"); console.log("tour: accent", Theme.accent, "colorA", Player.colorA, "level", Player.level.toFixed(2)); Nav.navigate("home") } },
+        { name: "P16-off", run: () => { Plugins.setEnabled("accent-pulse", false); console.log("tour: accent after off", Theme.accent, "colorA", Player.colorA) } },
+        { name: "P17-later", run: () => console.log("tour: accent later", Theme.accent, "colorA", Player.colorA) },
+        { name: "P18-end", run: () => { Plugins.remove("broken-test"); Player.pause(); root.pluginLog("end") } }
+    ]
     readonly property bool withThemes: Qt.application.arguments.indexOf("--tour-themes") >= 0
     // Every theme on the home page, then the Cat theme across the main screens.
     readonly property var themeSteps: [
@@ -1076,7 +1117,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
     ]
-    readonly property var steps: withDesign ? designSteps : withAhead ? aheadSteps : withCache ? cacheSteps : withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withPlugins ? pluginSteps : withDesign ? designSteps : withAhead ? aheadSteps : withCache ? cacheSteps : withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [
