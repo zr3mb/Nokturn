@@ -26,8 +26,9 @@ Item {
         Head { Layout.preferredWidth: 26; horizontalAlignment: Text.AlignHCenter; text: "#" }
         Item { Layout.preferredWidth: 42 }
         Head { Layout.fillWidth: true; text: qsTr("TITLE") }
-        Head { visible: root.showAlbum; Layout.preferredWidth: root.width * 0.22; text: qsTr("ALBUM") }
-        Head { Layout.preferredWidth: 132; text: qsTr("SOURCE") }
+        // the same widths at which TrackRow hides these columns
+        Head { visible: root.showAlbum && root.width > 680; Layout.preferredWidth: root.width * 0.22; text: qsTr("ALBUM") }
+        Head { visible: root.width > 860; Layout.preferredWidth: 132; text: qsTr("SOURCE") }
         Item { Layout.preferredWidth: 38 }
         Item {
             Layout.preferredWidth: 52

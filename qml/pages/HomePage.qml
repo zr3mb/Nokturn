@@ -238,8 +238,8 @@ Item {
                     font.weight: Font.Bold
                 }
                 Text {
-                    text: Theme.cat ? qsTr("Back for more music? ♡")
-                                       : qsTr("Your music from disk, YouTube Music and radio — in one place.")
+                    visible: Theme.cat
+                    text: qsTr("Back for more music? ♡")
                     color: Theme.textDim
                     font.pixelSize: 15
                 }

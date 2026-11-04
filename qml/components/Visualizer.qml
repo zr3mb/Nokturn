@@ -37,7 +37,8 @@ Item {
                     return Math.min(1, s[Math.floor(t * (s.length - 1))] * root.gain)
                 }
                 width: root.barWidth
-                height: Math.max(root.minHeight, value * root.height)
+                // Paused: no bars at all (the minimum height would leave a dotted line).
+                height: Math.max(Player.playing ? root.minHeight : 0, value * root.height)
                 y: root.centered ? (root.height - height) / 2 : root.height - height
                 radius: Math.min(width / 2, 3)
                 gradient: Gradient {

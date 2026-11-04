@@ -42,10 +42,9 @@ Item {
                     Layout.fillWidth: true
                     text: Library.scanning
                           ? Library.scanStatus
-                          : qsTr("%n tracks", "", Library.localCount) + "  ·  "
-                            + qsTr("%n albums", "", Library.albums.filter(a => a.source === "local").length) + "  ·  "
-                            + qsTr("%n artists", "", Library.artists.filter(a => a.local).length)
-                            + (YouTube.connected ? "  ·  " + qsTr("%n liked on YouTube Music", "", YouTube.likedCount) : "")
+                          : qsTr("%n tracks", "", page.libraryRows.length) + "  ·  "
+                            + qsTr("%n albums", "", Library.albums.length) + "  ·  "
+                            + qsTr("%n artists", "", Library.artists.length)
                     color: Library.scanning ? Theme.accent : Theme.textDim
                     font.pixelSize: 14
                 }
@@ -78,7 +77,8 @@ Item {
         }
 
         Rectangle {
-            visible: Library.localCount === 0 && !Library.scanning && !YouTube.connected
+            // Only for an empty library: with music from a service it's just in the way.
+            visible: page.libraryRows.length === 0 && !Library.scanning
             Layout.fillWidth: true
             implicitHeight: 72
             radius: 16
