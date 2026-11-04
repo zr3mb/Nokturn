@@ -1,0 +1,13 @@
+{
+    "id": "now-playing-badge",
+    "name": { "en": "Now playing badge", "pl": "Plakietka „teraz gra”" },
+    "version": "1.0.0",
+    "author": "Nokturn",
+    "description": {
+        "en": "When a new track starts, its cover and title float in at the top of the window for a few seconds. An example of an overlay.",
+        "pl": "Gdy zaczyna się nowy utwór, jego okładka i tytuł pojawiają się na kilka sekund u góry okna. Przykład nakładki."
+    },
+    "api": 1,
+    "preview": "preview.png",
+    "overlay": "Badge.qml"
+}
