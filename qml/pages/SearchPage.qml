@@ -159,8 +159,8 @@ Item {
             id: tileIn
             PauseAnimation { duration: 60 + tile.index * 45 }
             ParallelAnimation {
-                NumberAnimation { target: tile; property: "opacity"; to: 1; duration: 420 }
-                NumberAnimation { target: tile; property: "scale"; to: 1; duration: 560; easing.type: Easing.OutBack }
+                NumberAnimation { target: tile; property: "opacity"; to: 1; duration: Theme.ms(420) }
+                NumberAnimation { target: tile; property: "scale"; to: 1; duration: Theme.ms(560); easing.type: Easing.OutBack }
             }
         }
         Component.onCompleted: tileIn.start()
@@ -178,7 +178,7 @@ Item {
         Item {
             anchors.fill: parent
             scale: tileHover.hovered ? 1.03 : 1
-            Behavior on scale { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+            Behavior on scale { NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutCubic } }
 
             ArtCover {
                 anchors.fill: parent
@@ -200,7 +200,7 @@ Item {
                 seed: tile.modelData.seed
                 source: tile.modelData.cover || ""
                 rotation: tileHover.hovered ? 6 : 14
-                Behavior on rotation { NumberAnimation { duration: 420; easing.type: Easing.OutBack } }
+                Behavior on rotation { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutBack } }
             }
             Column {
                 anchors { left: parent.left; right: cornerCover.visible ? cornerCover.left : parent.right; bottom: parent.bottom
@@ -278,16 +278,17 @@ Item {
             clip: true
             spacing: 2
             boundsBehavior: Flickable.StopAtBounds
-            model: page.foundPlaylists
+            model: page.foundPlaylists.length   // a count: rows stay while typing (see the track lists)
             delegate: PlaylistRow {
-                required property var modelData
+                required property int index
+                readonly property var entry: page.foundPlaylists[index] ?? ({})
                 width: ListView.view.width
-                playlist: modelData.playlist
-                subtitle: modelData.subtitle
-                onClicked: modelData.own ? page.openOwn(modelData.index)
-                           : modelData.sc ? page.openSoundCloud(modelData.data) : page.openPlaylist(modelData.data)
-                onPlayClicked: modelData.own ? page.playOwn(modelData.index)
-                               : modelData.sc ? page.openSoundCloud(modelData.data) : page.openPlaylist(modelData.data)
+                playlist: entry.playlist || ({})
+                subtitle: entry.subtitle || ""
+                onClicked: entry.own ? page.openOwn(entry.index)
+                           : entry.sc ? page.openSoundCloud(entry.data) : page.openPlaylist(entry.data)
+                onPlayClicked: entry.own ? page.playOwn(entry.index)
+                               : entry.sc ? page.openSoundCloud(entry.data) : page.openPlaylist(entry.data)
             }
         }
     }
@@ -337,7 +338,7 @@ Item {
             Layout.preferredHeight: item ? item.implicitHeight : 0
             sourceComponent: page.searching ? resultsView : browseView
             onLoaded: fade.restart()
-            NumberAnimation { id: fade; target: body; property: "opacity"; from: 0; to: 1; duration: 320; easing.type: Easing.OutCubic }
+            NumberAnimation { id: fade; target: body; property: "opacity"; from: 0; to: 1; duration: Theme.ms(320); easing.type: Easing.OutCubic }
         }
     }
 
@@ -359,12 +360,13 @@ Item {
             TrackListHeader { visible: page.results.length > 0 }
 
             Repeater {
-                model: page.results.slice(0, page.shown)
+                // A count, not the array: typing changes the list on every key, and an array model would
+                // rebuild all its rows each time — with a count the rows stay and only show other tracks.
+                model: Math.min(page.results.length, page.shown)
                 TrackRow {
-                    required property var modelData
                     required property int index
                     Layout.fillWidth: true
-                    trackIndex: modelData
+                    trackIndex: page.results[index] ?? -1
                     number: index + 1
                     queue: page.results
                     revealDelay: Math.min(index, 12) * 32
@@ -399,12 +401,11 @@ Item {
             }
 
             Repeater {
-                model: page.online.slice(0, page.onlineShown)
+                model: Math.min(page.online.length, page.onlineShown)
                 TrackRow {
-                    required property var modelData
                     required property int index
                     Layout.fillWidth: true
-                    trackIndex: modelData
+                    trackIndex: page.online[index] ?? -1
                     number: index + 1
                     queue: page.online
                     revealDelay: Math.min(index, 12) * 32
@@ -439,12 +440,11 @@ Item {
             }
 
             Repeater {
-                model: page.soundcloud.slice(0, page.soundcloudShown)
+                model: Math.min(page.soundcloud.length, page.soundcloudShown)
                 TrackRow {
-                    required property var modelData
                     required property int index
                     Layout.fillWidth: true
-                    trackIndex: modelData
+                    trackIndex: page.soundcloud[index] ?? -1
                     number: index + 1
                     queue: page.soundcloud
                     revealDelay: Math.min(index, 12) * 32
@@ -482,54 +482,54 @@ Item {
                 Layout.fillWidth: true
                 spacing: 18
                 Repeater {
-                    model: page.ownPlaylists
+                    model: page.sideShown ? 0 : page.ownPlaylists.length
                     AlbumCard {
-                        required property var modelData
+                        readonly property var entry: page.ownPlaylists[index] ?? ({ p: {} })
                         required property int index
                         width: 168
                         shadow: playlistShadow
-                        title: modelData.p.name
+                        title: entry.p.name || ""
                         subtitle: qsTr("Your playlist")
-                        colorA: modelData.p.colorA
-                        colorB: modelData.p.colorB
-                        seed: modelData.p.seed
-                        cover: modelData.p.cover || ""
-                        mosaic: modelData.p.mosaic || []
+                        colorA: entry.p.colorA || Theme.surface
+                        colorB: entry.p.colorB || Theme.surface
+                        seed: entry.p.seed || 0
+                        cover: entry.p.cover || ""
+                        mosaic: entry.p.mosaic || []
                         revealDelay: index * 30
-                        onClicked: page.openOwn(modelData.index)
-                        onPlayClicked: page.playOwn(modelData.index)
+                        onClicked: page.openOwn(entry.index)
+                        onPlayClicked: page.playOwn(entry.index)
                     }
                 }
                 Repeater {
-                    model: page.playlists
+                    model: page.sideShown ? 0 : page.playlists.length
                     AlbumCard {
-                        required property var modelData
+                        readonly property var entry: page.playlists[index] ?? ({})
                         required property int index
                         width: 168
                         shadow: playlistShadow
-                        title: modelData.title
-                        subtitle: modelData.subtitle
-                        cover: modelData.cover
+                        title: entry.title || ""
+                        subtitle: entry.subtitle || ""
+                        cover: entry.cover || ""
                         seed: index
                         revealDelay: (page.ownPlaylists.length + index) * 30
-                        onClicked: page.openPlaylist(modelData)
-                        onPlayClicked: page.openPlaylist(modelData)
+                        onClicked: page.openPlaylist(entry)
+                        onPlayClicked: page.openPlaylist(entry)
                     }
                 }
                 Repeater {
-                    model: page.soundcloudPlaylists
+                    model: page.sideShown ? 0 : page.soundcloudPlaylists.length
                     AlbumCard {
-                        required property var modelData
+                        readonly property var entry: page.soundcloudPlaylists[index] ?? ({})
                         required property int index
                         width: 168
                         shadow: playlistShadow
-                        title: modelData.title
-                        subtitle: "SoundCloud · " + modelData.subtitle + " · " + qsTr("%n tracks", "", modelData.count)
-                        cover: modelData.cover
+                        title: entry.title || ""
+                        subtitle: "SoundCloud · " + (entry.subtitle || "") + " · " + qsTr("%n tracks", "", entry.count || 0)
+                        cover: entry.cover || ""
                         seed: index + 2
                         revealDelay: (page.ownPlaylists.length + page.playlists.length + index) * 30
-                        onClicked: page.openSoundCloud(modelData)
-                        onPlayClicked: page.openSoundCloud(modelData)
+                        onClicked: page.openSoundCloud(entry)
+                        onPlayClicked: page.openSoundCloud(entry)
                     }
                 }
             }
