@@ -30,6 +30,15 @@ struct Track
     qint64 size = 0;     // to detect changes in the file
     qint64 mtime = 0;
     qint64 added = 0;    // when the file appeared in the library (ms since the epoch)
+
+    bool operator==(const Track &o) const
+    {
+        return id == o.id && path == o.path && title == o.title && artist == o.artist && artistId == o.artistId
+               && albumArtist == o.albumArtist && album == o.album && genre == o.genre && year == o.year
+               && trackNo == o.trackNo && duration == o.duration && source == o.source && quality == o.quality
+               && cover == o.cover && colorA == o.colorA && colorB == o.colorB && seed == o.seed && liked == o.liked
+               && demo == o.demo && transient == o.transient && size == o.size && mtime == o.mtime && added == o.added;
+    }
 };
 
 class TrackModel : public QAbstractListModel
@@ -76,7 +85,9 @@ public:
     int count() const { return int(m_tracks.size()); }
     int revision() const { return m_revision; }
 
-    void setTracks(QList<Track> tracks);
+    // false when they are the same as before: nothing is reset then
+
+    bool setTracks(QList<Track> tracks);
     void appendTracks(const QList<Track> &tracks);   // only tracks the model doesn't have yet
     const QList<Track> &tracks() const { return m_tracks; }
     const Track &at(int row) const { return m_tracks.at(row); }
