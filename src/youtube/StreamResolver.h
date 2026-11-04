@@ -13,8 +13,10 @@
 
 class QProcess;
 
-// Turns a videoId into a direct audio stream URL with yt-dlp
-// (it handles signature deciphering and changes on YouTube's side — it's updated separately).
+// Turns a videoId into a direct audio stream URL. The fast path asks YouTube's player API directly
+// as a client whose audio URLs need no deciphering (~0.3 s); yt-dlp (~2 s, it handles signature
+// deciphering and changes on YouTube's side and is updated separately) is the fallback whenever
+// that answer isn't usable.
 class StreamResolver : public QObject
 {
     Q_OBJECT
@@ -59,6 +61,12 @@ private:
     QString toolsDir() const;
     QStringList baseArguments() const;
     void run(const QString &videoId, bool withCookies);
+    bool directUsable() const;
+    void resolveDirect(const QString &videoId);
+    void askPlayer(const QString &videoId);
+    void directFailed(const QString &videoId, const QString &why);
+    void fetchVisitor();
+    void fallback(const QString &videoId);
     void runExternal(const QString &id);
     void readVersion();
     void finishDownload(const QByteArray &binary, const QByteArray &sums);
@@ -72,6 +80,14 @@ private:
     QString m_externalPrefix;
     External m_external;
     QSet<QString> m_externalRunning;
+    // Fast path: an anonymous visitor id (YouTube asks bot checks without one), shared by all calls
+    QByteArray m_visitor;
+    QDateTime m_visitorAt;
+    bool m_visitorLoading = false;
+    QStringList m_waitingForVisitor;
+    QSet<QString> m_directRunning;
+    int m_directFailures = 0;           // in a row; several pause the fast path for a while
+    QDateTime m_directPausedUntil;
     QNetworkAccessManager m_net;
     bool m_remote = false;
     bool m_downloading = false;

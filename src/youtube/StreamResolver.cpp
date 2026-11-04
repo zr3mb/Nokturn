@@ -8,8 +8,12 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QNetworkReply>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QSysInfo>
@@ -22,6 +26,11 @@
 #endif
 
 namespace {
+
+// The player API client of the fast path: its audio URLs come without a signature cipher and need
+// no proof-of-origin token (it's the client yt-dlp asks first).
+const char *kClientUa = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
+constexpr int kVisitorHours = 6;
 
 const char *kReleaseBase = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
 
@@ -109,6 +118,8 @@ void StreamResolver::detect()
     emit engineChanged();
     if (ready())
         readVersion();
+    if (m_visitor.isEmpty())
+        fetchVisitor();   // ready before the first track is asked for
 #ifdef Q_OS_WIN
     // An older install with the single-file yt-dlp.exe — we quietly switch to the faster unpacked build.
     const QString legacy = toolsDir() + QChar('/') + engineFileName();
@@ -167,12 +178,23 @@ void StreamResolver::resolve(const QString &videoId)
         QTimer::singleShot(0, this, [this, videoId, cached] { emit resolved(videoId, cached); });
         return;
     }
-    if (m_running.contains(videoId))
+    if (m_running.contains(videoId) || m_directRunning.contains(videoId))
         return;   // already running — the result will come as a signal
     if (isExternal(videoId)) {
         runExternal(videoId);
         return;
     }
+    if (directUsable()) {
+        resolveDirect(videoId);
+        return;
+    }
+    fallback(videoId);
+}
+
+void StreamResolver::fallback(const QString &videoId)
+{
+    if (m_running.contains(videoId))
+        return;
     if (!ready()) {
         emit failed(videoId, tr("The yt-dlp engine is missing"));
         return;
@@ -181,6 +203,136 @@ void StreamResolver::resolve(const QString &videoId)
     // challenge solved by Deno — ~5 s per track instead of ~2 s. Cookies are only the fallback
     // (age-restricted tracks, "sign in to confirm" checks).
     run(videoId, false);
+}
+
+bool StreamResolver::directUsable() const
+{
+    if (qEnvironmentVariable("NOKTURN_STREAM_DIRECT") == QLatin1String("0"))
+        return false;
+    return !m_directPausedUntil.isValid() || m_directPausedUntil < QDateTime::currentDateTimeUtc();
+}
+
+void StreamResolver::resolveDirect(const QString &videoId)
+{
+    m_directRunning.insert(videoId);
+    const bool stale = !m_visitorAt.isValid()
+                       || m_visitorAt.secsTo(QDateTime::currentDateTimeUtc()) > kVisitorHours * 3600;
+    if (m_visitor.isEmpty() || stale) {
+        if (!m_waitingForVisitor.contains(videoId))
+            m_waitingForVisitor << videoId;
+        fetchVisitor();
+        return;
+    }
+    askPlayer(videoId);
+}
+
+void StreamResolver::fetchVisitor()
+{
+    if (m_visitorLoading)
+        return;
+    m_visitorLoading = true;
+    // A tiny service-worker data file carries a fresh anonymous visitor id (the full page would too, ~1 MB).
+    QNetworkRequest request(QUrl(QStringLiteral("https://www.youtube.com/sw.js_data")));
+    request.setRawHeader("User-Agent", "Mozilla/5.0");
+    request.setTransferTimeout(5000);
+    QNetworkReply *reply = m_net.get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        reply->deleteLater();
+        m_visitorLoading = false;
+        static const QRegularExpression idRe(QStringLiteral("\"(Cg[A-Za-z0-9_%=-]{20,})\""));
+        const auto match = idRe.match(QString::fromLatin1(reply->readAll()));
+        if (reply->error() == QNetworkReply::NoError && match.hasMatch()) {
+            m_visitor = match.captured(1).toLatin1();
+            m_visitorAt = QDateTime::currentDateTimeUtc();
+        }
+        const QStringList waiting = std::exchange(m_waitingForVisitor, {});
+        for (const QString &id : waiting) {
+            if (m_visitor.isEmpty())
+                directFailed(id, QStringLiteral("no visitor id"));
+            else
+                askPlayer(id);
+        }
+    });
+}
+
+void StreamResolver::askPlayer(const QString &videoId)
+{
+    QNetworkRequest request(QUrl(QStringLiteral("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setRawHeader("User-Agent", kClientUa);
+    request.setRawHeader("X-Youtube-Client-Name", "101");
+    request.setRawHeader("X-Youtube-Client-Version", "1.02");
+    request.setRawHeader("Origin", "https://www.youtube.com");
+    request.setRawHeader("X-Goog-Visitor-Id", m_visitor);
+    request.setTransferTimeout(6000);
+    const QJsonObject client{
+        { "clientName", "VISIONOS" }, { "clientVersion", "1.02" }, { "deviceMake", "Apple" },
+        { "deviceModel", "RealityDevice17,1" }, { "userAgent", kClientUa }, { "osName", "visionOS" },
+        { "osVersion", "26.5.23O471" }, { "hl", "en" },
+    };
+    const QJsonObject body{
+        { "context", QJsonObject{ { "client", client } } },
+        { "videoId", videoId }, { "contentCheckOk", true }, { "racyCheckOk", true },
+    };
+    QElapsedTimer started;
+    started.start();
+    QNetworkReply *reply = m_net.post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, videoId, started] {
+        reply->deleteLater();
+        const QJsonObject root = QJsonDocument::fromJson(reply->readAll()).object();
+        const QString status = root.value("playabilityStatus").toObject().value("status").toString();
+        if (reply->error() != QNetworkReply::NoError || status != QLatin1String("OK")) {
+            if (status == QLatin1String("LOGIN_REQUIRED"))
+                m_visitor.clear();   // a bot check: the next call starts with a new visitor id
+            directFailed(videoId, status.isEmpty() ? reply->errorString() : status);
+            return;
+        }
+        // AAC audio (itag 140, what yt-dlp is asked for too) in the original language, without the
+        // compressed-dynamics variant; otherwise the best other MP4 audio.
+        QString best;
+        qint64 bestScore = -1;
+        const QJsonArray formats = root.value("streamingData").toObject().value("adaptiveFormats").toArray();
+        for (const QJsonValue &v : formats) {
+            const QJsonObject f = v.toObject();
+            const QString url = f.value("url").toString();
+            if (url.isEmpty() || !f.value("mimeType").toString().startsWith(QLatin1String("audio/mp4"))
+                || f.value("isDrc").toBool()
+                || !f.value("audioTrack").toObject().value("audioIsDefault").toBool(true))
+                continue;
+            const qint64 score = f.value("itag").toInt() == 140 ? (qint64(1) << 40) : f.value("bitrate").toInteger();
+            if (score > bestScore) {
+                bestScore = score;
+                best = url;
+            }
+        }
+        if (best.isEmpty()) {
+            directFailed(videoId, QStringLiteral("no plain audio URL"));
+            return;
+        }
+        m_directRunning.remove(videoId);
+        m_directFailures = 0;
+        if (qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+            qInfo("stream: %s resolved directly in %lld ms", qPrintable(videoId), started.elapsed());
+        const QUrl u(best);
+        const qint64 expire = QUrlQuery(u).queryItemValue(QStringLiteral("expire")).toLongLong();
+        const QDateTime expires = expire > 0 ? QDateTime::fromSecsSinceEpoch(expire, QTimeZone::UTC)
+                                             : QDateTime::currentDateTimeUtc().addSecs(3600);
+        m_cache.insert(videoId, { u, expires });
+        emit resolved(videoId, u);
+    });
+}
+
+void StreamResolver::directFailed(const QString &videoId, const QString &why)
+{
+    m_directRunning.remove(videoId);
+    if (qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+        qInfo("stream: %s direct lookup failed (%s), using yt-dlp", qPrintable(videoId), qPrintable(why));
+    // A few failures in a row (YouTube changed something): yt-dlp alone for a while.
+    if (++m_directFailures >= 3) {
+        m_directFailures = 0;
+        m_directPausedUntil = QDateTime::currentDateTimeUtc().addSecs(1800);
+    }
+    fallback(videoId);
 }
 
 void StreamResolver::resolveAgain(const QString &videoId)
