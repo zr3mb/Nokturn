@@ -472,10 +472,10 @@ Item {
             border.color: Qt.rgba(1, 1, 1, 0.07)
         }
         enter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140 }
-            NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 220; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(140) }
+            NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: Theme.ms(220); easing.type: Easing.OutCubic }
         }
-        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 } }
+        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(120) } }
 
         contentItem: ColumnLayout {
             spacing: 2
@@ -633,10 +633,10 @@ Item {
             border.color: Qt.rgba(1, 1, 1, 0.07)
         }
         enter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140 }
-            NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 220; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(140) }
+            NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: Theme.ms(220); easing.type: Easing.OutCubic }
         }
-        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 } }
+        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(120) } }
 
         contentItem: ColumnLayout {
             spacing: 2
@@ -699,10 +699,10 @@ Item {
         }
         Overlay.modal: Rectangle { color: "#88000000" }
         enter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
-            NumberAnimation { property: "scale"; from: 0.95; to: 1; duration: 320; easing.type: Easing.OutBack }
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(200) }
+            NumberAnimation { property: "scale"; from: 0.95; to: 1; duration: Theme.ms(320); easing.type: Easing.OutBack }
         }
-        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 160 } }
+        exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(160) } }
 
         contentItem: ColumnLayout {
             spacing: 16

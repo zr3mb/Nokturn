@@ -56,7 +56,7 @@ ApplicationWindow {
                 leftMargin: 10; bottomMargin: 2
             }
             width: Nav.sidebarCompact ? 76 : 252
-            Behavior on width { NumberAnimation { duration: 460; easing.type: Easing.OutQuint } }
+            Behavior on width { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutQuint } }
         }
 
         Panel {
@@ -73,15 +73,15 @@ ApplicationWindow {
 
                 replaceEnter: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 420; easing.type: Easing.OutCubic }
-                        NumberAnimation { property: "y"; from: 34; to: 0; duration: 620; easing.type: Easing.OutQuint }
-                        NumberAnimation { property: "scale"; from: 0.985; to: 1; duration: 620; easing.type: Easing.OutQuint }
+                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(420); easing.type: Easing.OutCubic }
+                        NumberAnimation { property: "y"; from: 34; to: 0; duration: Theme.ms(620); easing.type: Easing.OutQuint }
+                        NumberAnimation { property: "scale"; from: 0.985; to: 1; duration: Theme.ms(620); easing.type: Easing.OutQuint }
                     }
                 }
                 replaceExit: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 200; easing.type: Easing.InCubic }
-                        NumberAnimation { property: "scale"; from: 1; to: 0.985; duration: 240; easing.type: Easing.InCubic }
+                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(200); easing.type: Easing.InCubic }
+                        NumberAnimation { property: "scale"; from: 1; to: 0.985; duration: Theme.ms(240); easing.type: Easing.InCubic }
                     }
                 }
             }
@@ -94,8 +94,8 @@ ApplicationWindow {
                 rightMargin: Nav.queueOpen ? 10 : 0; bottomMargin: 2
             }
             width: Nav.queueOpen ? 344 : 0
-            Behavior on width { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
-            Behavior on anchors.rightMargin { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
+            Behavior on width { NumberAnimation { duration: Theme.ms(520); easing.type: Easing.OutQuint } }
+            Behavior on anchors.rightMargin { NumberAnimation { duration: Theme.ms(520); easing.type: Easing.OutQuint } }
         }
 
         PlayerBar {

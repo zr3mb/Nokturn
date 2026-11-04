@@ -19,11 +19,11 @@ Item {
     height: dragHeight >= 0 ? dragHeight : size === "full" ? fullHeight : halfHeight
     Behavior on height {
         enabled: root.dragHeight < 0
-        NumberAnimation { duration: 380; easing.type: Easing.OutQuint }
+        NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutQuint }
     }
 
     property real slide: size === "" ? 1 : 0
-    Behavior on slide { NumberAnimation { duration: 380; easing.type: Easing.OutQuint } }
+    Behavior on slide { NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutQuint } }
     onSlideChanged: if (slide === 1) dragHeight = -1
     transform: Translate { y: root.slide * (root.height + 40) }
     visible: slide < 1
@@ -32,7 +32,7 @@ Item {
         id: settle
         target: root
         property: "dragHeight"
-        duration: 320
+        duration: Theme.ms(320)
         easing.type: Easing.OutQuint
         onFinished: root.dragHeight = -1
     }

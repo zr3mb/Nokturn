@@ -25,8 +25,8 @@ Item {
     property real shadowOpacity: hovered ? 0.6 : 0.38
     property real shadowOffset: hovered ? 16 : 8
     readonly property real shadowPadding: shadow ? shadow.padding : 0
-    Behavior on shadowOpacity { NumberAnimation { duration: 400 } }
-    Behavior on shadowOffset { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+    Behavior on shadowOpacity { NumberAnimation { duration: Theme.ms(400) } }
+    Behavior on shadowOffset { NumberAnimation { duration: Theme.ms(400); easing.type: Easing.OutCubic } }
 
     implicitWidth: 180
     implicitHeight: width + 62
@@ -35,10 +35,10 @@ Item {
 
     SequentialAnimation {
         id: reveal
-        PauseAnimation { duration: root.revealDelay }
+        PauseAnimation { duration: Theme.ms(root.revealDelay) }
         ParallelAnimation {
-            NumberAnimation { target: root; property: "opacity"; to: 1; duration: 500; easing.type: Easing.OutCubic }
-            NumberAnimation { target: shift; property: "y"; to: 0; duration: 760; easing.type: Easing.OutQuint }
+            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.ms(500); easing.type: Easing.OutCubic }
+            NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.ms(760); easing.type: Easing.OutQuint }
         }
     }
     Component.onCompleted: if (animateIn) reveal.start()
@@ -60,7 +60,7 @@ Item {
         width: root.width
         height: root.width
         y: root.hovered ? -5 : 0
-        Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutCubic } }
+        Behavior on y { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutCubic } }
 
         // The list's shared shadow, cut to the area the card's own effect covers.
         Loader {
@@ -104,8 +104,8 @@ Item {
             anchors.rightMargin: root.round ? parent.width * 0.08 : 10
             anchors.bottomMargin: root.hovered || root.playing ? 10 : -4
             opacity: root.hovered || root.playing ? 1 : 0
-            Behavior on anchors.bottomMargin { NumberAnimation { duration: 380; easing.type: Easing.OutBack } }
-            Behavior on opacity { NumberAnimation { duration: 260 } }
+            Behavior on anchors.bottomMargin { NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutBack } }
+            Behavior on opacity { NumberAnimation { duration: Theme.ms(260) } }
             onClicked: root.playClicked()
         }
     }

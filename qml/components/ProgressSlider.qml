@@ -26,7 +26,7 @@ Item {
         height: root.active ? 6 : 4
         radius: height / 2
         color: Theme.alpha(Theme.text, 0.12)
-        Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        Behavior on height { NumberAnimation { duration: Theme.ms(180); easing.type: Easing.OutCubic } }
 
         Rectangle {
             width: Math.max(height, parent.width * root.shown)
@@ -48,7 +48,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         color: Theme.alpha(root.activeColor, 0.25)
         scale: mouse.pressed ? 1 : 0
-        Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(240); easing.type: Easing.OutBack } }
     }
 
     Rectangle {
@@ -58,7 +58,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         color: Theme.text
         scale: root.active ? 1 : 0
-        Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
     }
 
     // Value bubble at the cursor position

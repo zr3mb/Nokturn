@@ -21,10 +21,10 @@ Item {
 
     SequentialAnimation {
         id: anim
-        PauseAnimation { duration: root.delay }
+        PauseAnimation { duration: Theme.ms(root.delay) }
         ParallelAnimation {
-            NumberAnimation { target: inner; property: "opacity"; to: 1; duration: 600; easing.type: Easing.OutCubic }
-            NumberAnimation { target: shift; property: "y"; to: 0; duration: 850; easing.type: Easing.OutQuint }
+            NumberAnimation { target: inner; property: "opacity"; to: 1; duration: Theme.ms(600); easing.type: Easing.OutCubic }
+            NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.ms(850); easing.type: Easing.OutQuint }
         }
     }
 

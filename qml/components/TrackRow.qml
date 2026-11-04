@@ -50,10 +50,10 @@ Item {
 
     SequentialAnimation {
         id: reveal
-        PauseAnimation { duration: root.revealDelay }
+        PauseAnimation { duration: Theme.ms(root.revealDelay) }
         ParallelAnimation {
-            NumberAnimation { target: root; property: "opacity"; to: 1; duration: 420; easing.type: Easing.OutCubic }
-            NumberAnimation { target: shift; property: "y"; to: 0; duration: 620; easing.type: Easing.OutQuint }
+            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.ms(420); easing.type: Easing.OutCubic }
+            NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.ms(620); easing.type: Easing.OutQuint }
         }
     }
     Component.onCompleted: if (animateIn) reveal.start()
@@ -254,10 +254,10 @@ Item {
                 border.color: Qt.rgba(1, 1, 1, 0.07)
             }
             enter: Transition {
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 140 }
-                NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 220; easing.type: Easing.OutCubic }
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(140) }
+                NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: Theme.ms(220); easing.type: Easing.OutCubic }
             }
-            exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 120 } }
+            exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(120) } }
             onClosed: destroy()
 
             property bool choosingPlaylist: false

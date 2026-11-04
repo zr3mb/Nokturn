@@ -24,9 +24,9 @@ Item {
     opacity: shown ? 1 : 0
     scale: shown ? 1 : 0.9
     visible: opacity > 0.01
-    Behavior on y { NumberAnimation { duration: 460; easing.type: Easing.OutBack } }
-    Behavior on opacity { NumberAnimation { duration: 260 } }
-    Behavior on scale { NumberAnimation { duration: 460; easing.type: Easing.OutBack } }
+    Behavior on y { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutBack } }
+    Behavior on opacity { NumberAnimation { duration: Theme.ms(260) } }
+    Behavior on scale { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutBack } }
 
     Timer {
         id: timer

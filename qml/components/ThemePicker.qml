@@ -31,7 +31,7 @@ RowLayout {
                 border.width: card.selected ? 2 : 1
                 border.color: card.selected ? card.t.accent : Theme.alpha(Theme.text, hover.hovered ? 0.22 : 0.1)
                 scale: hover.hovered && !card.selected ? 1.02 : 1
-                Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+                Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
                 Behavior on border.color { ColorAnimation { duration: Theme.normal } }
 
                 // Miniature window: sidebar + content with a play button and two rows

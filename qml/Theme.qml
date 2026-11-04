@@ -76,9 +76,13 @@ Item {
     readonly property string fontDisplay: windows ? "Segoe UI Variable Display" : Qt.application.font.family
     readonly property string fontText: windows ? "Segoe UI Variable Text" : Qt.application.font.family
 
-    readonly property int fast: 150
-    readonly property int normal: 260
-    readonly property int slow: 520
+    // Interface motion: every transition's length goes through ms(), so one factor sets how quick the
+    // app feels (looping ambient animations keep their own pace).
+    readonly property real motion: 0.6
+    function ms(base) { return Math.round(base * motion) }
+    readonly property int fast: ms(150)
+    readonly property int normal: ms(260)
+    readonly property int slow: ms(520)
 
     // Bumped by main.cpp after a GPU reset: images then load again (they keep no memory copy).
     property int imageEpoch: 0

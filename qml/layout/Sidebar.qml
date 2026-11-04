@@ -69,7 +69,7 @@ Panel {
             font.weight: Theme.cat ? Font.Bold : Font.DemiBold
             font.letterSpacing: 0.2
             opacity: root.compact ? 0 : 1
-            Behavior on opacity { NumberAnimation { duration: 220 } }
+            Behavior on opacity { NumberAnimation { duration: Theme.ms(220) } }
         }
         Icon {
             visible: Theme.cat
@@ -108,7 +108,7 @@ Panel {
                 radius: 12
                 color: Theme.alpha(Theme.text, 0.085)
                 Behavior on y { SpringAnimation { spring: 3.4; damping: 0.3; epsilon: 0.2 } }
-                Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+                Behavior on height { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutCubic } }
 
                 Rectangle {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
@@ -189,14 +189,14 @@ Panel {
                         font.weight: Font.DemiBold
                         font.letterSpacing: 1.6
                         opacity: root.compact ? 0 : 1
-                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                        Behavior on opacity { NumberAnimation { duration: Theme.ms(200) } }
                     }
                     Rectangle {
                         anchors.centerIn: parent
                         width: 24; height: 1
                         color: Qt.rgba(1, 1, 1, 0.1)
                         opacity: root.compact ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                        Behavior on opacity { NumberAnimation { duration: Theme.ms(200) } }
                     }
                     IconButton {
                         id: newPlaylist
@@ -255,7 +255,7 @@ Panel {
                                 size: parent.group.folderId ? 13 : 14
                                 rotation: !parent.group.folderId && !parent.group.collapsed ? 90 : 0
                                 color: Theme.textFaint
-                                Behavior on rotation { NumberAnimation { duration: 160 } }
+                                Behavior on rotation { NumberAnimation { duration: Theme.ms(160) } }
                             }
                             Text {
                                 anchors { left: chevron.right; leftMargin: 7; right: folderTools.left; rightMargin: 4; verticalCenter: parent.verticalCenter }
@@ -270,7 +270,7 @@ Panel {
                                 id: folderTools
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                 opacity: headerHover.hovered ? 1 : 0
-                                Behavior on opacity { NumberAnimation { duration: 140 } }
+                                Behavior on opacity { NumberAnimation { duration: Theme.ms(140) } }
                                 IconButton {
                                     visible: !!parent.parent.group.folderId
                                     width: 24; height: 24

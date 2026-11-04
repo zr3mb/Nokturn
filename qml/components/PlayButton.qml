@@ -20,7 +20,7 @@ Item {
         radius: width / 2
         color: root.bgColor
         scale: mouse.pressed ? 0.9 : mouse.containsMouse ? 1.07 : 1
-        Behavior on scale { NumberAnimation { duration: 280; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(280); easing.type: Easing.OutBack } }
 
         Icon {
             anchors.centerIn: parent
@@ -31,9 +31,9 @@ Item {
             opacity: root.playing || root.buffering ? 0 : 1
             scale: root.playing ? 0.3 : 1
             rotation: root.playing ? -90 : 0
-            Behavior on opacity { NumberAnimation { duration: 220 } }
-            Behavior on scale { NumberAnimation { duration: 380; easing.type: Easing.OutBack } }
-            Behavior on rotation { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: Theme.ms(220) } }
+            Behavior on scale { NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutBack } }
+            Behavior on rotation { NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutCubic } }
         }
         Icon {
             anchors.centerIn: parent
@@ -43,9 +43,9 @@ Item {
             opacity: root.playing && !root.buffering ? 1 : 0
             scale: root.playing ? 1 : 0.3
             rotation: root.playing ? 0 : 90
-            Behavior on opacity { NumberAnimation { duration: 220 } }
-            Behavior on scale { NumberAnimation { duration: 380; easing.type: Easing.OutBack } }
-            Behavior on rotation { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: Theme.ms(220) } }
+            Behavior on scale { NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutBack } }
+            Behavior on rotation { NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutCubic } }
         }
         Spinner {
             anchors.centerIn: parent

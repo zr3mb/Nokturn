@@ -13,13 +13,13 @@ Item {
 
     visible: opacity > 0.01
     opacity: open ? 1 : 0
-    Behavior on opacity { NumberAnimation { duration: 460; easing.type: Easing.OutCubic } }
+    Behavior on opacity { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutCubic } }
 
     // Short windows (a small second screen, a laptop): type, buttons and gaps shrink with the height
     readonly property real k: Math.max(0.62, Math.min(1, (height - 64) / 760))
 
     property real enter: open ? 0 : 1
-    Behavior on enter { NumberAnimation { duration: 800; easing.type: Easing.OutQuint } }
+    Behavior on enter { NumberAnimation { duration: Theme.ms(800); easing.type: Easing.OutQuint } }
 
     Rectangle {
         anchors.fill: parent
@@ -352,7 +352,7 @@ Item {
                     anchors.fill: parent
                     color: "#000000"
                     opacity: Nav.immersiveQueue !== "" ? 0.35 : 0
-                    Behavior on opacity { NumberAnimation { duration: 380; easing.type: Easing.OutQuint } }
+                    Behavior on opacity { NumberAnimation { duration: Theme.ms(380); easing.type: Easing.OutQuint } }
                 }
             }
             QueueDrawer {}

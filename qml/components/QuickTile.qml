@@ -22,10 +22,10 @@ Item {
 
     SequentialAnimation {
         id: reveal
-        PauseAnimation { duration: root.revealDelay }
+        PauseAnimation { duration: Theme.ms(root.revealDelay) }
         ParallelAnimation {
-            NumberAnimation { target: root; property: "opacity"; to: 1; duration: 420; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "scale"; to: 1; duration: 560; easing.type: Easing.OutBack }
+            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.ms(420); easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "scale"; to: 1; duration: Theme.ms(560); easing.type: Easing.OutBack }
         }
     }
     Component.onCompleted: reveal.start()
@@ -91,8 +91,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         opacity: hover.hovered || root.playing ? 1 : 0
         scale: hover.hovered || root.playing ? 1 : 0.6
-        Behavior on opacity { NumberAnimation { duration: 220 } }
-        Behavior on scale { NumberAnimation { duration: 340; easing.type: Easing.OutBack } }
+        Behavior on opacity { NumberAnimation { duration: Theme.ms(220) } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(340); easing.type: Easing.OutBack } }
         onClicked: root.playClicked()
     }
 }

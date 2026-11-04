@@ -22,7 +22,7 @@ Row {
             radius: 9
             color: btn.danger ? "#b85c5c" : Qt.rgba(1, 1, 1, 0.08)
             opacity: m.containsMouse ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 140 } }
+            Behavior on opacity { NumberAnimation { duration: Theme.ms(140) } }
         }
         Icon {
             anchors.centerIn: parent

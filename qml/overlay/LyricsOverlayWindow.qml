@@ -50,7 +50,7 @@ Window {
         anchors.fill: parent
         color: "#000000"
         opacity: GameOverlay.lyricsDimming * win.fade
-        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.ms(200) } }
     }
 
     // ---- Floating lyrics text only (no panels, no frames, no borders) ----
@@ -59,7 +59,7 @@ Window {
         anchors.fill: parent
         opacity: win.fade
         scale: 0.98 + 0.02 * win.fade
-        Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutCubic } }
 
         readonly property real s: Math.max(0.7, Math.min(width / 1920, height / 1080))
         readonly property real lyricsTime: Player.position - Lyrics.offset
@@ -274,7 +274,7 @@ Window {
                         style: Text.Outline
                         styleColor: "#f0000000"
                         scale: hud.currentActive ? 1.0 : 0.96
-                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                        Behavior on scale { NumberAnimation { duration: Theme.ms(200); easing.type: Easing.OutCubic } }
                     }
 
                     // Upcoming next line (preview)
@@ -318,8 +318,8 @@ Window {
                             wrapMode: Text.WordWrap
                             style: Text.Outline
                             styleColor: "#f0000000"
-                            Behavior on font.pixelSize { NumberAnimation { duration: 180 } }
-                            Behavior on color { ColorAnimation { duration: 180 } }
+                            Behavior on font.pixelSize { NumberAnimation { duration: Theme.ms(180) } }
+                            Behavior on color { ColorAnimation { duration: Theme.ms(180) } }
                         }
                     }
                 }

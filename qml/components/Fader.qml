@@ -58,7 +58,7 @@ Item {
         y: f.yOf(f.value) - height / 2
         color: mouse.pressed ? Qt.lighter(Theme.text, 1.05) : Theme.text
         scale: mouse.pressed ? 1.06 : 1
-        Behavior on scale { NumberAnimation { duration: 160 } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(160) } }
         Column {
             anchors.centerIn: parent
             spacing: 3

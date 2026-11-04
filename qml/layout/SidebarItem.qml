@@ -39,7 +39,7 @@ Item {
         color: root.selected || mouse.containsMouse ? Theme.text : Theme.textDim
         scale: mouse.pressed ? 0.84 : 1
         Behavior on color { ColorAnimation { duration: Theme.normal } }
-        Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
     }
 
     ArtCover {
@@ -56,7 +56,7 @@ Item {
         source: root.coverSource
         mosaic: root.coverMosaic
         scale: mouse.pressed ? 0.9 : 1
-        Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
 
         Icon {
             anchors.centerIn: parent

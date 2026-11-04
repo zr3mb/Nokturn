@@ -42,7 +42,7 @@ Item {
                 border.color: Theme.alpha(Theme.text, 0.08)
                 // Created as the dialog opens: it starts small and grows in once it's on screen.
                 scale: root.shown && root.visible ? 1 : 0.94
-                Behavior on scale { NumberAnimation { duration: 420; easing.type: Easing.OutBack } }
+                Behavior on scale { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutBack } }
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     shadowEnabled: true
@@ -123,7 +123,7 @@ Item {
                                 height: parent.height
                                 radius: 3
                                 color: Theme.accent
-                                Behavior on width { NumberAnimation { duration: 200 } }
+                                Behavior on width { NumberAnimation { duration: Theme.ms(200) } }
                             }
                         }
                         Text {

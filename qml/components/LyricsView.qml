@@ -63,7 +63,7 @@ Item {
         }
     }
 
-    NumberAnimation { id: scroll; target: list; property: "contentY"; duration: 620; easing.type: Easing.OutCubic }
+    NumberAnimation { id: scroll; target: list; property: "contentY"; duration: Theme.ms(620); easing.type: Easing.OutCubic }
 
     // ---- states without lyrics ----------------------------------------------
     ColumnLayout {
@@ -173,7 +173,7 @@ Item {
                     height: parent.height
                     radius: 1.5
                     color: Theme.accent
-                    Behavior on width { NumberAnimation { duration: 300 } }
+                    Behavior on width { NumberAnimation { duration: Theme.ms(300) } }
                 }
             }
         }
@@ -236,10 +236,10 @@ Item {
                      : line.karaoke ? Theme.alpha(Theme.text, 0.5)
                      : line.isCurrent && root.currentActive ? Theme.text
                      : Theme.alpha(Theme.text, line.past || line.isCurrent ? 0.42 : 0.3)
-                Behavior on color { ColorAnimation { duration: 260 } }
+                Behavior on color { ColorAnimation { duration: Theme.ms(260) } }
                 scale: line.isCurrent && root.currentActive ? 1.0 : (Lyrics.synced ? 0.97 : 1.0)
                 transformOrigin: root.align === Text.AlignHCenter ? Item.Center : Item.Left
-                Behavior on scale { NumberAnimation { duration: 360; easing.type: Easing.OutCubic } }
+                Behavior on scale { NumberAnimation { duration: Theme.ms(360); easing.type: Easing.OutCubic } }
             }
 
             // A soft glow under the current line in the accent color
@@ -251,7 +251,7 @@ Item {
                 radius: 1.5
                 color: Theme.accent
                 x: root.align === Text.AlignHCenter ? (label.width - width) / 2 : 0
-                Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutCubic } }
+                Behavior on width { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutCubic } }
             }
 
             HoverHandler { id: lineHover; enabled: Lyrics.synced && !line.blank; cursorShape: Qt.PointingHandCursor }
@@ -307,7 +307,7 @@ Item {
                     height: parent.height
                     radius: 1.5
                     color: Theme.accent
-                    Behavior on width { NumberAnimation { duration: 300 } }
+                    Behavior on width { NumberAnimation { duration: Theme.ms(300) } }
                 }
             }
         }

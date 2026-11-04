@@ -58,7 +58,7 @@ Item {
         border.color: Theme.alpha(Theme.text, searchMouse.containsMouse ? 0.12 : 0.06)
         scale: searchMouse.pressed ? 0.985 : 1
         Behavior on color { ColorAnimation { duration: Theme.fast } }
-        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(200); easing.type: Easing.OutBack } }
 
         Icon {
             id: searchIcon

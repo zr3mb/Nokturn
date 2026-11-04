@@ -39,7 +39,7 @@ Item {
         colorTop: Theme.alpha(Theme.text, 0.22)
         colorBottom: Theme.alpha(Theme.text, 0.02)
         opacity: Player.playing ? 1 : 0.0
-        Behavior on opacity { NumberAnimation { duration: 600 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.ms(600) } }
     }
 
     RowLayout {

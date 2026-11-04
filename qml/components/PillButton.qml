@@ -30,7 +30,7 @@ Item {
         border.color: Theme.alpha(Theme.text, mouse.containsMouse ? 0.3 : 0.16)
         scale: mouse.pressed ? 0.96 : 1
         Behavior on color { ColorAnimation { duration: Theme.normal } }
-        Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: Theme.ms(220); easing.type: Easing.OutBack } }
     }
 
     Row {

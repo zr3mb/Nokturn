@@ -260,7 +260,7 @@ Item {
             Shape {
                 anchors.fill: parent
                 opacity: root.mosaicReady > 0 ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: 350 } }
+                Behavior on opacity { NumberAnimation { duration: Theme.ms(350) } }
                 preferredRendererType: Shape.CurveRenderer
                 ShapePath {
                     strokeColor: "transparent"
@@ -278,7 +278,7 @@ Item {
             visible: root.pictureShown
             opacity: root.pictureShown ? 1 : 0
             preferredRendererType: Shape.CurveRenderer
-            Behavior on opacity { NumberAnimation { duration: 350 } }
+            Behavior on opacity { NumberAnimation { duration: Theme.ms(350) } }
 
             ShapePath {
                 strokeColor: "transparent"

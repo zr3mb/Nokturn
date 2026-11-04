@@ -276,7 +276,7 @@ Item {
                             color: Equalizer.clipping ? Theme.alpha(Theme.danger, 0.85)
                                  : Equalizer.limiter && Equalizer.reduction > 0.5 ? Theme.alpha(Theme.warning, 0.25)
                                  : Qt.rgba(1, 1, 1, 0.05)
-                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on color { ColorAnimation { duration: Theme.ms(120) } }
                             Text {
                                 anchors.centerIn: parent
                                 text: Equalizer.clipping ? qsTr("CLIPPING")
