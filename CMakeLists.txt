@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Nokturn VERSION 0.22.7 LANGUAGES CXX)
+project(Nokturn VERSION 0.22.8 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -56,6 +56,7 @@ qt_add_qml_module(Nokturn
         src/PlayerController.h  src/PlayerController.cpp
         src/audio/Equalizer.h         src/audio/Equalizer.cpp
         src/audio/AudioEngine.h       src/audio/AudioEngine.cpp
+        src/audio/AudioCache.h        src/audio/AudioCache.cpp
         src/youtube/YtCookies.h       src/youtube/YtCookies.cpp
         src/youtube/BrowserLogin.h    src/youtube/BrowserLogin.cpp
         src/youtube/YtMusicApi.h      src/youtube/YtMusicApi.cpp

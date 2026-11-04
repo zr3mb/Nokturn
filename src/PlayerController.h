@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SpectrumAnalyzer.h"
+#include "audio/AudioCache.h"
 #include "audio/AudioEngine.h"
 
 #include <QAudioBufferOutput>
@@ -78,6 +79,10 @@ class PlayerController : public QObject
     Q_PROPERTY(QString transitionLabel READ transitionLabel NOTIFY transitionChanged)
     // When the queue ends: continue with the next playlist (or the whole library) instead of stopping.
     Q_PROPERTY(bool autoplay READ autoplay WRITE setAutoplay NOTIFY mixChanged)
+    // Network tracks kept on disk (AudioCache): a revision for bindings, the limit and what's used, in MB
+    Q_PROPERTY(int cacheRevision READ cacheRevision NOTIFY cacheChanged)
+    Q_PROPERTY(int cacheLimitMB READ cacheLimitMB WRITE setCacheLimitMB NOTIFY cacheChanged)
+    Q_PROPERTY(int cacheUsedMB READ cacheUsedMB NOTIFY cacheChanged)
     // A listening room (Online) drives the player: the queue is the room's.
     Q_PROPERTY(bool inRoom READ inRoom NOTIFY roomLinkChanged)
 
@@ -130,6 +135,14 @@ public:
     QString transitionLabel() const { return m_transitionLabel; }
     bool autoplay() const { return m_autoplay; }
     void setAutoplay(bool on);
+
+    int cacheRevision() const { return m_cacheRevision; }
+    int cacheLimitMB() const { return int(m_cache.limitBytes() / (1024 * 1024)); }
+    void setCacheLimitMB(int mb) { m_cache.setLimitBytes(qint64(mb) * 1024 * 1024); }
+    int cacheUsedMB() const { return int((m_cache.usedBytes() + 512 * 1024) / (1024 * 1024)); }
+    // The row's audio is on disk: it plays at once, without the network.
+    Q_INVOKABLE bool cached(int row) const;
+    Q_INVOKABLE void clearCache() { m_cache.clear(); }
 
     void setVolume(double v);
     void setMuted(bool m);
@@ -200,6 +213,7 @@ signals:
     void seeked(double seconds);
     void notice(const QString &text, const QString &icon);
     void roomLinkChanged();
+    void cacheChanged();
 
 private:
     static constexpr int kBars = 48;
@@ -271,6 +285,8 @@ private:
     TrackModel *m_tracks = nullptr;
     AudioEngine m_engine;               // the actual output: deck mixer + equalizer + QAudioSink
     QNetworkAccessManager m_net;        // YouTube streams fetched into memory
+    AudioCache m_cache;                 // ...and kept on disk afterwards
+    int m_cacheRevision = 0;
     std::array<Deck, AudioEngine::kDecks> m_decks;
     int m_active = 0;
     SpectrumAnalyzer m_analyzer;

@@ -156,14 +156,30 @@ Item {
             Layout.fillWidth: true
             spacing: 2
 
-            Text {
+            // The title, with a bolt right after it when the track is kept on disk (the audio cache):
+            // it plays at once, even offline. A long title is cut to leave the bolt room.
+            Item {
                 Layout.fillWidth: true
-                text: root.t.title
-                color: root.current ? Theme.accent : Theme.text
-                font.pixelSize: 15
-                font.weight: Font.Medium
-                elide: Text.ElideRight
-                Behavior on color { ColorAnimation { duration: Theme.normal } }
+                implicitHeight: titleText.implicitHeight
+                Text {
+                    id: titleText
+                    width: Math.min(implicitWidth, parent.width - (bolt.visible ? 19 : 0))
+                    text: root.t.title
+                    color: root.current ? Theme.accent : Theme.text
+                    font.pixelSize: 15
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                    Behavior on color { ColorAnimation { duration: Theme.normal } }
+                }
+                Icon {
+                    id: bolt
+                    x: titleText.width + 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: Player.cacheRevision >= 0 && Player.cached(root.trackIndex)
+                    name: "bolt"
+                    size: 15
+                    color: Theme.warning
+                }
             }
             ArtistLink {
                 Layout.fillWidth: true
