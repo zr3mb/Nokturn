@@ -379,10 +379,15 @@ Item {
         s.push({ name: "C9-end", run: () => root.overlayLog("end") })
         return s
     }
-    // Public YouTube Music playlists in the search results, opened and played (--tour-search-playlists).
+    // Public YouTube Music playlists in the search results, opened and played
+    // (--tour-search-playlists ["<query>"], "_" = space).
     readonly property bool withSearchPlaylists: Qt.application.arguments.indexOf("--tour-search-playlists") >= 0
+    readonly property string searchPlaylistQuery: {
+        const next = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-search-playlists") + 1]
+        return next && !next.startsWith("--") ? next.replace(/_/g, " ") : "vixa"
+    }
     readonly property var searchPlaylistSteps: [
-        { name: "S1-search", run: () => { Nav.finishOnboarding(); Nav.navigate("search", { query: "vixa" }) } },
+        { name: "S1-search", run: () => { Nav.finishOnboarding(); Nav.navigate("search", { query: root.searchPlaylistQuery }) } },
         { name: "S2-wait", run: () => {} },
         { name: "S3-results", run: () => {
             const p = YouTube.playlistResults
