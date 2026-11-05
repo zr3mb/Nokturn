@@ -343,12 +343,12 @@ Item {
             opacity: root.seg(4.7, 5.3)
         }
 
-        Flow {
+        Grid {
             id: chips
             anchors.horizontalCenter: parent.horizontalCenter
             y: tagline.y + tagline.height + 22 * root.k
-            width: Math.min(root.width - 48, implicitChipsWidth)
-            readonly property real implicitChipsWidth: 760
+            columns: root.width < 760 ? 1 : 3   // a phone: one under another, centred
+            horizontalItemAlignment: Grid.AlignHCenter
             spacing: 10
             Repeater {
                 model: [
