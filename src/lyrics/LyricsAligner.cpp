@@ -1,5 +1,7 @@
 #include "LyricsAligner.h"
 
+#include <QHash>
+
 #include <algorithm>
 #include <cstdint>
 #include <vector>
@@ -294,6 +296,65 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
     result.lyrics.wordTimed = true;
     result.lyrics.origin = QStringLiteral("stt");
     return result;
+}
+
+QString guessLanguage(const Lyrics &lyrics)
+{
+    struct Language { const char *code; QStringList common; QString letters; };
+    static const QList<Language> languages = {
+        { "pl", QStringLiteral("i w nie na to się jest że z co jak mi ja ty do za tak mnie już ale po by mam o czy tu").split(QChar(' ')), QStringLiteral("ąćęłńśźż") },
+        { "en", QStringLiteral("the you i and to a me my it in of is that on your all we be don't i'm know so love no").split(QChar(' ')), QString() },
+        { "de", QStringLiteral("ich du und die der nicht das ist es mich mir ein zu wir sie dich auf mit so").split(QChar(' ')), QStringLiteral("üß") },
+        { "nl", QStringLiteral("ik je de het een en niet is dat van op me mijn wat met zijn voor").split(QChar(' ')), QString() },
+        { "sv", QStringLiteral("jag du och det att som en är på inte med för mig dig vi har").split(QChar(' ')), QStringLiteral("å") },
+        { "es", QStringLiteral("que de y la el no me en tu te mi lo se es un por una yo con").split(QChar(' ')), QStringLiteral("ñ¿¡") },
+        { "fr", QStringLiteral("je de la le et tu les pas que un est des une moi te mon c'est j'ai qui dans").split(QChar(' ')), QStringLiteral("çœ") },
+        { "it", QStringLiteral("di che e non il la mi io è un per tu ti sono come ma con").split(QChar(' ')), QString() },
+        { "pt", QStringLiteral("que de e não o a eu me um você é se do da em meu com").split(QChar(' ')), QStringLiteral("ãõ") },
+        { "uk", QStringLiteral("і я не в що ти на мене це як та ми").split(QChar(' ')), QStringLiteral("іїєґ") },
+        { "ru", QStringLiteral("я и не в ты что на меня это как с мы").split(QChar(' ')), QStringLiteral("ыэъё") },
+    };
+    QHash<QString, int> common;
+    QList<double> scores(languages.size(), 0.0);
+    for (int i = 0; i < languages.size(); ++i)
+        for (const QString &w : languages[i].common)
+            common.insert(QString::fromLatin1(languages[i].code) + QChar(':') + w, i);
+    int total = 0;
+    for (const LyricLine &line : lyrics.lines) {
+        for (QString word : line.text.toLower().split(QChar(' '), Qt::SkipEmptyParts)) {
+            while (!word.isEmpty() && !word.back().isLetter())
+                word.chop(1);
+            while (!word.isEmpty() && !word.front().isLetter())
+                word.remove(0, 1);
+            if (word.isEmpty())
+                continue;
+            ++total;
+            for (int i = 0; i < languages.size(); ++i) {
+                if (common.contains(QString::fromLatin1(languages[i].code) + QChar(':') + word))
+                    scores[i] += 1;
+                for (const QChar c : word)
+                    if (languages[i].letters.contains(c)) {
+                        scores[i] += 1.5;   // letters of one language weigh more than its short words
+                        break;
+                    }
+            }
+        }
+    }
+    if (total < 12)
+        return {};
+    int best = 0, second = -1;
+    for (int i = 1; i < languages.size(); ++i) {
+        if (scores[i] > scores[best]) {
+            second = best;
+            best = i;
+        } else if (second < 0 || scores[i] > scores[second]) {
+            second = i;
+        }
+    }
+    // A clear winner only: a text with too few telling words, or mixed half and half, goes to detection.
+    if (scores[best] < total * 0.12 || (second >= 0 && scores[second] > scores[best] * 0.7))
+        return {};
+    return QString::fromLatin1(languages[best].code);
 }
 
 Lyrics fromTranscription(const QList<Word> &words, qint64 durationMs)

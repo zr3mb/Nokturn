@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -123,39 +124,22 @@ bool writeWav(const QString &path, const QByteArray &pcm)
     return f.write(pcm) == pcm.size();
 }
 
-// whisper-cli on Windows reads its arguments in the ANSI code page, not UTF-8: a prompt with "ę" reaches
-// the model as stray bytes, which it then repeats, breaking the words (and the JSON) it writes. The prompt
-// goes without diacritics there — the aligner ignores them anyway.
-QString promptArgument(const QString &prompt)
-{
-#ifdef Q_OS_WIN
-    QString out;
-    out.reserve(prompt.size());
-    for (const QChar c : prompt.normalized(QString::NormalizationForm_KD)) {
-        if (c == QChar(0x0142) || c == QChar(0x0141))   // ł, Ł don't decompose
-            out += c == QChar(0x0142) ? QChar('l') : QChar('L');
-        else if (c.unicode() < 128)
-            out += c;
-    }
-    return out;
-#else
-    return prompt;
-#endif
-}
-
 } // namespace
 
 struct SpeechEngine::Job
 {
     QUrl audio;
     QString model;
-    QString prompt;
+    QString language;          // whisper's code; empty = detected from the recording first
+    QStringList probes;        // short pieces of the recording for the language detection
+    QHash<QString, double> votes;
     WordsCallback callback;
     QAudioDecoder *decoder = nullptr;
     QProcess *process = nullptr;
     std::unique_ptr<QTemporaryDir> dir;
     QByteArray pcm;
     double resamplePos = 0;
+    int decodedPercent = 0;    // the last progress reported while decoding
     QString wav, outBase;
     bool cpuOnly = false;   // the graphics card failed once: the rest runs on the CPU
 };
@@ -514,7 +498,7 @@ void SpeechEngine::downloadModel(const QString &model)
 
 // ---- transcription --------------------------------------------------------------
 
-void SpeechEngine::transcribe(const QUrl &audio, const QString &model, const QString &prompt, WordsCallback callback)
+void SpeechEngine::transcribe(const QUrl &audio, const QString &model, const QString &language, WordsCallback callback)
 {
     cancel();
     if (!engineReady()) {
@@ -529,7 +513,7 @@ void SpeechEngine::transcribe(const QUrl &audio, const QString &model, const QSt
     m_job = new Job;
     m_job->audio = audio;
     m_job->model = model;
-    m_job->prompt = prompt;
+    m_job->language = language;
     m_job->callback = std::move(callback);
     const QString tmpRoot = AppPaths::dataDir() + QStringLiteral("/tmp");
     QDir().mkpath(tmpRoot);
@@ -550,9 +534,15 @@ void SpeechEngine::transcribe(const QUrl &audio, const QString &model, const QSt
             return;
         while (decoder->bufferAvailable())
             appendConverted(decoder->read(), m_job->pcm, m_job->resamplePos);
+        // A song comes in over ten thousand small buffers. Reporting each one re-evaluated the whole
+        // lyrics interface every time and made decoding take minutes instead of seconds, so only
+        // whole percents go out.
         const qint64 duration = decoder->duration();
-        if (duration > 0)
-            emit progress(0.15 * std::min(1.0, double(decoder->position()) / duration), tr("Decoding audio"));
+        const int percent = duration > 0 ? int(100 * std::min(1.0, double(decoder->position()) / duration)) : 0;
+        if (percent > m_job->decodedPercent) {
+            m_job->decodedPercent = percent;
+            emit progress(0.15 * percent / 100.0, tr("Decoding audio"));
+        }
     });
     connect(decoder, &QAudioDecoder::finished, this, [this, decoder] {
         if (!m_job || m_job->decoder != decoder)
@@ -585,9 +575,73 @@ void SpeechEngine::startWhisper()
         finishJob({}, tr("Couldn't save the temporary file"));
         return;
     }
+    if (m_job->language.isEmpty()) {
+        // whisper guesses the language from the first 30 seconds, which in a song is often an intro or a
+        // shout-out: a Polish song then comes out in Cyrillic. Pieces from the middle, where the singing is,
+        // tell it much better.
+        constexpr qsizetype kProbe = qsizetype(kSampleRate) * 2 * 30;
+        const qsizetype size = m_job->pcm.size();
+        const QList<double> at = size > kProbe * 3 ? QList<double> { 0.3, 0.62 } : QList<double> { 0.5 };
+        for (int i = 0; i < at.size(); ++i) {
+            const qsizetype from = std::clamp<qsizetype>(qsizetype(size * at[i]) & ~qsizetype(1), 0, std::max<qsizetype>(0, size - kProbe));
+            const QString probe = m_job->dir->filePath(QStringLiteral("probe%1.wav").arg(i));
+            if (writeWav(probe, m_job->pcm.mid(from, kProbe)))
+                m_job->probes << probe;
+        }
+    }
     m_job->pcm.clear();
     m_job->pcm.squeeze();
-    runWhisper(wav, outBase);
+    m_job->wav = wav;
+    m_job->outBase = outBase;
+    detectLanguage();
+}
+
+void SpeechEngine::detectLanguage()
+{
+    if (m_job->probes.isEmpty()) {
+        if (m_job->language.isEmpty()) {
+            QString best = QStringLiteral("auto");
+            double score = 0;
+            for (auto it = m_job->votes.cbegin(); it != m_job->votes.cend(); ++it)
+                if (it.value() > score) {
+                    best = it.key();
+                    score = it.value();
+                }
+            m_job->language = best;
+        }
+        runWhisper(m_job->wav, m_job->outBase);
+        return;
+    }
+    const QString probe = m_job->probes.takeFirst();
+    const bool gpu = usesGpu() && !m_job->cpuOnly;
+    const QString program = gpu || m_enginePath.isEmpty() ? m_gpuEnginePath : m_enginePath;
+    QStringList args = {
+        QStringLiteral("-m"), modelPath(m_job->model),
+        QStringLiteral("-f"), probe,
+        QStringLiteral("-t"), QString::number(gpu ? 4 : std::clamp(QThread::idealThreadCount() - 1, 2, 12)),
+        QStringLiteral("-l"), QStringLiteral("auto"),
+        QStringLiteral("-dl"),
+    };
+    if (!gpu && program == m_gpuEnginePath)
+        args << QStringLiteral("-ng");
+    emit progress(0.15, tr("Detecting the language"));
+
+    auto *process = new QProcess(this);
+    hideConsole(process);
+    process->setProcessChannelMode(QProcess::MergedChannels);
+    m_job->process = process;
+    connect(process, &QProcess::finished, this, [this, process] {
+        if (!m_job || m_job->process != process)
+            return;
+        m_job->process = nullptr;
+        process->deleteLater();
+        static const QRegularExpression re(QStringLiteral("auto-detected language:\\s*([a-z]{2,3})\\s*\\(p\\s*=\\s*([0-9.]+)"));
+        const auto m = re.match(QString::fromUtf8(process->readAll()));
+        if (m.hasMatch())
+            m_job->votes[m.captured(1)] += m.captured(2).toDouble();
+        detectLanguage();
+    });
+    process->start(program, args);
 }
 
 void SpeechEngine::runWhisper(const QString &wav, const QString &outBase)
@@ -600,15 +654,20 @@ void SpeechEngine::runWhisper(const QString &wav, const QString &outBase)
     QStringList args = {
         QStringLiteral("-m"), modelPath(m_job->model),
         QStringLiteral("-f"), wav,
-        QStringLiteral("-l"), QStringLiteral("auto"),
+        QStringLiteral("-l"), m_job->language.isEmpty() ? QStringLiteral("auto") : m_job->language,
         QStringLiteral("-t"), QString::number(threads),
         QStringLiteral("-ml"), QStringLiteral("1"),      // one word per segment = the time of every word
         QStringLiteral("-sow"),
+        // No text carried from one 30-second window to the next: with it, a chorus sung several times
+        // sends the model into a loop that repeats one phrase to the end of a long song. (That also
+        // turns off an initial prompt, so none is passed.)
+        QStringLiteral("-mc"), QStringLiteral("0"),
+        // A narrower beam: about a third faster and, over music, no less accurate.
+        QStringLiteral("-bs"), QStringLiteral("3"),
+        QStringLiteral("-bo"), QStringLiteral("3"),
         QStringLiteral("-oj"), QStringLiteral("-of"), outBase,
         QStringLiteral("-pp"),
     };
-    if (!m_job->prompt.isEmpty())
-        args << QStringLiteral("--prompt") << promptArgument(m_job->prompt);
     if (!gpu && program == m_gpuEnginePath)
         args << QStringLiteral("-ng");   // the CUDA build, kept off the graphics card
 

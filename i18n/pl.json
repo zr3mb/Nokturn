@@ -1205,5 +1205,6 @@
   "The downloaded plugin doesn't match the catalog — not installed": "Pobrany plugin nie zgadza się z katalogiem — nie został zainstalowany",
   "Couldn't save the plugin": "Nie udało się zapisać pluginu",
   "Installed %1": "Zainstalowano: %1",
-  "A policy on this computer turns off remote debugging in the browser, so the session can't be read": "Zasady na tym komputerze wyłączają zdalne debugowanie w przeglądarce, więc nie da się odczytać sesji"
+  "A policy on this computer turns off remote debugging in the browser, so the session can't be read": "Zasady na tym komputerze wyłączają zdalne debugowanie w przeglądarce, więc nie da się odczytać sesji",
+  "Detecting the language": "Wykrywanie języka"
 }
