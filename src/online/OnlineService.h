@@ -123,7 +123,7 @@ public:
     Q_INVOKABLE void shareTrack(int row);   // copies the link to the clipboard
     Q_INVOKABLE void shareCurrent();
     // everplay://t|r|p/<code>, the same as an https link to the server, or a room code alone.
-    // False when the text isn't a Everplay link.
+    // False when the text isn't an Everplay link.
     Q_INVOKABLE bool openLink(const QString &link);
     static bool isLink(const QString &text);
 

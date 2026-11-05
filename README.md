@@ -337,7 +337,7 @@ features is used.
   a track without a match is skipped with a notice.
 - **Share links:** *Copy a share link* in a track's menu (⋯ or right-click) or the share button on the player bar
   copies `…/t/<code>`. Opened in a browser, the page shows the track (with a preview in chat apps), an *Open in
-  Everplay* button (`everplay://t/<code>`) and a *Listen on YouTube Music / SoundCloud* link; opened in Everplay, the
+  Everplay* button (`nokturn://t/<code>`, the scheme of the former name) and a *Listen on YouTube Music / SoundCloud* link; opened in Everplay, the
   track plays.
 - **Shared playlists:** *New playlist → Save to: Shared*. The invite link (`…/p/<id>`) is copied right away and
   can be copied again from the playlist's ⋯ menu. Everyone who opens it joins: the playlist shows up in their
@@ -386,7 +386,7 @@ features is used.
   use); *I have a code* on the other device (the desktop app, the Android app or the browser version) signs it in
   to that account, with its library, shared playlists and rooms — no password needed, and what the device had
   moves into the account as when signing in.
-- **Links open Everplay:** `everplay://` is registered for the current user on startup (Windows: `HKCU\Software\Classes\everplay`,
+- **Links open Everplay:** `everplay://` (and `nokturn://`, used by the server's link pages) is registered for the current user on startup (Windows: `HKCU\Software\Classes\everplay`,
   removed by the uninstaller; Linux AppImage: a hidden `everplay-links.desktop` + `xdg-mime`; installed from
   source: `MimeType` in `everplay.desktop`). A link opened while Everplay runs goes to the running window.
 - `EVERPLAY_SERVER=<url>` points at another server (testing), *Settings → Online → Server* permanently.
