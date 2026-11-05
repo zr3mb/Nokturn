@@ -484,6 +484,21 @@ WebSocket `/api/v1/ws`: `room.create`, `room.join`, `room.leave`, `room.add`, `r
 `playlist` / `playlist.removed` (a shared playlist changed) and `error`. The pages `/t/<code>`, `/r/<code>`,
 `/p/<id>` are in Polish or English depending on the browser. Requests are rate-limited per address and account.
 
+## Plugins
+
+The **Plugins** page installs extras written in QML: animated wallpapers that move with the music,
+overlays, colour themes and logic that restyles the interface. They come from the catalog on the
+Nokturn server (`/plugins/index.json`, every archive checked against its SHA-256) or from a `.zip`
+file, and live in `<data>/plugins/<id>`. A plugin runs with the app's rights, so every install asks
+first.
+
+- Writing one: [docs/plugins.md](docs/plugins.md) ([po polsku](docs/plugins.pl.md)).
+- Examples: [`plugins/`](plugins) — a spectrum wallpaper with settings, two themes, an overlay.
+- The catalog: `python plugins/build-catalog.py` packs `plugins/` into `dist/plugins`; those files go
+  to `/var/lib/nokturn/plugins` on the server.
+- Code: `src/PluginManager.*` (install, catalog, settings), `qml/components/PluginHost.qml` (where
+  plugins draw), `qml/pages/PluginsPage.qml`.
+
 ## Lyrics — how it works
 
 - **Where:** the *Lyrics* tab in the "Now playing" panel (or the button with text lines on the player bar)

@@ -28,7 +28,7 @@ Rectangle {
                 id: tab
                 required property var modelData
                 readonly property bool selected: modelData.key === "more"
-                                                 ? ["sources", "equalizer", "stats", "settings"].indexOf(Nav.page) >= 0
+                                                 ? ["sources", "equalizer", "stats", "plugins", "settings"].indexOf(Nav.page) >= 0
                                                  : Nav.page === modelData.key
                 width: root.width / 5
                 height: root.height

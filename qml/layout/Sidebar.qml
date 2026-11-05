@@ -145,7 +145,8 @@ Panel {
                         { key: "sources", label: qsTr("Sources"), icon: "sources" },
                         { key: "room", label: qsTr("Listening room"), icon: "group" },
                         { key: "equalizer", label: qsTr("Equalizer"), icon: "equalizer" },
-                        { key: "stats", label: qsTr("Stats"), icon: "chart" }
+                        { key: "stats", label: qsTr("Stats"), icon: "chart" },
+                        { key: "plugins", label: qsTr("Plugins"), icon: "grid" }
                     ]
 
                     SidebarItem {

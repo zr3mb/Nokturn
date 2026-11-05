@@ -1,0 +1,30 @@
+{
+    "id": "night-themes",
+    "name": { "en": "Night themes", "pl": "Nocne motywy" },
+    "version": "1.0.0",
+    "author": "Nokturn",
+    "description": {
+        "en": "Two extra colour themes: Deep Sea and Forest. Pick them in Settings → Appearance. A theme can be just a few lines of JSON.",
+        "pl": "Dwa dodatkowe motywy kolorów: Głębia i Las. Wybierzesz je w Ustawienia → Wygląd. Motyw to może być kilka linijek JSON-a."
+    },
+    "api": 1,
+    "preview": "preview.png",
+    "themes": [
+        {
+            "id": "deep-sea",
+            "name": { "en": "Deep Sea", "pl": "Głębia" },
+            "bg": "#070d14", "surface": "#0e1823", "surfaceHi": "#16232f",
+            "text": "#e3eef5", "textDim": "#93a9b8", "textFaint": "#5b7080",
+            "accent": "#5cc8d6", "accent2": "#1f4f7a", "onAccent": "#04121a",
+            "fixedAccent": true
+        },
+        {
+            "id": "forest",
+            "name": { "en": "Forest", "pl": "Las" },
+            "bg": "#0c110d", "surface": "#151c16", "surfaceHi": "#1e2820",
+            "text": "#e6ede2", "textDim": "#a3b29c", "textFaint": "#6a7a66",
+            "accent": "#9ccf7f", "accent2": "#3f5f3a", "onAccent": "#0e160b",
+            "fixedAccent": false
+        }
+    ]
+}

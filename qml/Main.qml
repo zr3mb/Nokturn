@@ -69,6 +69,16 @@ ApplicationWindow {
             visible: Theme.ambient
         }
 
+        // Plugins: animated wallpapers behind the panels, logic without a look (docs/plugins.md)
+        PluginHost {
+            anchors.fill: parent
+            slot: "wallpaper"
+        }
+        PluginHost {
+            width: 0; height: 0
+            slot: "main"
+        }
+
         TitleBar {
             id: titleBar
             anchors { top: parent.top; left: parent.left; right: parent.right }
@@ -155,6 +165,13 @@ ApplicationWindow {
 
         ImmersiveView {
             anchors.fill: parent
+        }
+
+        // Plugins' overlays: above the interface, never in the way of the mouse
+        PluginHost {
+            anchors.fill: parent
+            slot: "overlay"
+            enabled: false
         }
 
         // First-run wizard (above everything except notifications)
@@ -293,6 +310,7 @@ ApplicationWindow {
                         { key: "sources", label: qsTr("Sources"), icon: "sources" },
                         { key: "equalizer", label: qsTr("Equalizer"), icon: "equalizer" },
                         { key: "stats", label: qsTr("Stats"), icon: "chart" },
+                        { key: "plugins", label: qsTr("Plugins"), icon: "grid" },
                         { key: "settings", label: qsTr("Settings"), icon: "tune" }
                     ]
                     Item {
@@ -352,6 +370,7 @@ ApplicationWindow {
     Component { id: equalizerPage; EqualizerPage {} }
     Component { id: statsPage; StatsPage {} }
     Component { id: roomPage; RoomPage {} }
+    Component { id: pluginsPage; PluginsPage {} }
 
     function pageComponent(name) {
         switch (name) {
@@ -364,6 +383,7 @@ ApplicationWindow {
         case "equalizer": return equalizerPage
         case "stats": return statsPage
         case "room": return roomPage
+        case "plugins": return pluginsPage
         default: return homePage
         }
     }
@@ -461,6 +481,11 @@ ApplicationWindow {
 
     Connections {
         target: Updater
+        function onNotice(text, icon) { toast.show(text, icon) }
+    }
+
+    Connections {
+        target: Plugins
         function onNotice(text, icon) { toast.show(text, icon) }
     }
 

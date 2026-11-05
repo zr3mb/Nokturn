@@ -1,0 +1,14 @@
+{
+    "id": "spectrum-wallpaper",
+    "name": { "en": "Spectrum wallpaper", "pl": "Tapeta spektrum" },
+    "version": "1.0.0",
+    "author": "Nokturn",
+    "description": {
+        "en": "Soft light behind the interface that breathes with the music: glowing shapes in the cover's colours and a spectrum along the bottom.",
+        "pl": "Miękkie światło za interfejsem, które oddycha z muzyką: świecące kształty w kolorach okładki i spektrum na dole."
+    },
+    "api": 1,
+    "wallpaper": "Wallpaper.qml",
+    "settings": "Settings.qml",
+    "preview": "preview.png"
+}
