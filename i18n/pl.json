@@ -1183,5 +1183,7 @@
   "Corners": "Narożniki",
   "The shape of panels and covers: soft and rounded, or crisper corners with round buttons.": "Kształt paneli i okładek: miękki i zaokrąglony albo ostrzejsze rogi z okrągłymi przyciskami.",
   "Rounded": "Zaokrąglone",
-  "Semi-angular": "Półkanciaste"
+  "Semi-angular": "Półkanciaste",
+  "A policy on this computer turns off remote debugging in the browser, so the session can't be read": "Zasady na tym komputerze wyłączają zdalne debugowanie w przeglądarce, więc nie da się odczytać sesji",
+  "Detecting the language": "Wykrywanie języka"
 }

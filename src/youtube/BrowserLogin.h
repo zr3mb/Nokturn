@@ -3,6 +3,7 @@
 #include "YtCookies.h"
 
 #include <QObject>
+#include <QElapsedTimer>
 #include <QProcess>
 #include <QTimer>
 #include <QWebSocket>
@@ -39,6 +40,23 @@ public:
     static QStringList windowTitles(qint64 pid);
     static void closeWindows(qint64 pid);
 
+    // The browser's own processes (not its helpers) running with this profile, wherever they came from:
+    // a launcher may hand the window to another process and quit, so the pid we started isn't enough.
+    // Windows only — elsewhere just `extra`, when it still runs.
+    static QList<qint64> profileProcesses(const QString &profileDir, qint64 extra = 0);
+    static QStringList profileWindowTitles(const QString &profileDir, qint64 extra = 0);
+    static void closeProfileWindows(const QString &profileDir, qint64 extra = 0);
+    // Ends what still holds the profile (a window left open, a hidden browser from an earlier attempt).
+    static void killProfileProcesses(const QString &profileDir);
+    // Calls `then` (with `context` alive) once nothing holds the profile: waits up to `waitMs`,
+    // then ends the leftovers. The hidden readout has to start on a free profile, otherwise the browser
+    // hands it to the open one and DevTools never answers.
+    static void whenProfileFree(QObject *context, const QString &profileDir, int waitMs, std::function<void()> then);
+    // A policy (company or school computer) that turns off remote debugging — the readout can't work then.
+    static bool debuggingBlocked(const QString &browser);
+    // Appends a line to <data>/login.log: what happened during sign-in, for a tester to send.
+    static void log(const QString &line);
+
     bool running() const { return m_stage != Stage::Idle; }
     QString status() const;
     void start(const QString &profileDir);
@@ -56,6 +74,7 @@ signals:
 private:
     void setStage(Stage stage);
     void checkWindowTitle();
+    void launchWindow();
     void closeInteractiveWindow();
     void startReading();
     void waitForDevTools();
@@ -72,6 +91,9 @@ private:
     Site m_site = Site::YouTube;
     bool m_closePending = false;   // SoundCloud: signed in, the window closes in a moment
     bool m_refreshMode = false;    // refresh(): only the invisible stage, on the site itself
+    bool m_readerLaunched = false; // the hidden browser of the readout has been started
+    QStringList m_lastTitles;      // for the log: only changes are written
+    QElapsedTimer m_launchClock;
     std::function<bool(const YtCookies &)> m_accept;
     Stage m_stage = Stage::Idle;
     QProcess m_process;

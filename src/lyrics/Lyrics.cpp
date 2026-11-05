@@ -148,18 +148,23 @@ QList<LyricWord> LyricLine::timedWords() const
         if (i > from)
             out << LyricWord { -1, -1, from, i - from };
     }
+    // A heard word is held at most this long: recognition often stretches the last word before a pause
+    // over the whole silence, and the highlight would then crawl through it.
+    const auto longest = [](int letters) { return std::max<qint64>(1500, qint64(letters) * 300); };
     for (LyricWord &w : out)
         for (const LyricWord &known : words)
             if (known.from == w.from && known.start >= 0) {
                 w.start = known.start;
-                w.end = std::max(known.end, known.start + 80);
+                w.end = std::clamp(known.end, known.start + 80, known.start + longest(w.length));
             }
     if (start < 0 || out.isEmpty())
         return out;
 
-    // Unknown runs share the time between the known neighbours by letters. A line with no known words
-    // at all is sung at a typical pace (and not stretched over an instrumental break that follows).
-    constexpr qint64 kPerLetter = 75;
+    // Unknown runs share the time between the known neighbours by letters, but never slower than a slow
+    // singer: across a pause (an instrumental break, a breath between phrases) the words go at a sung
+    // pace next to the word they belong with instead of being spread over the silence.
+    constexpr qint64 kPerLetter = 75;       // a typical pace
+    constexpr qint64 kSlowestLetter = 180;  // a drawn-out one
     for (int i = 0; i < out.size();) {
         if (out[i].start >= 0) {
             ++i;
@@ -169,11 +174,21 @@ QList<LyricWord> LyricLine::timedWords() const
         int letters = 0;
         while (j < out.size() && out[j].start < 0)
             letters += out[j++].length + 1;
-        const qint64 from = i > 0 ? out[i - 1].end : start;
+        const qint64 slowest = letters * kSlowestLetter + 400;
+        qint64 from = i > 0 ? out[i - 1].end : start;
         qint64 to = j < out.size() ? out[j].start : -1;
         if (to < 0) {
-            const qint64 sung = from + letters * kPerLetter + 250;
-            to = end > from ? std::min(end, std::max(sung, from + (end - from) * 6 / 10)) : sung;
+            // The end of the line: the words take part of the time left, as fast as typical at the least.
+            const qint64 sung = letters * kPerLetter + 250;
+            const qint64 room = end > from ? end - from : sung;
+            to = from + std::min(room, std::clamp(room * 6 / 10, sung, slowest));
+        } else if (to - from > slowest) {
+            // A long gap between heard words: the first words of a line lead into the first heard one,
+            // the others follow the word before them.
+            if (i == 0)
+                from = to - slowest;
+            else
+                to = from + slowest;
         }
         to = std::max(to, from + 80 * (j - i));
         qint64 at = from;

@@ -382,13 +382,22 @@ void LyricsService::apply(const Lyrics &lyrics, bool store)
         const LyricLine &l = m_lyrics.lines.at(i);
         // Every word's time (heard or estimated) for the karaoke highlight: [start s, end s, from, length].
         QVariantList words;
-        if (m_lyrics.synced && l.start >= 0)
-            for (const LyricWord &w : l.timedWords())
+        qint64 end = l.end;
+        if (m_lyrics.synced && l.start >= 0) {
+            const QList<LyricWord> timed = l.timedWords();
+            for (const LyricWord &w : timed)
                 words << QVariant(QVariantList { w.start / 1000.0, w.end / 1000.0, w.from, w.length });
+            // Before a long instrumental break the line fades out a while after its last word instead
+            // of staying lit until the next line (longer after an estimated word, which may be late).
+            if (!timed.isEmpty() && end > 0) {
+                const bool heard = !l.words.isEmpty() && l.words.last().from == timed.last().from;
+                end = std::min(end, timed.last().end + (heard ? 1500 : 4000));
+            }
+        }
         m_lines << QVariantMap {
             { "text", l.text },
             { "start", l.start >= 0 ? l.start / 1000.0 : -1.0 },
-            { "end", l.end >= 0 ? l.end / 1000.0 : -1.0 },
+            { "end", end >= 0 ? end / 1000.0 : -1.0 },
             { "words", words },
         };
         if (m_lyrics.synced && l.start >= 0 && !l.text.isEmpty())
@@ -497,19 +506,11 @@ void LyricsService::startAlign(const QUrl &audio)
         startWordTiming(audio);
         return;
     }
-    // The start of the lyrics as a hint for the model (vocabulary, spelling, language).
-    QString prompt;
-    for (const LyricLine &l : std::as_const(m_lyrics.lines)) {
-        if (prompt.size() > 200)
-            break;
-        if (!l.text.isEmpty())
-            prompt += (prompt.isEmpty() ? QString() : QStringLiteral(" ")) + l.text;
-    }
-
+    // The language of the lyrics, so the model doesn't have to guess it from the intro.
     const quint64 serial = m_serial;
     const Lyrics base = m_lyrics;
     const qint64 durationMs = m_track.duration > 0 ? qint64(m_track.duration) * 1000 : -1;
-    m_speech.transcribe(audio, m_model, prompt.left(220),
+    m_speech.transcribe(audio, m_model, LyricsAligner::guessLanguage(m_lyrics),
                         [this, serial, base, durationMs](const QList<LyricsAligner::Word> &words, const QString &error) {
         emit alignChanged();
         if (serial != m_serial)
@@ -537,17 +538,10 @@ void LyricsService::startAlign(const QUrl &audio)
 void LyricsService::startWordTiming(const QUrl &audio)
 {
     // The lines keep their times; each word gets the time it was heard at, if that falls in its line.
-    QString prompt;
-    for (const LyricLine &l : std::as_const(m_lyrics.lines)) {
-        if (prompt.size() > 200)
-            break;
-        if (!l.text.isEmpty())
-            prompt += (prompt.isEmpty() ? QString() : QStringLiteral(" ")) + l.text;
-    }
     const quint64 serial = m_serial;
     const Lyrics base = m_lyrics;
     const qint64 durationMs = m_track.duration > 0 ? qint64(m_track.duration) * 1000 : -1;
-    m_speech.transcribe(audio, m_model, prompt.left(220),
+    m_speech.transcribe(audio, m_model, LyricsAligner::guessLanguage(m_lyrics),
                         [this, serial, base, durationMs](const QList<LyricsAligner::Word> &words, const QString &error) {
         emit alignChanged();
         if (serial != m_serial)
