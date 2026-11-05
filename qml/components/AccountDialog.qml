@@ -120,7 +120,7 @@ Popup {
             Text {
                 Layout.fillWidth: true
                 text: ({
-                    create: Online.registered ? qsTr("Set a login and a password") : qsTr("Create a Everplay account"),
+                    create: Online.registered ? qsTr("Set a login and a password") : qsTr("Create an Everplay account"),
                     signin: qsTr("Sign in to Everplay"),
                     recover: qsTr("Forgot the password"),
                     password: qsTr("Change the password"),
