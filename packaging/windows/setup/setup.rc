@@ -3,6 +3,7 @@
 #include "setup_config.h"
 
 1 ICON "everplay.ico"
+2 RCDATA "logo.png"   // the logo drawn in the window
 1 RT_MANIFEST "setup.manifest"
 
 VS_VERSION_INFO VERSIONINFO

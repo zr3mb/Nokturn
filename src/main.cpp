@@ -9,6 +9,7 @@
 #include <QElapsedTimer>
 #include <QFont>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QNetworkAccessManager>
 #include <QNetworkDiskCache>
 #include <QQmlApplicationEngine>
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationVersion(QStringLiteral(EVERPLAY_VERSION));
     // Wayland/X11: ties the window to the everplay.desktop file (icon, name in the panel, MPRIS).
     QGuiApplication::setDesktopFileName(QStringLiteral("everplay"));
+    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/brand/icon-256.png")));
     AppPaths::adoptFormerName();   // before anything reads the data folder
 
     // The "Basic" style allows fully restyling the controls in QML.

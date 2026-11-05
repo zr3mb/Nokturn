@@ -188,6 +188,13 @@ qt_add_resources(Everplay "i18n"
     FILES i18n/pl.json i18n/en.json
 )
 
+# The window icon (the title bar on Linux, the task switcher)
+qt_add_resources(Everplay "brand"
+    PREFIX "/brand"
+    BASE packaging/brand
+    FILES packaging/brand/icon-256.png
+)
+
 set_target_properties(Everplay PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
@@ -230,7 +237,8 @@ if(WIN32)
     # System Media Transport Controls (Windows media flyout) + media keys
     target_sources(Everplay PRIVATE
         src/platform/WinRtMedia.h
-        src/platform/WindowsMediaControls.h src/platform/WindowsMediaControls.cpp)
+        src/platform/WindowsMediaControls.h src/platform/WindowsMediaControls.cpp
+        packaging/windows/everplay-app.rc)   # the program's icon
     target_link_libraries(Everplay PRIVATE runtimeobject shlwapi shcore)
     target_compile_definitions(Everplay PRIVATE EVERPLAY_SMTC)
 endif()

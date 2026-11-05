@@ -1,0 +1,2 @@
+// The program's icon in Explorer, the taskbar and its shortcuts (packaging/brand/make_icons.py makes it).
+IDI_ICON1 ICON "everplay.ico"

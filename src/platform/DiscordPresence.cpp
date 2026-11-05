@@ -380,10 +380,10 @@ QJsonObject DiscordPresence::buildActivity() const
     }
 
     // Cover: an https URL (YouTube Music) or the cover of the matched YouTube Music track
-    // for local files; otherwise the app icon (the "everplay" asset in the Discord application).
+    // for local files; otherwise the logo, served by the Everplay server (Discord takes an https URL too).
     QString image = t->cover.startsWith(QLatin1String("https://")) ? t->cover : m_covers.value(t->id);
     if (image.isEmpty() || image.size() > 256)
-        image = QStringLiteral("everplay");
+        image = QStringLiteral("https://everplay.404piwko.wtf/static/logo-512.png");
     QJsonObject assets { { "large_image", image } };
     assets.insert("large_text", clip(t->album.isEmpty() ? t->title : t->album));
     a.insert("assets", assets);
