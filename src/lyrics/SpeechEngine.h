@@ -77,8 +77,9 @@ public:
     void cancelDownload();
     void removeModel(const QString &model);
 
-    // Transcription with word timestamps. `prompt` (e.g. the start of the lyrics) hints the vocabulary to the model.
-    void transcribe(const QUrl &audio, const QString &model, const QString &prompt, WordsCallback callback);
+    // Transcription with word timestamps. `language` is whisper's code ("pl", "en"…); empty = detected
+    // from pieces of the recording.
+    void transcribe(const QUrl &audio, const QString &model, const QString &language, WordsCallback callback);
     void cancel();
 
 signals:
@@ -97,6 +98,7 @@ private:
     void fetchVerified(const QUrl &url, const QString &target, const QByteArray &sha256Hex,
                        std::function<void(bool ok)> done);
     void startWhisper();
+    void detectLanguage();
     void runWhisper(const QString &wav, const QString &outBase);
     void finishJob(const QList<LyricsAligner::Word> &words, const QString &error);
     void detectGpu();

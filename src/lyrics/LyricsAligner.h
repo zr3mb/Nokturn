@@ -31,6 +31,10 @@ double similarity(const QString &a, const QString &b);
 
 Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs = -1);
 
+// The language of the lyrics as whisper's code ("pl", "en"…), from its letters and most common words;
+// empty when the text doesn't tell clearly.
+QString guessLanguage(const Lyrics &lyrics);
+
 // Lyrics made from the transcription alone (a track nobody has lyrics for): timed lines, origin "stt-text".
 Lyrics fromTranscription(const QList<Word> &words, qint64 durationMs = -1);
 
