@@ -21,7 +21,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 14
+        radius: Theme.r(14)
         color: Theme.alpha(Theme.text, 0.035)
     }
 

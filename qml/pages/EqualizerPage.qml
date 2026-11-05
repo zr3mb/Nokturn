@@ -172,7 +172,7 @@ Item {
                 Rectangle {
                     Layout.preferredWidth: 150
                     Layout.preferredHeight: 380
-                    radius: 20
+                    radius: Theme.r(20)
                     color: Qt.rgba(0, 0, 0, 0.22)
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.06)
@@ -216,14 +216,14 @@ Item {
 
                                 Rectangle {
                                     anchors.fill: parent
-                                    radius: 4
+                                    radius: Theme.r(4)
                                     color: Qt.rgba(1, 1, 1, 0.06)
                                 }
                                 Rectangle {
                                     anchors.bottom: parent.bottom
                                     width: parent.width
                                     height: parent.height - meter.yOf(Equalizer.peak)
-                                    radius: 4
+                                    radius: Theme.r(4)
                                     gradient: Gradient {
                                         GradientStop { position: 0.0; color: Theme.danger }
                                         GradientStop { position: 0.2; color: Theme.warning }
@@ -248,12 +248,12 @@ Item {
                                 visible: Equalizer.limiter
                                 Rectangle {
                                     anchors.fill: parent
-                                    radius: 3
+                                    radius: Theme.r(3)
                                     color: Qt.rgba(1, 1, 1, 0.04)
                                 }
                                 Rectangle {
                                     width: parent.width
-                                    radius: 3
+                                    radius: Theme.r(3)
                                     height: Math.min(1, Equalizer.reduction / 24) * parent.height
                                     color: Theme.warning
                                 }
@@ -313,7 +313,7 @@ Item {
             Rectangle {
                 width: parent.width
                 implicitHeight: editor.implicitHeight + 44
-                radius: 20
+                radius: Theme.r(20)
                 color: Qt.rgba(0, 0, 0, 0.18)
                 border.width: 1
                 border.color: Theme.alpha(page.bandColors[page.selected], 0.25)
@@ -340,7 +340,7 @@ Item {
                                 readonly property var info: Equalizer.bands[index]
                                 Layout.preferredWidth: 44
                                 Layout.preferredHeight: 34
-                                radius: 12
+                                radius: Theme.r(12)
                                 color: sel ? page.bandColors[index] : Theme.alpha(page.bandColors[index], bandMouse.containsMouse ? 0.22 : 0.12)
                                 opacity: info.enabled ? 1 : 0.45
                                 Behavior on color { ColorAnimation { duration: Theme.fast } }

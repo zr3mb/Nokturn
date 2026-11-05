@@ -98,7 +98,7 @@ Popup {
     focus: true
     padding: 26
     background: Rectangle {
-        radius: 22
+        radius: Theme.r(22)
         color: Theme.surfaceHi
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.07)
@@ -196,7 +196,7 @@ Popup {
             visible: root.mode === "key"
             Layout.fillWidth: true
             implicitHeight: 64
-            radius: 14
+            radius: Theme.r(14)
             color: Qt.rgba(1, 1, 1, 0.05)
             border.width: 1
             border.color: Theme.accent

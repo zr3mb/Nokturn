@@ -1179,5 +1179,9 @@
   "Couldn't download the plugin": "Nie udało się pobrać pluginu",
   "The downloaded plugin doesn't match the catalog — not installed": "Pobrany plugin nie zgadza się z katalogiem — nie został zainstalowany",
   "Couldn't save the plugin": "Nie udało się zapisać pluginu",
-  "Installed %1": "Zainstalowano: %1"
+  "Installed %1": "Zainstalowano: %1",
+  "Corners": "Narożniki",
+  "The shape of panels and covers: soft and rounded, or crisper corners with round buttons.": "Kształt paneli i okładek: miękki i zaokrąglony albo ostrzejsze rogi z okrągłymi przyciskami.",
+  "Rounded": "Zaokrąglone",
+  "Semi-angular": "Półkanciaste"
 }

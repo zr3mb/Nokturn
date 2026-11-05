@@ -105,7 +105,7 @@ Item {
                 ArtCover {
                     Layout.preferredWidth: 210
                     Layout.preferredHeight: 210
-                    radius: 105
+                    radius: Theme.r(105)
                     colorA: Theme.accent
                     colorB: Theme.accent2
                     seed: 0

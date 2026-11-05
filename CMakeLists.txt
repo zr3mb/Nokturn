@@ -153,6 +153,7 @@ qt_add_qml_module(Nokturn
         qml/pages/StatsPage.qml
         qml/pages/PluginsPage.qml
         qml/components/PluginHost.qml
+        qml/components/PressRing.qml
         qml/pages/RoomPage.qml
 
         qml/overlay/OverlayWindow.qml

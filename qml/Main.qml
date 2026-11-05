@@ -22,6 +22,12 @@ ApplicationWindow {
         id: shell
         anchors.fill: parent
 
+        // Startup: the sidebar, the title bar, the page and the dock arrive one after another.
+        property real intro: 0
+        NumberAnimation on intro { from: 0; to: 1; duration: Theme.ms(1800); easing.type: Easing.Linear }
+        function stage(start) { return Math.max(0, Math.min(1, (intro - start) / 0.5)) }
+        function ease(t) { return 1 - Math.pow(1 - t, 4) }
+
         Rectangle {
             anchors.fill: parent
             color: Theme.bg
@@ -41,6 +47,7 @@ ApplicationWindow {
         AmbientBackground {
             anchors.fill: parent
             visible: Theme.ambient
+            boost: 0.9
         }
 
         // Plugins: animated wallpapers behind the panels, logic without a look (docs/plugins.md)
@@ -53,27 +60,36 @@ ApplicationWindow {
             slot: "main"
         }
 
-        TitleBar {
-            id: titleBar
-            anchors { top: parent.top; left: parent.left; right: parent.right }
-            height: 56
-        }
-
+        // The layout: a full-height sidebar on the left, the title bar and the page to its right,
+        // the "Now playing" sheet on the right and the player docked, floating, along the bottom.
         Sidebar {
             id: sidebar
+            opacity: shell.ease(shell.stage(0))
+            transform: Translate { x: (1 - shell.ease(shell.stage(0))) * -60 }
             anchors {
-                top: titleBar.bottom; left: parent.left; bottom: playerBar.top
-                leftMargin: 10; bottomMargin: 2
+                top: parent.top; left: parent.left; bottom: playerBar.top
+                topMargin: Theme.gap; leftMargin: Theme.gap; bottomMargin: Theme.gap
             }
-            width: Nav.sidebarCompact ? 76 : 252
+            width: Nav.sidebarCompact ? 80 : 268
             Behavior on width { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutQuint } }
+        }
+
+        TitleBar {
+            id: titleBar
+            opacity: shell.ease(shell.stage(0.12))
+            transform: Translate { y: (1 - shell.ease(shell.stage(0.12))) * -24 }
+            anchors { top: parent.top; left: sidebar.right; right: parent.right; leftMargin: Theme.gap }
+            height: 64
         }
 
         Panel {
             id: content
+            radius: Theme.radiusXL
+            opacity: shell.ease(shell.stage(0.2))
+            scale: 0.96 + 0.04 * shell.ease(shell.stage(0.2))
             anchors {
                 top: titleBar.bottom; left: sidebar.right; right: queuePanel.left; bottom: playerBar.top
-                leftMargin: 10; rightMargin: 10; bottomMargin: 2
+                leftMargin: Theme.gap; rightMargin: Theme.gap; bottomMargin: Theme.gap
             }
 
             StackView {
@@ -83,15 +99,15 @@ ApplicationWindow {
 
                 replaceEnter: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(420); easing.type: Easing.OutCubic }
-                        NumberAnimation { property: "y"; from: 34; to: 0; duration: Theme.ms(620); easing.type: Easing.OutQuint }
-                        NumberAnimation { property: "scale"; from: 0.985; to: 1; duration: Theme.ms(620); easing.type: Easing.OutQuint }
+                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(480); easing.type: Easing.OutCubic }
+                        NumberAnimation { property: "x"; from: 70; to: 0; duration: Theme.ms(760); easing.type: Easing.OutQuint }
+                        NumberAnimation { property: "scale"; from: 0.97; to: 1; duration: Theme.ms(760); easing.type: Easing.OutQuint }
                     }
                 }
                 replaceExit: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(200); easing.type: Easing.InCubic }
-                        NumberAnimation { property: "scale"; from: 1; to: 0.985; duration: Theme.ms(240); easing.type: Easing.InCubic }
+                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(240); easing.type: Easing.InCubic }
+                        NumberAnimation { property: "x"; from: 0; to: -50; duration: Theme.ms(300); easing.type: Easing.InCubic }
                     }
                 }
             }
@@ -99,19 +115,24 @@ ApplicationWindow {
 
         NowPlayingPanel {
             id: queuePanel
+            radius: Theme.radiusXL
+            opacity: shell.ease(shell.stage(0.32))
+            transform: Translate { x: (1 - shell.ease(shell.stage(0.32))) * 60 }
             anchors {
                 top: titleBar.bottom; right: parent.right; bottom: playerBar.top
-                rightMargin: Nav.queueOpen ? 10 : 0; bottomMargin: 2
+                rightMargin: Nav.queueOpen ? Theme.gap : 0; bottomMargin: Theme.gap
             }
-            width: Nav.queueOpen ? 344 : 0
+            width: Nav.queueOpen ? 352 : 0
             Behavior on width { NumberAnimation { duration: Theme.ms(520); easing.type: Easing.OutQuint } }
             Behavior on anchors.rightMargin { NumberAnimation { duration: Theme.ms(520); easing.type: Easing.OutQuint } }
         }
 
         PlayerBar {
             id: playerBar
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: 104
+            opacity: shell.ease(shell.stage(0.4))
+            transform: Translate { y: (1 - shell.ease(shell.stage(0.4))) * 70 }
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.gap }
+            height: 88
         }
 
         ImmersiveView {
@@ -212,7 +233,7 @@ ApplicationWindow {
 
         Toast {
             id: toast
-            bottomOffset: playerBar.height + 22
+            bottomOffset: playerBar.height + Theme.gap + 18
         }
 
         WindowResizer {

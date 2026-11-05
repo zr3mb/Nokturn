@@ -25,9 +25,21 @@ Panel {
         NumberAnimation { target: art; property: "scale"; from: 0.94; to: 1; duration: Theme.ms(700); easing.type: Easing.OutBack }
     }
 
+    // A wash of the cover colour down from the top of the sheet
+    Rectangle {
+        width: parent.width
+        height: 460
+        opacity: inner.opacity
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Theme.alpha(Theme.accent, 0.30) }
+            GradientStop { position: 0.6; color: Theme.alpha(Theme.accent2, 0.10) }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
+    }
+
     Item {
         id: inner
-        width: 344
+        width: 352
         height: parent.height
         opacity: root.width > 240 ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.ms(220) } }
@@ -52,11 +64,11 @@ Panel {
                     Layout.fillWidth: true
                     Text {
                         Layout.fillWidth: true
-                        text: qsTr("Now playing")
+                        text: qsTr("Now playing").toUpperCase()
                         color: Theme.text
-                        font.family: Theme.fontDisplay
-                        font.pixelSize: 16
-                        font.weight: Font.DemiBold
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.6
                     }
                     IconButton {
                         icon: "close"
@@ -71,10 +83,11 @@ Panel {
                     id: art
                     Layout.fillWidth: true
                     Layout.preferredHeight: coverSize
-                    readonly property real coverSize: width * 0.8
+                    readonly property real coverSize: width
 
                     Item {
                         id: vinyl
+                        visible: false
                         width: art.coverSize * 0.94
                         height: width
                         anchors.verticalCenter: parent.verticalCenter
@@ -162,7 +175,7 @@ Panel {
                         id: bigCover
                         width: art.coverSize
                         height: art.coverSize
-                        radius: 16
+                        radius: Theme.radiusL
                         colorA: Player.colorA
                         colorB: Player.colorB
                         seed: Player.seed
@@ -173,8 +186,7 @@ Panel {
                             shadowEnabled: true
                             shadowBlur: 1.0
                             shadowOpacity: 0.6
-                            shadowHorizontalOffset: 6
-                            shadowVerticalOffset: 10
+                            shadowVerticalOffset: 14
                         }
                     }
                 }
@@ -197,8 +209,9 @@ Panel {
                                 text: Player.title
                                 color: Theme.text
                                 font.family: Theme.fontDisplay
-                                font.pixelSize: 22
+                                font.pixelSize: 24
                                 font.weight: Font.Bold
+                                font.letterSpacing: -0.5
                                 elide: Text.ElideRight
                             }
                             ArtistLink {
@@ -309,7 +322,7 @@ Panel {
                         Rectangle {
                             anchors.fill: parent
                             anchors.margins: -2
-                            radius: 10
+                            radius: Theme.r(10)
                             color: Theme.alpha(Theme.text, 0.06)
                             opacity: qHover.hovered ? 1 : 0
                             Behavior on opacity { NumberAnimation { duration: Theme.fast } }
@@ -321,14 +334,14 @@ Panel {
                             id: qCover
                             width: 42; height: 42
                             anchors.verticalCenter: parent.verticalCenter
-                            radius: 8
+                            radius: Theme.r(8)
                             colorA: q.t.colorA
                             colorB: q.t.colorB
                             seed: q.t.seed
                             source: q.t.cover || ""
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 8
+                                radius: Theme.r(8)
                                 color: "#80000000"
                                 opacity: qHover.hovered ? 1 : 0
                                 Behavior on opacity { NumberAnimation { duration: Theme.fast } }

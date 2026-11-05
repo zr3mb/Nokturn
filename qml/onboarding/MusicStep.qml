@@ -42,7 +42,7 @@ Item {
                         required property var modelData
                         Layout.fillWidth: true
                         implicitHeight: 48
-                        radius: 12
+                        radius: Theme.r(12)
                         color: Theme.alpha(Theme.text, 0.045)
                         RowLayout {
                             anchors { fill: parent; leftMargin: 14; rightMargin: 6 }
@@ -143,7 +143,7 @@ Item {
                             fillMode: Image.PreserveAspectCrop
                             visible: false
                         }
-                        Rectangle { id: avatarMask; anchors.fill: parent; radius: 22; visible: false; layer.enabled: true }
+                        Rectangle { id: avatarMask; anchors.fill: parent; radius: Theme.r(22); visible: false; layer.enabled: true }
                         MultiEffect {
                             anchors.fill: parent
                             source: avatar
@@ -153,7 +153,7 @@ Item {
                         }
                         Rectangle {
                             anchors.fill: parent
-                            radius: 22
+                            radius: Theme.r(22)
                             visible: avatar.status !== Image.Ready
                             color: Theme.alpha(Theme.accent, 0.25)
                             Icon { anchors.centerIn: parent; name: "person"; size: 22; color: Theme.accent }

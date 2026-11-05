@@ -26,7 +26,7 @@ Item {
         HoverHandler { id: lineHover }
         Rectangle {
             anchors.fill: parent
-            radius: 12
+            radius: Theme.r(12)
             color: Theme.alpha(Theme.text, lineHover.hovered ? 0.06 : 0.03)
             Behavior on color { ColorAnimation { duration: Theme.fast } }
         }
@@ -173,7 +173,7 @@ Item {
                                 Rectangle {
                                     width: parent.width * Library.scanProgress
                                     height: parent.height
-                                    radius: 3
+                                    radius: Theme.r(3)
                                     gradient: Gradient {
                                         orientation: Gradient.Horizontal
                                         GradientStop { position: 0; color: Qt.darker("#9fbfa8", 1.3) }
@@ -309,7 +309,7 @@ Item {
                             ArtCover {
                                 Layout.preferredWidth: 44
                                 Layout.preferredHeight: 44
-                                radius: 22
+                                radius: Theme.r(22)
                                 decorated: false
                                 colorA: "#cf9d9d"
                                 colorB: "#5c3a42"
@@ -381,7 +381,7 @@ Item {
                                     required property int index
                                     Layout.fillWidth: true
                                     implicitHeight: 44
-                                    radius: 10
+                                    radius: Theme.r(10)
                                     color: identityMouse.containsMouse ? Theme.alpha(Theme.text, 0.05) : "transparent"
                                     RowLayout {
                                         anchors { fill: parent; leftMargin: 8; rightMargin: 10 }
@@ -389,7 +389,7 @@ Item {
                                         ArtCover {
                                             Layout.preferredWidth: 28
                                             Layout.preferredHeight: 28
-                                            radius: 14
+                                            radius: Theme.r(14)
                                             decorated: false
                                             colorA: "#cf9d9d"
                                             colorB: "#5c3a42"
@@ -588,7 +588,7 @@ Item {
                             ArtCover {
                                 Layout.preferredWidth: 44
                                 Layout.preferredHeight: 44
-                                radius: 22
+                                radius: Theme.r(22)
                                 decorated: false
                                 colorA: "#8fc79a"
                                 colorB: "#2f4a36"
@@ -727,7 +727,7 @@ Item {
                             ArtCover {
                                 Layout.preferredWidth: 44
                                 Layout.preferredHeight: 44
-                                radius: 22
+                                radius: Theme.r(22)
                                 decorated: false
                                 colorA: "#d9a27e"
                                 colorB: "#5a3a28"

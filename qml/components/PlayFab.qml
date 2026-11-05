@@ -14,6 +14,8 @@ Item {
     implicitWidth: size
     implicitHeight: size
 
+    PressRing { id: ring }
+
     Rectangle {
         id: disc
         anchors.fill: parent
@@ -46,7 +48,10 @@ Item {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onPressed: if (root.prefetchRow >= 0 && !root.playing) Player.prefetch(root.prefetchRow)
-        onClicked: root.clicked()
+        onClicked: {
+            ring.burst()
+            root.clicked()
+        }
     }
 
     Timer {

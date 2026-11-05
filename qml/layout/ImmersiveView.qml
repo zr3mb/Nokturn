@@ -32,6 +32,46 @@ Item {
         sourceComponent: AmbientBackground { boost: 2.0 }
     }
 
+    // The cover itself, huge and blurred, behind everything: the view takes on the record's colours
+    Loader {
+        anchors.fill: parent
+        active: root.built
+        sourceComponent: Item {
+            clip: true
+            opacity: 1 - root.enter
+            ArtCover {
+                id: wash
+                anchors.centerIn: parent
+                width: Math.max(parent.width, parent.height) * 1.2
+                height: width
+                radius: Theme.r(0)
+                decorated: false
+                colorA: Player.colorA
+                colorB: Player.colorB
+                seed: Player.seed
+                source: Player.cover
+                visible: false
+            }
+            MultiEffect {
+                anchors.fill: wash
+                source: wash
+                blurEnabled: true
+                blur: 1.0
+                blurMax: 64
+                saturation: 0.35
+                opacity: 0.55
+            }
+            Rectangle {
+                anchors.fill: parent
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Theme.alpha(Theme.bg, 0.55) }
+                    GradientStop { position: 0.55; color: Theme.alpha(Theme.bg, 0.68) }
+                    GradientStop { position: 1.0; color: Theme.alpha(Theme.bg, 0.92) }
+                }
+            }
+        }
+    }
+
     // Blocks clicks to the layer underneath
     MouseArea {
         anchors.fill: parent
@@ -55,7 +95,7 @@ Item {
             barWidth: (width - spacing * (bars - 1)) / bars
             symmetric: true
             gain: 1.05
-            colorTop: Theme.alpha(Theme.accent, 0.5)
+            colorTop: Theme.alpha(Theme.accent, 0.32)
             colorBottom: Theme.alpha(Theme.accent, 0.0)
             opacity: 1 - root.enter
         }
@@ -72,13 +112,20 @@ Item {
                 onActiveChanged: if (active) root.Window.window.startSystemMove()
             }
 
-            IconButton {
-                x: 22
+            Rectangle {
+                x: 18
                 anchors.verticalCenter: parent.verticalCenter
-                icon: "expandMore"
-                iconSize: 28
-                showDot: false
-                onClicked: Nav.immersive = false
+                width: 44; height: 44; radius: 22
+                color: Theme.glass
+                border.width: 1
+                border.color: Theme.hairline
+                IconButton {
+                    anchors.fill: parent
+                    icon: "expandMore"
+                    iconSize: 26
+                    color: Theme.text
+                    onClicked: Nav.immersive = false
+                }
             }
 
             Column {
@@ -155,7 +202,7 @@ Item {
 
             ArtCover {
                 anchors.fill: parent
-                radius: 26
+                radius: Theme.radiusXL
                 colorA: Player.colorA
                 colorB: Player.colorB
                 seed: Player.seed
@@ -179,21 +226,41 @@ Item {
                 opacity: 1 - root.enter
                 transform: Translate { x: root.enter * 40 }
 
-                Text {
+                Rectangle {
                     visible: root.height >= 640
-                    text: Player.playing ? qsTr("NOW PLAYING") : qsTr("PAUSED")
-                    color: Qt.lighter(Theme.accent, 1.15)
-                    font.pixelSize: 12
-                    font.weight: Font.Bold
-                    font.letterSpacing: 3
+                    implicitWidth: statusRow.implicitWidth + 24
+                    implicitHeight: 30
+                    radius: 15
+                    color: Theme.alpha(Theme.accent, 0.18)
+                    border.width: 1
+                    border.color: Theme.alpha(Theme.accent, 0.35)
+                    Row {
+                        id: statusRow
+                        anchors.centerIn: parent
+                        spacing: 8
+                        EqualizerIcon {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: Player.playing
+                            running: Player.playing
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: Player.playing ? qsTr("NOW PLAYING") : qsTr("PAUSED")
+                            color: Theme.accent
+                            font.pixelSize: 11
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.8
+                        }
+                    }
                 }
                 Text {
                     Layout.fillWidth: true
                     text: Player.title
                     color: Theme.text
                     font.family: Theme.fontDisplay
-                    font.pixelSize: Math.round(56 * root.k)
+                    font.pixelSize: Math.round(60 * root.k)
                     font.weight: Font.Bold
+                    font.letterSpacing: -1.6
                     wrapMode: Text.WordWrap
                     maximumLineCount: 2
                     elide: Text.ElideRight
@@ -264,6 +331,8 @@ Item {
                     }
                     PlayButton {
                         size: Math.max(54, Math.round(70 * root.k))
+                        bgColor: Theme.accent
+                        fgColor: Theme.onAccent
                         onClicked: Player.toggle()
                     }
                     IconButton {

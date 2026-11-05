@@ -10,7 +10,7 @@ import Nokturn
 ShaderEffectSource {
     id: root
     property real size: 180     // side of the cover
-    property real radius: 14
+    property real radius: Theme.r(14)
     readonly property real padding: 32   // MultiEffect's automatic padding: blurMax on every side
 
     width: 0

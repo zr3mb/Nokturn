@@ -1,126 +1,158 @@
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Shapes
 import QtQuick.Effects
 import Nokturn
 
-// Big "Continue listening" card with a visualizer in the background.
-Item {
+// The home page banner: the current cover, blurred, fills the card; the track, the controls and the
+// cover itself sit on top of it.
+Panel {
     id: root
-    implicitHeight: 236
+    implicitHeight: 300
     Layout.fillWidth: true
 
-    readonly property string frame: Theme.roundedRectPath(width, height, 24)
+    Connections {
+        target: Player
+        function onCurrentChanged() { change.restart() }
+    }
+    ParallelAnimation {
+        id: change
+        NumberAnimation { target: flip; property: "angle"; from: 90; to: 0; duration: Theme.ms(900); easing.type: Easing.OutBack }
+        NumberAnimation { target: titleShift; property: "y"; from: 30; to: 0; duration: Theme.ms(800); easing.type: Easing.OutQuint }
+        NumberAnimation { target: titleBlock; property: "opacity"; from: 0; to: 1; duration: Theme.ms(500); easing.type: Easing.OutCubic }
+    }
+    radius: Theme.radiusXL
+    tint: Theme.alpha(Theme.surfaceHi, 0.6)
 
-    Shape {
+    // The cover, large and soft, as the backdrop
+    ArtCover {
+        id: backdrop
+        anchors.centerIn: parent
+        width: parent.width * 1.25
+        height: width
+        radius: Theme.r(0)
+        decorated: false
+        colorA: Player.colorA
+        colorB: Player.colorB
+        seed: Player.seed
+        source: Player.cover
+        visible: false
+    }
+    MultiEffect {
+        anchors.fill: backdrop
+        source: backdrop
+        blurEnabled: true
+        blur: 1.0
+        blurMax: 64
+        saturation: 0.25
+        opacity: 0.75
+    }
+
+    // Shade: dark on the text side, lighter where the cover sits
+    Rectangle {
         anchors.fill: parent
-        preferredRendererType: Shape.CurveRenderer
-
-        ShapePath {
-            strokeColor: Qt.rgba(1, 1, 1, 0.06)
-            strokeWidth: 1
-            fillGradient: LinearGradient {
-                x1: 0; y1: 0; x2: root.width; y2: root.height
-                GradientStop { position: 0; color: Theme.alpha(Theme.accent, 0.3) }
-                GradientStop { position: 0.55; color: Theme.alpha(Theme.accent, 0.16) }
-                GradientStop { position: 1; color: Theme.alpha(Theme.surfaceHi, 0.5) }
-            }
-            PathSvg { path: root.frame }
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: Theme.alpha(Theme.bg, 0.86) }
+            GradientStop { position: 0.55; color: Theme.alpha(Theme.bg, 0.55) }
+            GradientStop { position: 1.0; color: Theme.alpha(Theme.bg, 0.25) }
+        }
+    }
+    Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+            GradientStop { position: 0.5; color: "#00000000" }
+            GradientStop { position: 1.0; color: Theme.alpha(Theme.bg, 0.5) }
         }
     }
 
     Visualizer {
-        anchors { right: parent.right; bottom: parent.bottom; rightMargin: 26; bottomMargin: 24 }
-        bars: 22
-        barWidth: 4
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        bars: 64
         spacing: 3
-        height: 84
-        width: implicitWidth
-        colorTop: Theme.alpha(Theme.text, 0.22)
-        colorBottom: Theme.alpha(Theme.text, 0.02)
-        opacity: Player.playing ? 1 : 0.0
+        barWidth: (width - spacing * (bars - 1)) / bars
+        height: 44
+        gain: 0.7
+        colorTop: Theme.alpha(Theme.accent, 0.22)
+        colorBottom: Theme.alpha(Theme.accent, 0.0)
+        opacity: Player.playing ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.ms(600) } }
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 26
-        spacing: 26
-
-        ArtCover {
-            id: cover
-            Layout.preferredWidth: root.height - 52
-            Layout.preferredHeight: root.height - 52
-            radius: 16
-            colorA: Player.colorA
-            colorB: Player.colorB
-            seed: Player.seed
-            source: Player.cover
-            scale: 1 + Player.level * 0.02
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                shadowBlur: 1.0
-                shadowOpacity: 0.55
-                shadowVerticalOffset: 12
-            }
-
-            // The cover opens the full-screen player (it replaces a separate button).
-            Rectangle {
-                anchors.fill: parent
-                radius: 16
-                color: "#66000000"
-                opacity: coverHover.hovered && Player.hasTrack ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: Theme.fast } }
-                Icon { anchors.centerIn: parent; name: "expand"; size: 30; color: "#ffffff" }
-            }
-            HoverHandler { id: coverHover; cursorShape: Player.hasTrack ? Qt.PointingHandCursor : Qt.ArrowCursor }
-            TapHandler { enabled: Player.hasTrack; onTapped: Nav.immersive = true }
-        }
+        anchors.margins: 34
+        spacing: 34
 
         ColumnLayout {
+            id: titleBlock
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 6
+            Layout.preferredWidth: 100   // the cover keeps its size; long titles shrink instead
+            spacing: 8
+            transform: Translate { id: titleShift }
 
-            Text {
-                Layout.fillWidth: true
-                text: Player.playing ? qsTr("NOW PLAYING")
-                    : Player.hasTrack ? qsTr("CONTINUE LISTENING")
-                    : Library.localCount > 0 ? qsTr("READY TO PLAY") : qsTr("START HERE")
-                color: Qt.lighter(Theme.accent, 1.15)
-                font.pixelSize: 11
-                font.weight: Font.Bold
-                font.letterSpacing: 2.2
+            // Status chip
+            Rectangle {
+                implicitWidth: chip.implicitWidth + 22
+                implicitHeight: 28
+                radius: 14
+                color: Theme.alpha(Theme.accent, 0.18)
+                border.width: 1
+                border.color: Theme.alpha(Theme.accent, 0.35)
+                Row {
+                    id: chip
+                    anchors.centerIn: parent
+                    spacing: 8
+                    EqualizerIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: Player.playing
+                        running: Player.playing
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: Player.playing ? qsTr("NOW PLAYING")
+                            : Player.hasTrack ? qsTr("CONTINUE LISTENING")
+                            : Library.localCount > 0 ? qsTr("READY TO PLAY") : qsTr("START HERE")
+                        color: Theme.accent
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.6
+                    }
+                }
             }
+
+            Item { Layout.fillHeight: true }
+
             Text {
                 Layout.fillWidth: true
                 text: Player.hasTrack ? Player.title
                       : Library.localCount > 0 ? qsTr("Your library is waiting") : qsTr("Add your music")
                 color: Theme.text
                 font.family: Theme.fontDisplay
-                font.pixelSize: 34
+                font.pixelSize: 46
                 font.weight: Font.Bold
+                font.letterSpacing: -1.2
+                fontSizeMode: Text.HorizontalFit
+                minimumPixelSize: 30
                 elide: Text.ElideRight
+                maximumLineCount: 1
             }
             Text {
                 Layout.fillWidth: true
-                text: Player.hasTrack ? Player.artist + "  ·  " + Player.album
+                text: Player.hasTrack ? Player.artist + (Player.album ? "  ·  " + Player.album : "")
                       : Library.scanning ? Library.scanStatus
                       : Library.localCount > 0
                         ? qsTr("%n tracks from your folders", "", Library.localCount)
                         : qsTr("Point to a folder with files — Nokturn will read the tags and covers.")
-                color: Theme.textDim
-                font.pixelSize: 15
+                color: Theme.alpha(Theme.text, 0.72)
+                font.pixelSize: 16
+                font.weight: Font.Medium
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
                 elide: Text.ElideRight
             }
-            SourceBadge {
-                Layout.topMargin: 4
-                source: Player.source
-                visible: Player.hasTrack
-            }
 
-            Item { Layout.fillHeight: true }
+            Item { Layout.preferredHeight: 10 }
 
             RowLayout {
                 visible: !Player.hasTrack
@@ -142,40 +174,77 @@ Item {
 
             RowLayout {
                 visible: Player.hasTrack
-                spacing: 16
+                spacing: 14
 
                 PlayButton {
-                    size: 52
+                    size: 56
                     bgColor: Theme.accent
                     fgColor: Theme.onAccent
                     onClicked: Player.toggle()
                 }
-
-                ColumnLayout {
-                    spacing: 6
-                    Layout.preferredWidth: 220
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 4
-                        radius: 2
-                        color: Theme.alpha(Theme.text, 0.14)
-                        Rectangle {
-                            width: parent.width * (Player.live ? 1 : Player.position / Math.max(1, Player.duration))
-                            height: parent.height
-                            radius: 2
-                            color: Theme.text
-                        }
-                    }
-                    Text {
-                        text: Player.live ? qsTr("Live broadcast")
-                                          : Theme.formatTime(Player.position) + " / " + Theme.formatTime(Player.duration)
-                        color: Theme.textDim
-                        font.pixelSize: 12
-                        font.features: { "tnum": 1 }
+                PillButton {
+                    kind: "secondary"
+                    icon: "expand"
+                    text: qsTr("Full screen")
+                    onClicked: Nav.immersive = true
+                }
+                IconButton {
+                    icon: Player.liked ? "heart" : "heartOutline"
+                    active: Player.liked
+                    showDot: false
+                    implicitWidth: 44; implicitHeight: 44
+                    onClicked: {
+                        Player.toggleLiked()
+                        Nav.toast(Player.liked ? qsTr("Added to Liked") : qsTr("Removed from Liked"), "heart")
                     }
                 }
+            }
+        }
 
+        ArtCover {
+            id: cover
+            Layout.preferredWidth: root.height - 68
+            Layout.preferredHeight: root.height - 68
+            Layout.alignment: Qt.AlignVCenter
+            visible: root.width > 640
+            radius: Theme.radiusL
+            colorA: Player.colorA
+            colorB: Player.colorB
+            seed: Player.seed
+            source: Player.cover
+            scale: 1 + Player.level * 0.03
+            transform: [
+                Rotation {
+                    id: flip
+                    origin.x: cover.width / 2
+                    origin.y: cover.height / 2
+                    axis { x: 0; y: 1; z: 0 }
+                },
+                Translate { id: bob }
+            ]
+            SequentialAnimation {
+                running: Player.playing
+                loops: Animation.Infinite
+                NumberAnimation { target: bob; property: "y"; to: -7; duration: 2600; easing.type: Easing.InOutSine }
+                NumberAnimation { target: bob; property: "y"; to: 4; duration: 2600; easing.type: Easing.InOutSine }
+            }
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowBlur: 1.0
+                shadowOpacity: 0.65
+                shadowVerticalOffset: 16
+            }
+
+            HoverHandler { id: coverHover; cursorShape: Player.hasTrack ? Qt.PointingHandCursor : Qt.ArrowCursor }
+            TapHandler { enabled: Player.hasTrack; onTapped: Nav.immersive = true }
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusL
+                color: "#66000000"
+                opacity: coverHover.hovered && Player.hasTrack ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+                Icon { anchors.centerIn: parent; name: "expand"; size: 30; color: "#ffffff" }
             }
         }
     }

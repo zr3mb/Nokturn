@@ -7,9 +7,9 @@ Panel {
     id: root
     readonly property bool compact: Nav.sidebarCompact
     property Item selectedItem: null
-    // No box of its own: the menu sits right on the window's background, next to the content panel.
-    tint: "transparent"
-    outlined: false
+    // A glass card of its own, the full height of the window.
+    radius: Theme.radiusXL
+    tint: Theme.glass
     roundedClip: false   // the logo, the list and the footer all stay clear of the corners
 
     // Ctrl + drag a playlist: where it would land (the line shows it), and the move when it's let go.
@@ -53,13 +53,23 @@ Panel {
 
     Item {
         id: logo
+        readonly property var win: Window.window
         width: parent.width
-        height: 70
+        height: 76
+
+        // The top of the sidebar moves the window, like the title bar next to it.
+        DragHandler {
+            target: null
+            onActiveChanged: if (active) logo.win.startSystemMove()
+        }
 
         LogoMark {
             id: mark
-            x: 21
+            x: root.compact ? (parent.width - width) / 2 : 22
             anchors.verticalCenter: parent.verticalCenter
+            Behavior on x { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutQuint } }
+            HoverHandler { cursorShape: root.compact ? Qt.PointingHandCursor : Qt.ArrowCursor }
+            TapHandler { enabled: root.compact; onTapped: Nav.sidebarCompact = false }
         }
         Text {
             id: brand
@@ -67,9 +77,9 @@ Panel {
             text: "Nokturn"
             color: Theme.cat ? Theme.accent : Theme.text
             font.family: Theme.fontDisplay
-            font.pixelSize: 22
-            font.weight: Theme.cat ? Font.Bold : Font.DemiBold
-            font.letterSpacing: 0.2
+            font.pixelSize: 21
+            font.weight: Font.Bold
+            font.letterSpacing: -0.4
             opacity: root.compact ? 0 : 1
             Behavior on opacity { NumberAnimation { duration: Theme.ms(220) } }
         }
@@ -81,6 +91,16 @@ Panel {
             rotation: 12
             color: Theme.accent
             opacity: brand.opacity
+        }
+        IconButton {
+            anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+            width: 34; height: 34
+            icon: "menuOpen"
+            iconSize: 19
+            showDot: false
+            visible: !root.compact
+            opacity: root.compact ? 0 : 1
+            onClicked: Nav.sidebarCompact = true
         }
     }
 
@@ -99,7 +119,7 @@ Panel {
             width: flick.width - 24
             height: col.height
 
-            // Selection indicator — springs between items
+            // Selection indicator: an accent-tinted pill that springs between items
             Rectangle {
                 id: indicator
                 readonly property Item target: root.selectedItem
@@ -107,18 +127,16 @@ Panel {
                 width: parent.width
                 y: target ? target.y : 0
                 height: target ? target.height : 44
-                radius: 12
-                color: Theme.alpha(Theme.text, 0.085)
+                radius: Theme.r(14)
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: Theme.alpha(Theme.accent, 0.24) }
+                    GradientStop { position: 1; color: Theme.alpha(Theme.accent, 0.07) }
+                }
+                border.width: 1
+                border.color: Theme.alpha(Theme.accent, 0.18)
                 Behavior on y { SpringAnimation { spring: 3.4; damping: 0.3; epsilon: 0.2 } }
                 Behavior on height { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutCubic } }
-
-                Rectangle {
-                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    width: 3
-                    height: parent.height * 0.46
-                    radius: 2
-                    color: Theme.accent
-                }
             }
 
             Rectangle {
@@ -152,6 +170,8 @@ Panel {
                     SidebarItem {
                         id: navItem
                         required property var modelData
+                        required property int index
+                        revealDelay: 140 + index * 45
                         icon: modelData.icon
                         label: modelData.label
                         compact: root.compact
@@ -171,7 +191,7 @@ Panel {
                     Text {
                         anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                         text: qsTr("PLAYLISTS")
-                        color: Theme.textFaint
+                        color: Theme.textDim
                         HoverHandler { id: playlistsHover }
                         ToolTip.visible: playlistsHover.hovered && !root.compact
                         ToolTip.delay: 600
@@ -185,7 +205,7 @@ Panel {
                     Rectangle {
                         anchors.centerIn: parent
                         width: 24; height: 1
-                        color: Qt.rgba(1, 1, 1, 0.1)
+                        color: Theme.hairline
                         opacity: root.compact ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: Theme.ms(200) } }
                     }
@@ -359,7 +379,7 @@ Panel {
         Rectangle {
             anchors { top: parent.top; left: parent.left; right: parent.right; leftMargin: 18; rightMargin: 18 }
             height: 1
-            color: Qt.rgba(1, 1, 1, 0.06)
+            color: Theme.hairline
         }
 
         Column {

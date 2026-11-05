@@ -21,7 +21,7 @@ Item {
         property string label: ""
         implicitWidth: keyText.implicitWidth + 16
         implicitHeight: 26
-        radius: 7
+        radius: Theme.r(7)
         color: Theme.alpha(Theme.text, 0.07)
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.1)
@@ -67,6 +67,16 @@ Item {
                 ThemePicker {
                     Layout.fillWidth: true
                     Layout.bottomMargin: 6
+                }
+                SettingRow {
+                    icon: "grid"
+                    title: qsTr("Corners")
+                    description: qsTr("The shape of panels and covers: soft and rounded, or crisper corners with round buttons.")
+                    SegmentedTabs {
+                        model: [qsTr("Rounded"), qsTr("Semi-angular")]
+                        currentIndex: Theme.semi ? 1 : 0
+                        onActivated: i => Theme.shape = i === 1 ? "semi" : "rounded"
+                    }
                 }
                 SettingRow {
                     icon: "image"
@@ -310,7 +320,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.max(130, hotkeyText.implicitWidth + 28)
                             height: 34
-                            radius: 9
+                            radius: Theme.r(9)
                             color: recording ? Theme.alpha(Theme.accent, 0.22) : Theme.alpha(Theme.text, keyMouse.containsMouse ? 0.1 : 0.06)
                             border.width: 1
                             border.color: recording ? Theme.accent : GameOverlay.hotkeyTaken ? Theme.danger : Theme.alpha(Theme.text, 0.14)
@@ -374,7 +384,7 @@ Item {
                             visible: GameOverlay.hotkey !== ""
                             width: portalKey.implicitWidth + 28
                             height: 34
-                            radius: 9
+                            radius: Theme.r(9)
                             color: Theme.alpha(Theme.text, 0.06)
                             border.width: 1
                             border.color: Theme.alpha(Theme.text, 0.14)
@@ -517,7 +527,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.max(130, lyricsHotkeyText.implicitWidth + 28)
                             height: 34
-                            radius: 9
+                            radius: Theme.r(9)
                             color: recording ? Theme.alpha(Theme.accent, 0.22) : Theme.alpha(Theme.text, lyricsKeyMouse.containsMouse ? 0.1 : 0.06)
                             border.width: 1
                             border.color: recording ? Theme.accent : GameOverlay.lyricsHotkeyTaken ? Theme.danger : Theme.alpha(Theme.text, 0.14)
@@ -785,7 +795,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.leftMargin: 52
                         implicitHeight: 52
-                        radius: 14
+                        radius: Theme.r(14)
                         color: Qt.rgba(1, 1, 1, 0.03)
                         RowLayout {
                             anchors.fill: parent

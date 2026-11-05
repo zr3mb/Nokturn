@@ -13,7 +13,7 @@ Rectangle {
     Layout.fillWidth: true
     Layout.alignment: Qt.AlignTop
     implicitHeight: column.implicitHeight + 44
-    radius: 20
+    radius: Theme.r(20)
     color: Theme.alpha(Theme.surface, 0.72)
     border.width: 1
     border.color: Qt.rgba(1, 1, 1, 0.06)
@@ -32,7 +32,7 @@ Rectangle {
             Rectangle {
                 visible: root.icon !== ""
                 width: 38; height: 38
-                radius: 12
+                radius: Theme.r(12)
                 color: Theme.alpha(Theme.accent, 0.16)
                 Icon { anchors.centerIn: parent; name: root.icon; size: 20; color: Theme.accent }
             }

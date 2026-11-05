@@ -9,10 +9,28 @@ Item {
     property bool buffering: Player.buffering && Player.hasTrack
     property color bgColor: Theme.text
     property color fgColor: Theme.bg
+    property bool halo: true   // a glow around the button that follows the loudness while playing
     signal clicked
 
     implicitWidth: size
     implicitHeight: size
+
+    Rectangle {
+        anchors.fill: parent
+        visible: root.halo
+        radius: width / 2
+        color: root.bgColor
+        opacity: root.playing ? 0.22 : 0
+        scale: root.playing ? 1.08 + Player.level * 0.38 : 1
+        Behavior on opacity { NumberAnimation { duration: Theme.ms(400) } }
+        Behavior on scale { NumberAnimation { duration: 90 } }
+    }
+
+    PressRing {
+        id: ring
+        color: root.bgColor
+        spread: 1.6
+    }
 
     Rectangle {
         id: disc
@@ -60,6 +78,9 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        onClicked: {
+            ring.burst()
+            root.clicked()
+        }
     }
 }

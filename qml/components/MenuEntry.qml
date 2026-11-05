@@ -13,7 +13,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 9
+        radius: Theme.r(9)
         color: Theme.alpha(Theme.text, area.containsMouse ? 0.07 : 0)
         Behavior on color { ColorAnimation { duration: Theme.fast } }
     }

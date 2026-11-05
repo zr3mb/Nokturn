@@ -77,16 +77,32 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 12
-        color: root.current ? Theme.alpha(Theme.accent, 0.11) : Theme.alpha(Theme.text, 0.055)
+        radius: Theme.r(14)
+        color: root.current ? Theme.alpha(Theme.accent, 0.14) : Theme.alpha(Theme.text, 0.06)
+        border.width: root.current ? 1 : 0
+        border.color: Theme.alpha(Theme.accent, 0.22)
         opacity: root.current || root.hovered ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.normal } }
         Behavior on color { ColorAnimation { duration: Theme.normal } }
     }
 
+    Rectangle {
+        visible: root.current
+        anchors { left: parent.left; leftMargin: 3; verticalCenter: parent.verticalCenter }
+        width: 3
+        height: parent.height * (0.36 + Player.level * 0.3)
+        radius: 1.5
+        color: Theme.accent
+        Behavior on height { NumberAnimation { duration: 90 } }
+    }
+
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 14
+        transform: Translate {
+            x: root.hovered && !root.current ? 4 : 0
+            Behavior on x { NumberAnimation { duration: Theme.ms(280); easing.type: Easing.OutCubic } }
+        }
         anchors.rightMargin: 10
         spacing: root.compact ? 10 : 14
 
@@ -125,9 +141,9 @@ Item {
         }
 
         ArtCover {
-            Layout.preferredWidth: 42
-            Layout.preferredHeight: 42
-            radius: 8
+            Layout.preferredWidth: 44
+            Layout.preferredHeight: 44
+            radius: Theme.r(10)
             colorA: root.t.colorA
             colorB: root.t.colorB
             seed: root.t.seed
@@ -249,7 +265,7 @@ Item {
             focus: true
             closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
             background: Rectangle {
-                radius: 14
+                radius: Theme.r(14)
                 color: Theme.surfaceHi
                 border.width: 1
                 border.color: Qt.rgba(1, 1, 1, 0.07)

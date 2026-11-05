@@ -44,7 +44,7 @@ Popup {
     focus: true
     padding: 26
     background: Rectangle {
-        radius: 22
+        radius: Theme.r(22)
         color: Theme.surfaceHi
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.07)
@@ -135,7 +135,7 @@ Popup {
 
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 12
+                                radius: Theme.r(12)
                                 color: entry.modelData.current ? Theme.alpha(Theme.accent, 0.11) : Theme.alpha(Theme.text, 0.055)
                                 opacity: entry.modelData.current || pick.containsMouse ? 1 : 0
                                 Behavior on opacity { NumberAnimation { duration: Theme.fast } }
@@ -157,7 +157,7 @@ Popup {
                                 ArtCover {
                                     Layout.preferredWidth: 42
                                     Layout.preferredHeight: 42
-                                    radius: 8
+                                    radius: Theme.r(8)
                                     source: entry.modelData.cover || ""
                                 }
                                 ColumnLayout {

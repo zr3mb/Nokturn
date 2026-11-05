@@ -7,7 +7,7 @@ Rectangle {
     id: root
     width: 34
     height: 34
-    radius: 11
+    radius: Theme.r(11)
     gradient: Gradient {
         orientation: Gradient.Vertical
         GradientStop { position: 0; color: Qt.lighter(Theme.accent, 1.08) }

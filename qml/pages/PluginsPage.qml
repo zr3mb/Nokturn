@@ -43,7 +43,7 @@ Item {
 
     component Card: Rectangle {
         Layout.fillWidth: true
-        radius: 18
+        radius: Theme.r(18)
         color: Theme.alpha(Theme.text, 0.04)
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.06)
@@ -54,7 +54,7 @@ Item {
         property string icon: "grid"
         implicitWidth: 64
         implicitHeight: 64
-        radius: 14
+        radius: Theme.r(14)
         gradient: Gradient {
             GradientStop { position: 0; color: Theme.alpha(Theme.accent, 0.5) }
             GradientStop { position: 1; color: Theme.alpha(Theme.accent2, 0.5) }
@@ -461,7 +461,7 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         Overlay.modal: Rectangle { color: "#99000000" }
         background: Rectangle {
-            radius: 20
+            radius: Theme.r(20)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)
@@ -533,7 +533,7 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         Overlay.modal: Rectangle { color: "#99000000" }
         background: Rectangle {
-            radius: 20
+            radius: Theme.r(20)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)

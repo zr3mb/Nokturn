@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import Nokturn
 
-// Bottom player bar.
+// The player: a floating glass dock along the bottom of the window, tinted by the cover.
 Item {
     id: root
 
@@ -14,38 +14,63 @@ Item {
 
     ParallelAnimation {
         id: swap
-        NumberAnimation { target: cover; property: "scale"; from: 0.8; to: 1; duration: Theme.ms(560); easing.type: Easing.OutBack }
+        NumberAnimation { target: cover; property: "scale"; from: 0.82; to: 1; duration: Theme.ms(560); easing.type: Easing.OutBack }
         NumberAnimation { target: info; property: "opacity"; from: 0; to: 1; duration: Theme.ms(420); easing.type: Easing.OutCubic }
         NumberAnimation { target: infoShift; property: "x"; from: 16; to: 0; duration: Theme.ms(600); easing.type: Easing.OutQuint }
+    }
+
+    // The dock itself: shadow, glass, a glow of the cover colour from the left
+    Rectangle {
+        id: dock
+        anchors.fill: parent
+        radius: Theme.radiusL + 2
+        color: Theme.glassHi
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowBlur: 1.0
+            shadowOpacity: 0.55
+            shadowVerticalOffset: 10
+        }
+    }
+    Rectangle {
+        anchors.fill: parent
+        radius: dock.radius
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: Theme.alpha(Theme.accent, 0.22) }
+            GradientStop { position: 0.38; color: Theme.alpha(Theme.accent, 0.05) }
+            GradientStop { position: 1.0; color: Theme.alpha(Theme.accent2, 0.10) }
+        }
+    }
+    Rectangle {
+        anchors.fill: parent
+        radius: dock.radius
+        color: "transparent"
+        border.width: 1
+        border.color: Theme.alpha(Theme.text, 0.09)
     }
 
     // ---- Left: current track ------------------------------------------------
     Item {
         id: left
-        anchors { left: parent.left; leftMargin: 22; verticalCenter: parent.verticalCenter }
+        anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
         width: Math.min(360, root.width * 0.27)
         height: 64
 
         ArtCover {
             id: cover
-            width: 60; height: 60
+            width: 62; height: 62
             anchors.verticalCenter: parent.verticalCenter
-            radius: 11
+            radius: Theme.r(14)
             colorA: Player.colorA
             colorB: Player.colorB
             seed: Player.seed
             source: Player.cover
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                shadowBlur: 0.8
-                shadowOpacity: 0.5
-                shadowVerticalOffset: 4
-            }
 
             Rectangle {
                 anchors.fill: parent
-                radius: 11
+                radius: Theme.r(14)
                 color: "#80000000"
                 opacity: coverMouse.containsMouse ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: Theme.fast } }
@@ -72,15 +97,16 @@ Item {
                 right: likeBtn.left; rightMargin: 6
                 verticalCenter: parent.verticalCenter
             }
-            spacing: 4
+            spacing: 3
             transform: Translate { id: infoShift }
 
             Text {
                 width: parent.width
-                text: Player.title
+                text: Player.hasTrack ? Player.title : qsTr("Nothing playing")
                 color: Theme.text
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
+                font.family: Theme.fontDisplay
+                font.pixelSize: 16
+                font.weight: Font.Bold
                 elide: Text.ElideRight
             }
             Row {
@@ -137,16 +163,17 @@ Item {
     // ---- Center: controls and progress ---------------------------------------
     ColumnLayout {
         anchors.centerIn: parent
-        width: Math.min(640, root.width * 0.4)
-        spacing: 6
+        width: Math.min(620, root.width * 0.38)
+        spacing: 4
 
         Row {
             Layout.alignment: Qt.AlignHCenter
-            spacing: 14
+            spacing: 12
 
             IconButton {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "shuffle"
+                iconSize: 19
                 active: Player.shuffle && !Player.inRoom
                 enabled: !Player.inRoom   // a listening room plays its queue in order
                 opacity: enabled ? 1 : 0.35
@@ -163,6 +190,8 @@ Item {
             PlayButton {
                 anchors.verticalCenter: parent.verticalCenter
                 size: 46
+                bgColor: Theme.accent
+                fgColor: Theme.onAccent
                 onClicked: Player.toggle()
             }
             IconButton {
@@ -176,6 +205,7 @@ Item {
             IconButton {
                 anchors.verticalCenter: parent.verticalCenter
                 icon: Player.repeatMode === 2 ? "repeatOne" : "repeat"
+                iconSize: 19
                 active: Player.repeatMode > 0 && !Player.inRoom
                 enabled: !Player.inRoom
                 opacity: enabled ? 1 : 0.35
@@ -188,11 +218,12 @@ Item {
             spacing: 12
 
             Text {
-                Layout.preferredWidth: 44
+                Layout.preferredWidth: 40
                 horizontalAlignment: Text.AlignRight
                 text: Player.live ? "" : Theme.formatTime(Player.position)
                 color: Theme.textDim
-                font.pixelSize: 12
+                font.pixelSize: 11
+                font.weight: Font.Medium
                 font.features: { "tnum": 1 }
             }
             ProgressSlider {
@@ -203,94 +234,106 @@ Item {
                 onMoved: v => Player.seek(v * Player.duration)
             }
             Text {
-                Layout.preferredWidth: 44
+                Layout.preferredWidth: 40
                 text: Player.live ? qsTr("LIVE") : Theme.formatTime(Player.duration)
                 color: Player.live ? Theme.warning : Theme.textDim
-                font.pixelSize: Player.live ? 11 : 12
-                font.weight: Player.live ? Font.DemiBold : Font.Normal
+                font.pixelSize: 11
+                font.weight: Player.live ? Font.Bold : Font.Medium
                 font.features: { "tnum": 1 }
             }
         }
     }
 
-    // ---- Right: visualizer, queue, volume -------------------------------------
+    // ---- Right: tools in a quiet group, then the volume ------------------------
     Row {
-        anchors { right: parent.right; rightMargin: 22; verticalCenter: parent.verticalCenter }
-        spacing: 4
+        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+        spacing: 10
 
         Visualizer {
             anchors.verticalCenter: parent.verticalCenter
-            bars: 12
+            bars: 10
             barWidth: 3
             spacing: 2
-            height: 24
+            height: 22
             width: implicitWidth
             minHeight: 3
-            opacity: Player.playing ? 1 : 0.35
+            opacity: Player.playing ? 1 : 0.3
             Behavior on opacity { NumberAnimation { duration: Theme.ms(500) } }
         }
-        Item { width: 12; height: 1 }
-        IconButton {
-            visible: Player.inRoom
+
+        Rectangle {
             anchors.verticalCenter: parent.verticalCenter
-            icon: "group"
-            active: true
-            onClicked: Nav.navigate("room")
-        }
-        IconButton {
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "share"
-            iconSize: 18
-            enabled: Player.hasTrack
-            onClicked: Online.shareCurrent()
-        }
-        IconButton {
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "equalizer"
-            active: Nav.page === "equalizer" || (Equalizer.enabled && Equalizer.preset !== "Flat")
-            onClicked: Nav.navigate("equalizer")
-        }
-        IconButton {
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "lyrics"
-            active: Nav.queueOpen && Nav.panelTab === "lyrics"
-            onClicked: {
-                if (Nav.queueOpen && Nav.panelTab === "lyrics") {
-                    Nav.queueOpen = false
-                } else {
-                    Nav.panelTab = "lyrics"
-                    Nav.queueOpen = true
+            width: tools.implicitWidth + 8
+            height: 44
+            radius: 22
+            color: Theme.alpha(Theme.text, 0.05)
+
+            Row {
+                id: tools
+                anchors.centerIn: parent
+                IconButton {
+                    visible: Player.inRoom
+                    icon: "group"
+                    iconSize: 18
+                    active: true
+                    onClicked: Nav.navigate("room")
+                }
+                IconButton {
+                    icon: "share"
+                    iconSize: 17
+                    enabled: Player.hasTrack
+                    onClicked: Online.shareCurrent()
+                }
+                IconButton {
+                    icon: "equalizer"
+                    iconSize: 18
+                    active: Nav.page === "equalizer" || (Equalizer.enabled && Equalizer.preset !== "Flat")
+                    onClicked: Nav.navigate("equalizer")
+                }
+                IconButton {
+                    icon: "lyrics"
+                    iconSize: 18
+                    active: Nav.queueOpen && Nav.panelTab === "lyrics"
+                    onClicked: {
+                        if (Nav.queueOpen && Nav.panelTab === "lyrics") {
+                            Nav.queueOpen = false
+                        } else {
+                            Nav.panelTab = "lyrics"
+                            Nav.queueOpen = true
+                        }
+                    }
+                }
+                IconButton {
+                    icon: "queue"
+                    iconSize: 18
+                    active: Nav.queueOpen && Nav.panelTab === "queue"
+                    onClicked: {
+                        if (Nav.queueOpen && Nav.panelTab === "queue") {
+                            Nav.queueOpen = false
+                        } else {
+                            Nav.panelTab = "queue"
+                            Nav.queueOpen = true
+                        }
+                    }
+                }
+                IconButton {
+                    icon: "expand"
+                    iconSize: 17
+                    onClicked: Nav.immersive = true
                 }
             }
         }
-        IconButton {
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "queue"
-            active: Nav.queueOpen && Nav.panelTab === "queue"
-            onClicked: {
-                if (Nav.queueOpen && Nav.panelTab === "queue") {
-                    Nav.queueOpen = false
-                } else {
-                    Nav.panelTab = "queue"
-                    Nav.queueOpen = true
-                }
-            }
-        }
-        IconButton {
-            anchors.verticalCenter: parent.verticalCenter
-            icon: "expand"
-            iconSize: 18
-            onClicked: Nav.immersive = true
-        }
+
         IconButton {
             anchors.verticalCenter: parent.verticalCenter
             icon: Player.muted || Player.volume === 0 ? "volumeOff" : Player.volume < 0.5 ? "volumeDown" : "volumeUp"
+            iconSize: 19
             showDot: false
             onClicked: Player.muted = !Player.muted
         }
         ProgressSlider {
             anchors.verticalCenter: parent.verticalCenter
-            width: 112
+            width: 104
             value: Player.muted ? 0 : Player.volume
             labelFor: function(v) { return Math.round(v * 100) + "%" }
             onDragging: v => { Player.muted = false; Player.volume = v }

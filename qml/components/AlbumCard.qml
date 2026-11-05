@@ -49,8 +49,10 @@ Item {
     Rectangle {
         anchors.fill: parent
         anchors.margins: -10
-        radius: 18
-        color: Theme.alpha(Theme.text, 0.05)
+        radius: Theme.radiusL
+        color: Theme.alpha(Theme.text, 0.06)
+        border.width: 1
+        border.color: Theme.hairline
         opacity: root.hovered ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.normal } }
     }
@@ -80,12 +82,16 @@ Item {
         ArtCover {
             id: coverArt
             anchors.fill: parent
-            radius: root.round ? width / 2 : 14
+            radius: root.round ? width / 2 : Theme.radiusM
             colorA: root.colorA
             colorB: root.colorB
             seed: root.seed
             source: root.cover
             mosaic: root.mosaic
+            scale: root.hovered ? 1.04 : 1
+            rotation: root.hovered ? -1.2 : 0
+            Behavior on scale { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutBack } }
+            Behavior on rotation { NumberAnimation { duration: Theme.ms(520); easing.type: Easing.OutBack } }
             layer.enabled: root.shadow === null
             layer.effect: MultiEffect {
                 shadowEnabled: true
@@ -119,7 +125,7 @@ Item {
             text: root.title
             color: root.playing ? Theme.accent : Theme.text
             font.pixelSize: 15
-            font.weight: Font.DemiBold
+            font.weight: Font.Bold
             elide: Text.ElideRight
             horizontalAlignment: root.round ? Text.AlignHCenter : Text.AlignLeft
         }

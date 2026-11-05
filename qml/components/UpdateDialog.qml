@@ -36,7 +36,7 @@ Item {
                 anchors.centerIn: parent
                 width: 520
                 height: content.implicitHeight + 56
-                radius: 24
+                radius: Theme.r(24)
                 color: Theme.surfaceHi
                 border.width: 1
                 border.color: Theme.alpha(Theme.text, 0.08)
@@ -82,7 +82,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: Math.min(220, notes.implicitHeight + 28)
                         visible: Updater.notes !== ""
-                        radius: 14
+                        radius: Theme.r(14)
                         color: Theme.alpha(Theme.text, 0.04)
 
                         Flickable {

@@ -36,12 +36,12 @@ Item {
 
     Rectangle {
         id: pill
-        width: row.implicitWidth + 30
-        height: 46
-        radius: 23
-        color: Theme.surfaceHi
+        width: row.implicitWidth + 28
+        height: 48
+        radius: 24
+        color: Theme.alpha(Theme.surfaceHi, 0.94)
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.08)
+        border.color: Theme.alpha(Theme.accent, 0.3)
         layer.enabled: root.visible   // the shadow's textures are released between notifications
         layer.effect: MultiEffect {
             shadowEnabled: true
@@ -56,7 +56,7 @@ Item {
             spacing: 10
 
             Rectangle {
-                width: 26; height: 26; radius: 13
+                width: 30; height: 30; radius: 15
                 anchors.verticalCenter: parent.verticalCenter
                 color: Theme.accent
                 Icon {
@@ -71,7 +71,8 @@ Item {
                 text: root.text
                 color: Theme.text
                 font.pixelSize: 14
-                font.weight: Font.Medium
+                font.weight: Font.DemiBold
+                rightPadding: 6
             }
         }
     }

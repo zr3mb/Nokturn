@@ -53,7 +53,7 @@ Item {
         id: handle
         width: f.width - 6
         height: 20
-        radius: 7
+        radius: Theme.r(7)
         x: 3
         y: f.yOf(f.value) - height / 2
         color: mouse.pressed ? Qt.lighter(Theme.text, 1.05) : Theme.text

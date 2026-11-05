@@ -9,15 +9,15 @@ Item {
     // Every theme is dark: the covers, overlays and white-on-art text stay readable in all of them.
     // fixedAccent: the theme keeps its own accent instead of following the cover.
     readonly property var builtinThemes: ({
-        nokturn: { name: "Nokturn", bg: "#101114", surface: "#1a1c20", surfaceHi: "#23262b",
-                   text: "#e8e4dd", textDim: "#a19e98", textFaint: "#6e6d6a",
-                   accent: "#9fb5a8", accent2: "#4a5d6e", onAccent: "#15161a", fixedAccent: false },
-        midnight: { name: "Midnight", bg: "#000000", surface: "#0f1013", surfaceHi: "#191a1f",
-                    text: "#ececf1", textDim: "#9c9ca6", textFaint: "#62626b",
-                    accent: "#8fa8d8", accent2: "#2f3c63", onAccent: "#0b0d14", fixedAccent: false },
-        sunset: { name: "Sunset", bg: "#15100f", surface: "#211917", surfaceHi: "#2c211e",
-                  text: "#f1e6dc", textDim: "#b39f93", textFaint: "#7a6960",
-                  accent: "#e0a27c", accent2: "#6b3b44", onAccent: "#1c120f", fixedAccent: false },
+        nokturn: { name: "Nokturn", bg: "#08080b", surface: "#121217", surfaceHi: "#1b1b22",
+                   text: "#f5f5f7", textDim: "#a4a4ae", textFaint: "#6a6a76",
+                   accent: "#9aa6ff", accent2: "#5a3fd6", onAccent: "#0a0a12", fixedAccent: false },
+        midnight: { name: "Midnight", bg: "#000000", surface: "#0c0c0f", surfaceHi: "#16161b",
+                    text: "#f2f2f5", textDim: "#9e9eaa", textFaint: "#60606b",
+                    accent: "#72b8ff", accent2: "#1c3f91", onAccent: "#050a14", fixedAccent: false },
+        sunset: { name: "Sunset", bg: "#110b0a", surface: "#1b1312", surfaceHi: "#261b19",
+                  text: "#fcf0e8", textDim: "#c4aa9c", textFaint: "#806b61",
+                  accent: "#ff9d6e", accent2: "#a7335c", onAccent: "#1c0f0b", fixedAccent: false },
         cat: { name: "Cat", bg: "#110914", surface: "#1d1121", surfaceHi: "#2a172f",
                   text: "#fbeaf6", textDim: "#c9a3c2", textFaint: "#8a6a86",
                   accent: "#ff7ad6", accent2: "#8a3fd0", onAccent: "#2a0a23", fixedAccent: true }
@@ -50,9 +50,9 @@ Item {
     Behavior on text { ColorAnimation { duration: 600 } }
     Behavior on textDim { ColorAnimation { duration: 600 } }
     Behavior on textFaint { ColorAnimation { duration: 600 } }
-    readonly property color success: "#9cc0a0"
-    readonly property color danger: "#c98585"
-    readonly property color warning: "#cdb388"
+    readonly property color success: "#7fd6a0"
+    readonly property color danger: "#ff7b86"
+    readonly property color warning: "#ffcc7a"
 
     // Plugins may bind these colours (docs/plugins.md); a Binding that goes away with its plugin
     // leaves its last value behind, so they get the theme's own bindings back before plugins rebuild.
@@ -64,18 +64,43 @@ Item {
         textDim = Qt.binding(() => preset.textDim)
         textFaint = Qt.binding(() => preset.textFaint)
         onAccent = Qt.binding(() => preset.onAccent)
-        accent = Qt.binding(() => followsCover ? Player.colorA : staticAccent)
-        accent2 = Qt.binding(() => followsCover ? Player.colorB : staticAccent2)
+        accent = Qt.binding(() => followsCover ? vivid(Player.colorA, 0.72) : staticAccent)
+        accent2 = Qt.binding(() => followsCover ? vivid(Player.colorB, 0.42) : staticAccent2)
     }
     Connections {
         target: Plugins
         function onAboutToChange() { theme.restoreBindings() }
     }
 
-    // Selected pills (tabs, chips): light text color by default, the accent in the Cat theme.
-    readonly property color selection: cat ? accent : text
-    readonly property color onSelection: cat ? onAccent : "#15161a"
-    readonly property color panelBorder: cat ? alpha(accent, 0.16) : Qt.rgba(1, 1, 1, 0.05)
+    // Selected pills (tabs, chips): filled with the accent.
+    readonly property color selection: accent
+    readonly property color onSelection: onAccent
+    readonly property color panelBorder: cat ? alpha(accent, 0.16) : Qt.rgba(1, 1, 1, 0.07)
+
+    // Corner style, remembered between launches: "rounded" or "semi". In "semi" panels, cards and
+    // covers get crisper corners (about a third of the radius) while round controls (play buttons,
+    // pills, avatars) stay round. Surface radii go through r(), so switching morphs them at once.
+    property string shape: Prefs.stringValue("ui/shape", "rounded") === "rounded" ? "rounded" : "semi"
+    onShapeChanged: Prefs.setValue("ui/shape", shape)
+    readonly property bool semi: shape === "semi"
+    property real roundness: semi ? 0 : 1
+    Behavior on roundness { NumberAnimation { duration: 520; easing.type: Easing.InOutCubic } }
+    function r(x) {
+        const crisp = Math.min(x, Math.max(3, x * 0.3))
+        return crisp + (x - crisp) * roundness
+    }
+
+    // Shape and surface tokens of the interface.
+    readonly property real radiusS: r(10)
+    readonly property real radiusM: r(16)
+    readonly property real radiusL: r(22)
+    readonly property real radiusXL: r(28)
+    readonly property color glass: alpha(surface, 0.95)        // panels: nearly solid
+    readonly property color glassHi: alpha(surfaceHi, 0.98)    // the player dock, menus
+    readonly property color hairline: Qt.rgba(1, 1, 1, 0.07)
+    readonly property color fill: alpha(text, 0.06)            // quiet controls at rest
+    readonly property color fillHover: alpha(text, 0.1)
+    readonly property real gap: 12                             // between the window's panels
 
     // Remembered between launches (Settings, first-run wizard).
     property bool dynamicAccent: Prefs.boolValue("ui/dynamicAccent", true)
@@ -86,8 +111,17 @@ Item {
     readonly property color staticAccent2: preset.accent2
     readonly property bool followsCover: dynamicAccent && !preset.fixedAccent
 
-    property color accent: followsCover ? Player.colorA : staticAccent
-    property color accent2: followsCover ? Player.colorB : staticAccent2
+    property color accent: followsCover ? vivid(Player.colorA, 0.72) : staticAccent
+    property color accent2: followsCover ? vivid(Player.colorB, 0.42) : staticAccent2
+
+    // Cover colours are often muted: the accent keeps their hue, with more colour and a fixed
+    // lightness, so it reads the same on every cover. A grey cover gives a near-white accent.
+    function vivid(c, lightness) {
+        const col = Qt.lighter(c, 1.0)
+        if (col.hslHue < 0 || col.hslSaturation < 0.07)
+            return Qt.hsla(0, 0, lightness > 0.5 ? 0.88 : 0.32, 1)
+        return Qt.hsla(col.hslHue, Math.min(0.92, col.hslSaturation * 1.35 + 0.22), lightness, 1)
+    }
     Behavior on accent { ColorAnimation { duration: 900; easing.type: Easing.InOutCubic } }
     Behavior on accent2 { ColorAnimation { duration: 900; easing.type: Easing.InOutCubic } }
 
@@ -99,7 +133,8 @@ Item {
 
     // Windows: Segoe UI Variable; Linux/macOS: the system font (e.g. Cantarell, Noto Sans, Inter).
     readonly property bool windows: Qt.platform.os === "windows"
-    readonly property string fontDisplay: preset.fontDisplay || (windows ? "Segoe UI Variable Display" : Qt.application.font.family)
+    // Headings: Bahnschrift on Windows (a DIN-style face, part of the new identity); elsewhere the system font.
+    readonly property string fontDisplay: preset.fontDisplay || (windows ? "Bahnschrift" : Qt.application.font.family)
     readonly property string fontText: preset.fontText || (windows ? "Segoe UI Variable Text" : Qt.application.font.family)
 
     // Interface motion: every transition's length goes through ms(), so one factor sets how quick the

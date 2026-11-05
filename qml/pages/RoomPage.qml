@@ -41,7 +41,7 @@ Item {
         default property alias content: cardColumn.data
         Layout.fillWidth: true
         implicitHeight: cardColumn.implicitHeight + 44
-        radius: 20
+        radius: Theme.r(20)
         color: Theme.alpha(Theme.text, 0.04)
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.06)
@@ -209,7 +209,7 @@ Item {
                         ArtCover {
                             Layout.preferredWidth: 96
                             Layout.preferredHeight: 96
-                            radius: 14
+                            radius: Theme.r(14)
                             source: page.nowPlaying.cover || ""
                             colorA: page.nowPlaying.colorA || Theme.accent
                             colorB: page.nowPlaying.colorB || Theme.accent2
@@ -325,7 +325,7 @@ Item {
                             HoverHandler { id: rowHover }
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 12
+                                radius: Theme.r(12)
                                 color: Theme.alpha(Theme.text, rowHover.hovered ? 0.06 : 0)
                                 Behavior on color { ColorAnimation { duration: Theme.fast } }
                             }
@@ -353,7 +353,7 @@ Item {
                                     Layout.preferredHeight: 42
                                     width: 42
                                     height: 42
-                                    radius: 8
+                                    radius: Theme.r(8)
                                     source: queueRow.t.cover || ""
                                     colorA: queueRow.t.colorA || Theme.accent
                                     colorB: queueRow.t.colorB || Theme.accent2
@@ -433,7 +433,7 @@ Item {
                                 Rectangle {
                                     Layout.preferredWidth: 32
                                     Layout.preferredHeight: 32
-                                    radius: 16
+                                    radius: Theme.r(16)
                                     color: Theme.alpha(Theme.accent, memberRow.modelData.me ? 0.3 : 0.14)
                                     Text {
                                         anchors.centerIn: parent

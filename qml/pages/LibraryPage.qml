@@ -81,7 +81,7 @@ Item {
             visible: page.libraryRows.length === 0 && !Library.scanning
             Layout.fillWidth: true
             implicitHeight: 72
-            radius: 16
+            radius: Theme.r(16)
             color: Theme.alpha(Theme.accent, 0.08)
             border.width: 1
             border.color: Theme.alpha(Theme.accent, 0.18)
@@ -189,7 +189,7 @@ Item {
         CardShadow {
             id: cardShadow
             size: grid.cellWidth - 22
-            radius: grid.roundCards ? size / 2 : 14
+            radius: grid.roundCards ? size / 2 : Theme.r(14)
         }
     }
 

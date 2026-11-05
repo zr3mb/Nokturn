@@ -15,7 +15,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 14
+        radius: Theme.r(14)
         color: Theme.alpha(Theme.text, hover.hovered ? 0.05 : 0.03)
         Behavior on color { ColorAnimation { duration: Theme.fast } }
     }

@@ -7,7 +7,7 @@ import Nokturn
 Flickable {
     id: root
     default property alias content: column.data
-    property real padding: 34
+    property real padding: 38
     property alias spacing: column.spacing
 
     contentWidth: width
@@ -24,6 +24,6 @@ Flickable {
         x: root.padding
         y: root.padding
         width: root.width - root.padding * 2
-        spacing: 34
+        spacing: 40
     }
 }

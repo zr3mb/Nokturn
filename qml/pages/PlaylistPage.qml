@@ -195,7 +195,7 @@ Item {
                         ArtCover {
                             Layout.preferredWidth: 224
                             Layout.preferredHeight: 224
-                            radius: page.info.round ? 112 : 20
+                            radius: page.info.round ? 112 : Theme.r(20)
                             colorA: page.info.colorA
                             colorB: page.info.colorB
                             seed: page.info.seed
@@ -471,7 +471,7 @@ Item {
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle {
-            radius: 14
+            radius: Theme.r(14)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)
@@ -632,7 +632,7 @@ Item {
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle {
-            radius: 14
+            radius: Theme.r(14)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)
@@ -697,7 +697,7 @@ Item {
         focus: true
         padding: 26
         background: Rectangle {
-            radius: 22
+            radius: Theme.r(22)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)

@@ -11,7 +11,7 @@ Item {
         property string label: ""
         implicitWidth: keyText.implicitWidth + 16
         implicitHeight: 26
-        radius: 7
+        radius: Theme.r(7)
         color: Theme.alpha(Theme.text, 0.07)
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.1)

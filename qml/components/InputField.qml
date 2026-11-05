@@ -8,7 +8,7 @@ TextField {
     property string icon: ""
     property real radius: height / 2
 
-    implicitHeight: 46
+    implicitHeight: 50
     leftPadding: icon !== "" ? 46 : 18
     rightPadding: 18
     color: Theme.text
@@ -34,9 +34,9 @@ TextField {
         Rectangle {
             anchors.fill: parent
             radius: root.radius
-            color: Theme.alpha(Theme.text, root.activeFocus ? 0.08 : root.hovered ? 0.07 : 0.05)
+            color: root.activeFocus ? Theme.alpha(Theme.surfaceHi, 0.9) : root.hovered ? Theme.alpha(Theme.surfaceHi, 0.7) : Theme.alpha(Theme.text, 0.05)
             border.width: 1
-            border.color: root.activeFocus ? Theme.alpha(Theme.accent, 0.65) : Theme.alpha(Theme.text, 0.08)
+            border.color: root.activeFocus ? Theme.alpha(Theme.accent, 0.7) : Theme.hairline
             Behavior on color { ColorAnimation { duration: Theme.fast } }
             Behavior on border.color { ColorAnimation { duration: Theme.normal } }
         }

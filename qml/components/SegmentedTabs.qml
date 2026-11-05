@@ -19,9 +19,9 @@ Item {
         visible: target !== null
         x: target ? target.x : 0
         width: target ? target.width : 0
-        height: root.pill ? root.height : 2
-        y: root.pill ? 0 : root.height - 2
-        radius: root.pill ? height / 2 : 1
+        height: root.pill ? root.height : 3
+        y: root.pill ? 0 : root.height - 3
+        radius: root.pill ? height / 2 : 1.5
         color: root.pill ? Theme.selection : Theme.accent
         Behavior on x { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutQuint } }
         Behavior on width { NumberAnimation { duration: Theme.ms(420); easing.type: Easing.OutQuint } }
@@ -61,7 +61,7 @@ Item {
                     color: tab.selected ? (root.pill ? Theme.onSelection : Theme.text)
                                         : (tabMouse.containsMouse ? Theme.text : Theme.textDim)
                     font.pixelSize: root.pill ? 13 : 15
-                    font.weight: tab.selected ? Font.DemiBold : Font.Medium
+                    font.weight: tab.selected ? Font.Bold : Font.Medium
                     Behavior on color { ColorAnimation { duration: Theme.normal } }
                 }
 

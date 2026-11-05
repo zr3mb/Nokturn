@@ -11,8 +11,10 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 16
-        color: Theme.alpha(Theme.text, mouse.pressed ? 0.13 : mouse.containsMouse ? 0.1 : 0.07)
+        radius: Theme.radiusL
+        color: mouse.pressed ? Theme.alpha(Theme.surfaceHi, 0.95) : mouse.containsMouse ? Theme.alpha(Theme.surfaceHi, 0.85) : Theme.glass
+        border.width: 1
+        border.color: Theme.hairline
         Behavior on color { ColorAnimation { duration: Theme.fast } }
     }
 
@@ -22,7 +24,7 @@ Item {
         x: 10
         width: 44; height: 44
         anchors.verticalCenter: parent.verticalCenter
-        radius: 8
+        radius: Theme.r(12)
         colorA: root.next ? root.next.colorA : Theme.surface
         colorB: root.next ? root.next.colorB : Theme.surface
         seed: root.next ? root.next.seed : 0
