@@ -60,7 +60,10 @@ class OnlineService : public QObject
     Q_PROPERTY(double pairExpires READ pairExpires NOTIFY pairChanged)     // ms since the epoch
 
 public:
-    static constexpr const char *kDefaultServer = "https://nokturn.404piwko.wtf";
+    static constexpr const char *kDefaultServer = "https://everplay.404piwko.wtf";
+    // The same server under the app's former name: older versions talk to it, its link pages and the
+    // links already shared use it, and the account files on disk are named after it.
+    static constexpr const char *kFormerServer = "https://nokturn.404piwko.wtf";
 
     struct SharedPlaylist
     {
@@ -212,6 +215,8 @@ private:
     void request(const QByteArray &method, const QString &path, const QJsonObject &body, JsonCallback done);
     void send(const QByteArray &method, const QString &path, const QByteArray &data, const QByteArray &type, JsonCallback done);
     QString tokenFile() const;
+    // The server as the files on disk know it: the default one under its former address.
+    QString storedServer() const;
     void loadAccount();
     void switchAccount(const QString &token, const QJsonObject &user);
     void dropAccount();

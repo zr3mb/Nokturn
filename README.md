@@ -26,8 +26,9 @@ Both update themselves — see [Installer and updates](#installer-and-updates).
 **Formerly Nokturn.** An installed Nokturn updates itself to Everplay: the Windows setup moves it to the
 new folder, Start menu entry and taskbar pin, and the first start moves the data (`…/Nokturn/Nokturn` →
 `…/Everplay/Everplay`), so the library, sign-ins and settings stay. `nokturn://` links still open the app, and
-plugins that `import Nokturn` are switched over on load. The server keeps its former name (`nokturn_server`,
-`nokturn.404piwko.wtf`) so the versions from before the rename keep working.
+plugins that `import Nokturn` are switched over on load. The server keeps its former name (`nokturn_server`)
+and answers at `everplay.404piwko.wtf` as well as the former `nokturn.404piwko.wtf`, so the versions from before
+the rename keep working; the app keeps its sign-in and shared playlists across the change of address.
 
 ## Building (Windows, MSYS2 UCRT64)
 
@@ -314,7 +315,7 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
 ## Online features — how it works
 
 Share links, shared playlists and listening rooms go through the Everplay server (`server/`, see
-[Server](#server-vps)), by default `https://nokturn.404piwko.wtf`. Nothing is sent there until one of these
+[Server](#server-vps)), by default `https://everplay.404piwko.wtf` (the same server also answers as `nokturn.404piwko.wtf`, the address of the former name). Nothing is sent there until one of these
 features is used.
 
 - **Account:** the first time you share something, Everplay makes an account with the name from

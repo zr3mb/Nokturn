@@ -97,7 +97,13 @@ std::optional<std::pair<QString, QString>> parseLink(const QString &text, const 
         kind = url.host();
         value = url.path().mid(1).section(QLatin1Char('/'), 0, 0);
     } else if (url.scheme().startsWith(QLatin1String("http"))) {
-        if (url.host().compare(QUrl(server).host(), Qt::CaseInsensitive) != 0)
+        // The default server answers under both its addresses: links shared before the rename use the former.
+        const QString host = QUrl(server).host();
+        const QStringList same { QUrl(QString::fromLatin1(OnlineService::kDefaultServer)).host(),
+                                 QUrl(QString::fromLatin1(OnlineService::kFormerServer)).host() };
+        const bool known = url.host().compare(host, Qt::CaseInsensitive) == 0
+                           || (same.contains(host, Qt::CaseInsensitive) && same.contains(url.host(), Qt::CaseInsensitive));
+        if (!known)
             return std::nullopt;
         const QStringList parts = url.path().split(QLatin1Char('/'), Qt::SkipEmptyParts);
         if (parts.size() < 2)
@@ -142,6 +148,8 @@ OnlineService::OnlineService(QObject *parent)
     m_server = m_server.trimmed();
     while (m_server.endsWith(QLatin1Char('/')))
         m_server.chop(1);
+    if (m_server == QLatin1String(kFormerServer))
+        m_server = QString::fromLatin1(kDefaultServer);   // the same server, set by hand before the rename
     m_name = settings->value("online/name", defaultName()).toString();
     m_librarySync = settings->value("online/librarySync", true).toBool();
     loadAccount();
@@ -234,7 +242,7 @@ void OnlineService::setServerUrl(const QString &url)
     QString clean = url.trimmed();
     while (clean.endsWith(QLatin1Char('/')))
         clean.chop(1);
-    if (clean.isEmpty())
+    if (clean.isEmpty() || clean == QLatin1String(kFormerServer))
         clean = QString::fromLatin1(kDefaultServer);
     if (clean == m_server)
         return;
@@ -274,8 +282,13 @@ void OnlineService::setDisplayName(const QString &name)
 QString OnlineService::tokenFile() const
 {
     // One account per server.
-    const QByteArray key = QCryptographicHash::hash(m_server.toUtf8(), QCryptographicHash::Sha1).toHex().left(10);
+    const QByteArray key = QCryptographicHash::hash(storedServer().toUtf8(), QCryptographicHash::Sha1).toHex().left(10);
     return AppPaths::dataDir() + QStringLiteral("/online-") + QString::fromLatin1(key) + QStringLiteral(".token");
+}
+
+QString OnlineService::storedServer() const
+{
+    return m_server == QLatin1String(kDefaultServer) ? QString::fromLatin1(kFormerServer) : m_server;
 }
 
 void OnlineService::loadAccount()
@@ -1476,7 +1489,7 @@ void OnlineService::loadPlaylists()
     if (!f.open(QIODevice::ReadOnly))
         return;
     const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-    if (root.value("server").toString() != m_server)
+    if (root.value("server").toString() != storedServer())
         return;
     // Library doesn't exist yet here — the tracks reach the model through tracks().
     for (const QJsonValue &v : root.value("playlists").toArray()) {
@@ -1540,7 +1553,7 @@ void OnlineService::savePlaylists() const
     }
     QSaveFile f(cacheFile());
     if (f.open(QIODevice::WriteOnly)) {
-        f.write(QJsonDocument(QJsonObject { { "server", m_server }, { "playlists", playlists } }).toJson(QJsonDocument::Compact));
+        f.write(QJsonDocument(QJsonObject { { "server", storedServer() }, { "playlists", playlists } }).toJson(QJsonDocument::Compact));
         f.commit();
     }
 }
@@ -1565,7 +1578,7 @@ void OnlineService::setLibrarySync(bool on)
 
 QString OnlineService::syncFile() const
 {
-    const QByteArray key = QCryptographicHash::hash(m_server.toUtf8(), QCryptographicHash::Sha1).toHex().left(10);
+    const QByteArray key = QCryptographicHash::hash(storedServer().toUtf8(), QCryptographicHash::Sha1).toHex().left(10);
     return AppPaths::dataDir() + QStringLiteral("/library-sync-") + QString::fromLatin1(key) + QStringLiteral(".json");
 }
 
