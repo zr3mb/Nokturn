@@ -156,6 +156,11 @@ ApplicationWindow {
             anchors.fill: parent
         }
 
+        // Once, for people coming from Nokturn: the new name and look
+        RebrandIntro {
+            anchors.fill: parent
+        }
+
         // Correcting a Spotify track's YouTube Music match. The dialogs are built when they open.
         Loader {
             id: matchDialog
