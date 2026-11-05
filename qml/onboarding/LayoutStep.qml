@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Step 2: window layout — the sidebar and the "Now playing" panel, on live thumbnails.
 Item {

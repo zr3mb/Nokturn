@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Nokturn VERSION 0.23.2 LANGUAGES CXX)
+project(Everplay VERSION 0.23.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,18 +17,18 @@ if(UNIX AND NOT APPLE AND NOT ANDROID)
     find_package(Qt6 6.8 REQUIRED COMPONENTS DBus)   # MPRIS (media keys, system panel)
 endif()
 
-# Discord application ID (discord.com/developers) for the "Listening to …" status — Nokturn's own app.
+# Discord application ID (discord.com/developers) for the "Listening to …" status — Everplay's own app.
 # Users can still enter their own in Settings.
-set(NOKTURN_DISCORD_CLIENT_ID "1560656071805108224" CACHE STRING "Application ID aplikacji Discord dla Rich Presence")
+set(EVERPLAY_DISCORD_CLIENT_ID "1560656071805108224" CACHE STRING "Application ID aplikacji Discord dla Rich Presence")
 # Spotify app ("Client ID" from developer.spotify.com) used by default; users can enter their own in Sources.
-set(NOKTURN_SPOTIFY_CLIENT_ID "" CACHE STRING "Spotify Web API Client ID")
+set(EVERPLAY_SPOTIFY_CLIENT_ID "" CACHE STRING "Spotify Web API Client ID")
 
 qt_standard_project_setup(REQUIRES 6.8)
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)   # qmldir in the subdirectories qml/components, qml/layout, qml/pages
 endif()
 
-qt_add_executable(Nokturn
+qt_add_executable(Everplay
     src/main.cpp
 )
 
@@ -40,8 +40,8 @@ set_source_files_properties(
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE
 )
 
-qt_add_qml_module(Nokturn
-    URI Nokturn
+qt_add_qml_module(Everplay
+    URI Everplay
     VERSION 1.0
     SOURCES
         src/AppPaths.h
@@ -159,6 +159,7 @@ qt_add_qml_module(Nokturn
         qml/pages/StatsPage.qml
         qml/pages/PluginsPage.qml
         qml/components/PluginHost.qml
+        qml/components/PressRing.qml
         qml/pages/RoomPage.qml
 
         qml/overlay/OverlayWindow.qml
@@ -181,43 +182,43 @@ qt_add_qml_module(Nokturn
 )
 
 # Translations (English is the source language; see src/Language.h)
-qt_add_resources(Nokturn "i18n"
+qt_add_resources(Everplay "i18n"
     PREFIX "/"
     FILES i18n/pl.json i18n/en.json
 )
 
-set_target_properties(Nokturn PROPERTIES
+set_target_properties(Everplay PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
 )
 
-# On Linux the program is called "nokturn" (convention + no clash with the "Nokturn" QML module directory).
+# On Linux the program is called "everplay" (convention + no clash with the "Everplay" QML module directory).
 if(UNIX AND NOT APPLE AND NOT ANDROID)
-    set_target_properties(Nokturn PROPERTIES OUTPUT_NAME nokturn)
+    set_target_properties(Everplay PROPERTIES OUTPUT_NAME everplay)
 endif()
 
-target_include_directories(Nokturn PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio ${CMAKE_CURRENT_SOURCE_DIR}/src/lyrics ${CMAKE_CURRENT_SOURCE_DIR}/src/platform ${CMAKE_CURRENT_SOURCE_DIR}/src/spotify ${CMAKE_CURRENT_SOURCE_DIR}/src/soundcloud ${CMAKE_CURRENT_SOURCE_DIR}/src/online)
-target_link_libraries(Nokturn PRIVATE
+target_include_directories(Everplay PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/youtube ${CMAKE_CURRENT_SOURCE_DIR}/src/audio ${CMAKE_CURRENT_SOURCE_DIR}/src/lyrics ${CMAKE_CURRENT_SOURCE_DIR}/src/platform ${CMAKE_CURRENT_SOURCE_DIR}/src/spotify ${CMAKE_CURRENT_SOURCE_DIR}/src/soundcloud ${CMAKE_CURRENT_SOURCE_DIR}/src/online)
+target_link_libraries(Everplay PRIVATE
     Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia Qt6::Concurrent Qt6::Network Qt6::WebSockets Qt6::CorePrivate
     TagLib::tag
     $<$<PLATFORM_ID:Windows>:crypt32>
 )
-target_compile_definitions(Nokturn PRIVATE
-    NOKTURN_DISCORD_CLIENT_ID="${NOKTURN_DISCORD_CLIENT_ID}"
-    NOKTURN_VERSION="${PROJECT_VERSION}"
-    NOKTURN_SPOTIFY_CLIENT_ID="${NOKTURN_SPOTIFY_CLIENT_ID}")
+target_compile_definitions(Everplay PRIVATE
+    EVERPLAY_DISCORD_CLIENT_ID="${EVERPLAY_DISCORD_CLIENT_ID}"
+    EVERPLAY_VERSION="${PROJECT_VERSION}"
+    EVERPLAY_SPOTIFY_CLIENT_ID="${EVERPLAY_SPOTIFY_CLIENT_ID}")
 
 if(UNIX AND NOT APPLE AND NOT ANDROID)
-    target_sources(Nokturn PRIVATE src/platform/Mpris.h src/platform/Mpris.cpp
+    target_sources(Everplay PRIVATE src/platform/Mpris.h src/platform/Mpris.cpp
                                    src/platform/ShortcutPortal.h src/platform/ShortcutPortal.cpp)
-    target_link_libraries(Nokturn PRIVATE Qt6::DBus)
-    target_compile_definitions(Nokturn PRIVATE NOKTURN_MPRIS NOKTURN_DESKTOP_LINUX)
+    target_link_libraries(Everplay PRIVATE Qt6::DBus)
+    target_compile_definitions(Everplay PRIVATE EVERPLAY_MPRIS EVERPLAY_DESKTOP_LINUX)
     # The in-game overlay as a layer-shell surface (KDE Plasma, Hyprland, Sway). Optional: without it
     # the overlay is a full-screen window.
     find_package(LayerShellQt 6 QUIET)
     if(LayerShellQt_FOUND)
-        target_link_libraries(Nokturn PRIVATE LayerShellQt::Interface)
-        target_compile_definitions(Nokturn PRIVATE NOKTURN_LAYERSHELL)
+        target_link_libraries(Everplay PRIVATE LayerShellQt::Interface)
+        target_compile_definitions(Everplay PRIVATE EVERPLAY_LAYERSHELL)
         message(STATUS "In-game overlay: layer-shell (LayerShellQt ${LayerShellQt_VERSION})")
     else()
         message(STATUS "In-game overlay: LayerShellQt not found — a full-screen window instead")
@@ -226,45 +227,45 @@ endif()
 
 if(WIN32)
     # System Media Transport Controls (Windows media flyout) + media keys
-    target_sources(Nokturn PRIVATE
+    target_sources(Everplay PRIVATE
         src/platform/WinRtMedia.h
         src/platform/WindowsMediaControls.h src/platform/WindowsMediaControls.cpp)
-    target_link_libraries(Nokturn PRIVATE runtimeobject shlwapi shcore)
-    target_compile_definitions(Nokturn PRIVATE NOKTURN_SMTC)
+    target_link_libraries(Everplay PRIVATE runtimeobject shlwapi shcore)
+    target_compile_definitions(Everplay PRIVATE EVERPLAY_SMTC)
 endif()
 
 if(ANDROID)
-    # Manifest (permissions, nokturn:// and https link handling) and the launcher icons.
-    set_property(TARGET Nokturn APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/packaging/android)
-    math(EXPR NOKTURN_VERSION_CODE "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}")
-    set_target_properties(Nokturn PROPERTIES
+    # Manifest (permissions, everplay:// and https link handling) and the launcher icons.
+    set_property(TARGET Everplay APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/packaging/android)
+    math(EXPR EVERPLAY_VERSION_CODE "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}")
+    set_target_properties(Everplay PROPERTIES
         QT_ANDROID_MIN_SDK_VERSION 28
         QT_ANDROID_TARGET_SDK_VERSION 34
         QT_ANDROID_VERSION_NAME ${PROJECT_VERSION}
-        QT_ANDROID_VERSION_CODE ${NOKTURN_VERSION_CODE})
-    target_sources(Nokturn PRIVATE src/platform/AndroidSupport.h src/platform/AndroidSupport.cpp)
+        QT_ANDROID_VERSION_CODE ${EVERPLAY_VERSION_CODE})
+    target_sources(Everplay PRIVATE src/platform/AndroidSupport.h src/platform/AndroidSupport.cpp)
     # Signing in to YouTube Music / SoundCloud in the system WebView (qml/mobile/WebLogin.qml)
     find_package(Qt6 6.8 REQUIRED COMPONENTS WebView)
-    qt_target_qml_sources(Nokturn QML_FILES qml/mobile/WebLogin.qml)
-    target_link_libraries(Nokturn PRIVATE Qt6::CorePrivate Qt6::WebView)
-    target_compile_definitions(Nokturn PRIVATE NOKTURN_MOBILE)
+    qt_target_qml_sources(Everplay QML_FILES qml/mobile/WebLogin.qml)
+    target_link_libraries(Everplay PRIVATE Qt6::CorePrivate Qt6::WebView)
+    target_compile_definitions(Everplay PRIVATE EVERPLAY_MOBILE)
     # Qt loads OpenSSL at run time and Android has none for apps: HTTPS needs a bundled copy
     # (prebuilt libssl_3.so / libcrypto_3.so for arm64-v8a, e.g. from github.com/KDAB/android_openssl).
-    if(NOKTURN_ANDROID_OPENSSL)
-        set_property(TARGET Nokturn APPEND PROPERTY QT_ANDROID_EXTRA_LIBS
-            ${NOKTURN_ANDROID_OPENSSL}/libcrypto_3.so ${NOKTURN_ANDROID_OPENSSL}/libssl_3.so)
+    if(EVERPLAY_ANDROID_OPENSSL)
+        set_property(TARGET Everplay APPEND PROPERTY QT_ANDROID_EXTRA_LIBS
+            ${EVERPLAY_ANDROID_OPENSSL}/libcrypto_3.so ${EVERPLAY_ANDROID_OPENSSL}/libssl_3.so)
     else()
-        message(WARNING "NOKTURN_ANDROID_OPENSSL is not set: the app will have no HTTPS")
+        message(WARNING "EVERPLAY_ANDROID_OPENSSL is not set: the app will have no HTTPS")
     endif()
 endif()
 
 if(ANDROID)
 elseif(WIN32)
-    install(TARGETS Nokturn RUNTIME DESTINATION .)
+    install(TARGETS Everplay RUNTIME DESTINATION .)
 else()
     include(GNUInstallDirs)
-    install(TARGETS Nokturn RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    install(FILES packaging/linux/nokturn.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-    install(FILES packaging/linux/nokturn.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
-    install(FILES packaging/linux/nokturn.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+    install(TARGETS Everplay RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES packaging/linux/everplay.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES packaging/linux/everplay.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+    install(FILES packaging/linux/everplay.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 endif()

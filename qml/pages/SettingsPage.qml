@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Dialogs
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 Item {
     id: page
@@ -21,7 +21,7 @@ Item {
         property string label: ""
         implicitWidth: keyText.implicitWidth + 16
         implicitHeight: 26
-        radius: 7
+        radius: Theme.r(7)
         color: Theme.alpha(Theme.text, 0.07)
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.1)
@@ -35,7 +35,7 @@ Item {
         }
     }
 
-    // Nav.navigate("settings", { section: "account" }) opens the page at the Nokturn account.
+    // Nav.navigate("settings", { section: "account" }) opens the page at the Everplay account.
     Timer {
         running: page.args.section === "account"
         interval: 250
@@ -67,6 +67,16 @@ Item {
                 ThemePicker {
                     Layout.fillWidth: true
                     Layout.bottomMargin: 6
+                }
+                SettingRow {
+                    icon: "grid"
+                    title: qsTr("Corners")
+                    description: qsTr("The shape of panels and covers: soft and rounded, or crisper corners with round buttons.")
+                    SegmentedTabs {
+                        model: [qsTr("Rounded"), qsTr("Semi-angular")]
+                        currentIndex: Theme.semi ? 1 : 0
+                        onActivated: i => Theme.shape = i === 1 ? "semi" : "rounded"
+                    }
                 }
                 SettingRow {
                     icon: "image"
@@ -312,7 +322,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.max(130, hotkeyText.implicitWidth + 28)
                             height: 34
-                            radius: 9
+                            radius: Theme.r(9)
                             color: recording ? Theme.alpha(Theme.accent, 0.22) : Theme.alpha(Theme.text, keyMouse.containsMouse ? 0.1 : 0.06)
                             border.width: 1
                             border.color: recording ? Theme.accent : GameOverlay.hotkeyTaken ? Theme.danger : Theme.alpha(Theme.text, 0.14)
@@ -360,8 +370,8 @@ Item {
                     title: qsTr("Shortcut")
                     description: GameOverlay.hotkey !== ""
                         ? qsTr("Set in your desktop's shortcut settings — it opens and closes the menu from any game.")
-                        : qsTr("Your desktop asks once whether Nokturn may have a shortcut. On Hyprland, add to hyprland.conf: %1")
-                              .arg("bind = CTRL SHIFT, M, global, nokturn:overlay")
+                        : qsTr("Your desktop asks once whether Everplay may have a shortcut. On Hyprland, add to hyprland.conf: %1")
+                              .arg("bind = CTRL SHIFT, M, global, everplay:overlay")
                     Row {
                         spacing: 12
                         PillButton {
@@ -376,7 +386,7 @@ Item {
                             visible: GameOverlay.hotkey !== ""
                             width: portalKey.implicitWidth + 28
                             height: 34
-                            radius: 9
+                            radius: Theme.r(9)
                             color: Theme.alpha(Theme.text, 0.06)
                             border.width: 1
                             border.color: Theme.alpha(Theme.text, 0.14)
@@ -519,7 +529,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             width: Math.max(130, lyricsHotkeyText.implicitWidth + 28)
                             height: 34
-                            radius: 9
+                            radius: Theme.r(9)
                             color: recording ? Theme.alpha(Theme.accent, 0.22) : Theme.alpha(Theme.text, lyricsKeyMouse.containsMouse ? 0.1 : 0.06)
                             border.width: 1
                             border.color: recording ? Theme.accent : GameOverlay.lyricsHotkeyTaken ? Theme.danger : Theme.alpha(Theme.text, 0.14)
@@ -584,7 +594,7 @@ Item {
                     icon: "clock"
                     title: qsTr("Automatic timing (alpha)")
                     description: Lyrics.hardwareOk
-                        ? qsTr("When lyrics have no timestamps, Nokturn recognizes the singing in the recording (whisper.cpp, locally on your computer) and aligns the lyric lines to it. It puts a heavy load on the CPU for tens of seconds to a few minutes per track; the result is remembered. Your hardware: %1.").arg(Lyrics.hardwareSummary)
+                        ? qsTr("When lyrics have no timestamps, Everplay recognizes the singing in the recording (whisper.cpp, locally on your computer) and aligns the lyric lines to it. It puts a heavy load on the CPU for tens of seconds to a few minutes per track; the result is remembered. Your hardware: %1.").arg(Lyrics.hardwareSummary)
                         : qsTr("Requires stronger hardware (at least 4 CPU threads and 8 GB of RAM). Your hardware: %1.").arg(Lyrics.hardwareSummary)
                     Toggle {
                         enabled: Lyrics.hardwareOk
@@ -704,8 +714,8 @@ Item {
                     icon: "key"
                     title: qsTr("Discord application ID")
                     description: Discord.builtInClientId && Discord.clientId !== ""
-                        ? qsTr("Nokturn's built-in ID. You can enter your own to change the name shown in the status.")
-                        : qsTr("Create an application at discord.com/developers/applications (its name will show as “Listening to <name>”), copy the “Application ID” and paste it here. Optionally add an image named “nokturn” under Rich Presence → Art Assets — it becomes the cover for files without a cover online.")
+                        ? qsTr("Everplay's built-in ID. You can enter your own to change the name shown in the status.")
+                        : qsTr("Create an application at discord.com/developers/applications (its name will show as “Listening to <name>”), copy the “Application ID” and paste it here. Optionally add an image named “everplay” under Rich Presence → Art Assets — it becomes the cover for files without a cover online.")
                     InputField {
                         width: 230
                         implicitHeight: 38
@@ -734,7 +744,7 @@ Item {
                 SettingRow {
                     id: accountRow
                     icon: "person"
-                    title: Online.login !== "" ? qsTr("Nokturn account: %1").arg(Online.login) : qsTr("Nokturn account")
+                    title: Online.login !== "" ? qsTr("Everplay account: %1").arg(Online.login) : qsTr("Everplay account")
                     description: Online.login !== ""
                                  ? qsTr("Signed in. Your library, playlists and folders are the same on every device signed in to this account.")
                                  : Online.registered
@@ -789,7 +799,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.leftMargin: 52
                         implicitHeight: 52
-                        radius: 14
+                        radius: Theme.r(14)
                         color: Qt.rgba(1, 1, 1, 0.03)
                         RowLayout {
                             anchors.fill: parent
@@ -864,7 +874,7 @@ Item {
                 SettingRow {
                     icon: "heart"
                     title: qsTr("Same library on every device")
-                    description: qsTr("YouTube Music likes and what you play go to your Nokturn account, so every device signed in to it — computer, phone, browser — shows the same Liked and Recently played.")
+                    description: qsTr("YouTube Music likes and what you play go to your Everplay account, so every device signed in to it — computer, phone, browser — shows the same Liked and Recently played.")
                     Toggle { checked: Online.librarySync; onToggled: c => Online.librarySync = c }
                 }
                 SettingRow {
@@ -906,7 +916,7 @@ Item {
                 SettingRow {
                     icon: "key"
                     title: qsTr("I have a code")
-                    description: qsTr("From another device: this one signs in to that device's Nokturn account and brings along what it has here (likes, shared playlists).")
+                    description: qsTr("From another device: this one signs in to that device's Everplay account and brings along what it has here (likes, shared playlists).")
                     Row {
                         spacing: 8
                         InputField {
@@ -1029,7 +1039,7 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 2
-                    Text { text: "Nokturn " + Updater.currentVersion; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                    Text { text: "Everplay " + Updater.currentVersion; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
                     Text { text: "C++20 · Qt 6 · Qt Quick"; color: Theme.textFaint; font.pixelSize: 12 }
                 }
                 PillButton {

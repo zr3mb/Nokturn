@@ -1,12 +1,12 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Translucent rounded panel — content is clipped to the rounded corners.
 Item {
     id: root
-    property real radius: 20
-    property color tint: Theme.alpha(Theme.surface, 0.66)
+    property real radius: Theme.radiusXL
+    property color tint: Theme.glass
     // Off for panels whose content never reaches the corners: a plain rectangular clip then does the
     // same without an offscreen copy of the panel.
     property bool roundedClip: true

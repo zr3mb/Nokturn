@@ -311,7 +311,7 @@ private:
     bool m_autoplay = true;
     bool m_wantPlay = false;           // the user expects music (cleared by pause) — errors then skip ahead
     int m_failures = 0;                // failed tracks in a row — stops skipping after a few
-    QElapsedTimer m_loadClock;         // NOKTURN_STREAM_DEBUG: time from a track change to sound
+    QElapsedTimer m_loadClock;         // EVERPLAY_STREAM_DEBUG: time from a track change to sound
     QSet<QString> m_streamRetried;     // videoIds whose stream already got a second, fresh URL
     QString m_skipPending;             // track id with a skip already scheduled (errors come in pairs)
     qint64 m_lastPosMs = -1;           // stall detection: the position stopped moving while "playing"

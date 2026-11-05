@@ -79,7 +79,7 @@ StreamFetch::~StreamFetch()
 
 bool StreamFetch::suits(const QUrl &url)
 {
-    // Only googlevideo.com directly. Audio relayed by the Nokturn server (the Android app) plays
+    // Only googlevideo.com directly. Audio relayed by the Everplay server (the Android app) plays
     // from the URL as it arrives: the whole file first would add the relay's transfer to the wait.
     return url.host().endsWith(QLatin1String("googlevideo.com")) && declaredLength(url) <= kMaxSize;
 }

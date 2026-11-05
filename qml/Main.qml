@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
-import Nokturn
+import Everplay
 
 ApplicationWindow {
     id: win
@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: mobile ? 320 : 1120
     minimumHeight: mobile ? 480 : 720
     visible: true
-    title: "Nokturn"
+    title: "Everplay"
     color: Theme.bg
     flags: mobile ? Qt.Window : Qt.Window | Qt.FramelessWindowHint
     Component.onCompleted: {
@@ -48,6 +48,12 @@ ApplicationWindow {
         id: shell
         anchors.fill: parent
 
+        // Startup: the sidebar, the title bar, the page and the dock arrive one after another.
+        property real intro: 0
+        NumberAnimation on intro { from: 0; to: 1; duration: Theme.ms(1800); easing.type: Easing.Linear }
+        function stage(start) { return Math.max(0, Math.min(1, (intro - start) / 0.5)) }
+        function ease(t) { return 1 - Math.pow(1 - t, 4) }
+
         Rectangle {
             anchors.fill: parent
             color: Theme.bg
@@ -67,6 +73,7 @@ ApplicationWindow {
         AmbientBackground {
             anchors.fill: parent
             visible: Theme.ambient
+            boost: 0.9
         }
 
         // Plugins: animated wallpapers behind the panels, logic without a look (docs/plugins.md)
@@ -79,32 +86,40 @@ ApplicationWindow {
             slot: "main"
         }
 
-        TitleBar {
-            id: titleBar
-            anchors { top: parent.top; left: parent.left; right: parent.right }
-            height: win.mobile ? 0 : 56
-            visible: !win.mobile
-        }
-
+        // The layout: a full-height sidebar on the left, the title bar and the page to its right,
+        // the "Now playing" sheet on the right and the player docked, floating, along the bottom.
         Sidebar {
             id: sidebar
+            opacity: shell.ease(shell.stage(0))
+            transform: Translate { x: (1 - shell.ease(shell.stage(0))) * -60 }
             anchors {
-                top: titleBar.bottom; left: parent.left; bottom: playerBar.top
-                leftMargin: win.mobile ? 0 : 10; bottomMargin: 2
+                top: parent.top; left: parent.left; bottom: playerBar.top
+                topMargin: Theme.gap; leftMargin: win.mobile ? 0 : Theme.gap; bottomMargin: Theme.gap
             }
-            width: win.mobile ? 0 : Nav.sidebarCompact ? 76 : 252
+            width: win.mobile ? 0 : Nav.sidebarCompact ? 80 : 268
             visible: !win.mobile
             Behavior on width { enabled: !win.mobile; NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutQuint } }
         }
 
+        TitleBar {
+            id: titleBar
+            opacity: shell.ease(shell.stage(0.12))
+            transform: Translate { y: (1 - shell.ease(shell.stage(0.12))) * -24 }
+            anchors { top: parent.top; left: sidebar.right; right: parent.right; leftMargin: Theme.gap }
+            height: win.mobile ? 0 : 64
+            visible: !win.mobile
+        }
+
         Panel {
             id: content
+            opacity: shell.ease(shell.stage(0.2))
+            scale: 0.96 + 0.04 * shell.ease(shell.stage(0.2))
             anchors {
                 top: titleBar.bottom; left: sidebar.right; right: queuePanel.left
                 bottom: win.mobile ? (mobilePlayer.visible ? mobilePlayer.top : mobileNav.top) : playerBar.top
-                leftMargin: win.mobile ? 0 : 10; rightMargin: win.mobile ? 0 : 10; bottomMargin: win.mobile ? 6 : 2
+                leftMargin: win.mobile ? 0 : Theme.gap; rightMargin: win.mobile ? 0 : Theme.gap; bottomMargin: win.mobile ? 6 : Theme.gap
             }
-            radius: win.mobile ? 0 : 20
+            radius: win.mobile ? 0 : Theme.radiusXL
             roundedClip: !win.mobile
             tint: win.mobile ? "transparent" : Theme.alpha(Theme.surface, 0.66)
 
@@ -115,15 +130,15 @@ ApplicationWindow {
 
                 replaceEnter: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(420); easing.type: Easing.OutCubic }
-                        NumberAnimation { property: "y"; from: 34; to: 0; duration: Theme.ms(620); easing.type: Easing.OutQuint }
-                        NumberAnimation { property: "scale"; from: 0.985; to: 1; duration: Theme.ms(620); easing.type: Easing.OutQuint }
+                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.ms(480); easing.type: Easing.OutCubic }
+                        NumberAnimation { property: "x"; from: 70; to: 0; duration: Theme.ms(760); easing.type: Easing.OutQuint }
+                        NumberAnimation { property: "scale"; from: 0.97; to: 1; duration: Theme.ms(760); easing.type: Easing.OutQuint }
                     }
                 }
                 replaceExit: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(200); easing.type: Easing.InCubic }
-                        NumberAnimation { property: "scale"; from: 1; to: 0.985; duration: Theme.ms(240); easing.type: Easing.InCubic }
+                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.ms(240); easing.type: Easing.InCubic }
+                        NumberAnimation { property: "x"; from: 0; to: -50; duration: Theme.ms(300); easing.type: Easing.InCubic }
                     }
                 }
             }
@@ -131,11 +146,14 @@ ApplicationWindow {
 
         NowPlayingPanel {
             id: queuePanel
+            radius: Theme.radiusXL
+            opacity: shell.ease(shell.stage(0.32))
+            transform: Translate { x: (1 - shell.ease(shell.stage(0.32))) * 60 }
             anchors {
                 top: titleBar.bottom; right: parent.right; bottom: playerBar.top
-                rightMargin: Nav.queueOpen ? 10 : 0; bottomMargin: 2
+                rightMargin: Nav.queueOpen && !win.mobile ? Theme.gap : 0; bottomMargin: Theme.gap
             }
-            width: Nav.queueOpen && !win.mobile ? 344 : 0
+            width: Nav.queueOpen && !win.mobile ? 352 : 0
             visible: !win.mobile
             Behavior on width { NumberAnimation { duration: Theme.ms(520); easing.type: Easing.OutQuint } }
             Behavior on anchors.rightMargin { NumberAnimation { duration: Theme.ms(520); easing.type: Easing.OutQuint } }
@@ -143,8 +161,10 @@ ApplicationWindow {
 
         PlayerBar {
             id: playerBar
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: win.mobile ? 0 : 104
+            opacity: shell.ease(shell.stage(0.4))
+            transform: Translate { y: (1 - shell.ease(shell.stage(0.4))) * 70 }
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: win.mobile ? 0 : Theme.gap }
+            height: win.mobile ? 0 : 88
             visible: !win.mobile
         }
 
@@ -262,7 +282,7 @@ ApplicationWindow {
             }
         }
 
-        // The Nokturn account: a login and a password, signing in, the recovery key
+        // The Everplay account: a login and a password, signing in, the recovery key
         Loader {
             id: accountDialog
             active: false
@@ -275,7 +295,7 @@ ApplicationWindow {
 
         Toast {
             id: toast
-            bottomOffset: win.mobile ? mobileNav.height + (mobilePlayer.visible ? 72 : 12) : playerBar.height + 22
+            bottomOffset: win.mobile ? mobileNav.height + (mobilePlayer.visible ? 72 : 12) : playerBar.height + Theme.gap + 18
         }
 
         WindowResizer {
@@ -470,7 +490,7 @@ ApplicationWindow {
         function onRoomOpened() { Nav.navigate("room") }
         function onPlaylistOpened(id) { Nav.openPlaylist("shared", id) }
         function onPasswordNeeded(id, wrong) { passwordDialog.ask(id, wrong) }
-        // A nokturn:// link opened from a browser or a chat app
+        // A everplay:// link opened from a browser or a chat app
         function onActivateRequested() {
             if (win.visibility === Window.Minimized || win.visibility === Window.Hidden)
                 win.showNormal()

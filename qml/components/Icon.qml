@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Vector icon from Icons.paths — scales without quality loss and takes any color.
 Item {

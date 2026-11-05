@@ -32,7 +32,7 @@ class QQmlEngine;
 //   about an hour and is renewed invisibly from the same profile.
 // - Own Spotify app (developer mode needs Premium): OAuth 2.0 with PKCE — no client secret, the
 //   redirect lands on a tiny local server at http://127.0.0.1:43117/callback. A build can ship
-//   a default Client ID (-DNOKTURN_SPOTIFY_CLIENT_ID=…). The refresh token is stored encrypted.
+//   a default Client ID (-DEVERPLAY_SPOTIFY_CLIENT_ID=…). The refresh token is stored encrypted.
 class SpotifyService : public QObject
 {
     Q_OBJECT

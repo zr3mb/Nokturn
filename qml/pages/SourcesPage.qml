@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Managing music sources. Local files and YouTube Music really work;
 // radio and custom streams are only an interface for now.
@@ -26,7 +26,7 @@ Item {
         HoverHandler { id: lineHover }
         Rectangle {
             anchors.fill: parent
-            radius: 12
+            radius: Theme.r(12)
             color: Theme.alpha(Theme.text, lineHover.hovered ? 0.06 : 0.03)
             Behavior on color { ColorAnimation { duration: Theme.fast } }
         }
@@ -101,7 +101,7 @@ Item {
                     font.weight: Font.Bold
                 }
                 Text {
-                    text: qsTr("Connect the places Nokturn should play music from. Everything ends up in one library.")
+                    text: qsTr("Connect the places Everplay should play music from. Everything ends up in one library.")
                     color: Theme.textDim
                     font.pixelSize: 15
                 }
@@ -133,7 +133,7 @@ Item {
 
                         Hint {
                             visible: Library.folders.length === 0
-                                text: qsTr("No folder chosen yet. Add a folder and Nokturn will scan it together with its subfolders.")
+                                text: qsTr("No folder chosen yet. Add a folder and Everplay will scan it together with its subfolders.")
                         }
 
                         Repeater {
@@ -173,7 +173,7 @@ Item {
                                 Rectangle {
                                     width: parent.width * Library.scanProgress
                                     height: parent.height
-                                    radius: 3
+                                    radius: Theme.r(3)
                                     gradient: Gradient {
                                         orientation: Gradient.Horizontal
                                         GradientStop { position: 0; color: Qt.darker("#9fbfa8", 1.3) }
@@ -236,9 +236,9 @@ Item {
                             spacing: 12
 
                             Hint {
-                                text: Nav.mobile ? qsTr("Sign in to your Google account on the page that opens. When YouTube Music appears, Nokturn takes over and downloads your liked tracks and playlists.")
+                                text: Nav.mobile ? qsTr("Sign in to your Google account on the page that opens. When YouTube Music appears, Everplay takes over and downloads your liked tracks and playlists.")
                                       : YouTube.browserName !== ""
-                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to your Google account there as usual. When YouTube Music appears, the window closes by itself and Nokturn downloads your liked tracks and playlists.").arg(YouTube.browserName)
+                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to your Google account there as usual. When YouTube Music appears, the window closes by itself and Everplay downloads your liked tracks and playlists.").arg(YouTube.browserName)
                                       : qsTr("Chrome, Edge or Brave was not found. You can paste the cookies manually.")
                             }
                             Flow {
@@ -310,7 +310,7 @@ Item {
                             ArtCover {
                                 Layout.preferredWidth: 44
                                 Layout.preferredHeight: 44
-                                radius: 22
+                                radius: Theme.r(22)
                                 decorated: false
                                 colorA: "#cf9d9d"
                                 colorB: "#5c3a42"
@@ -382,7 +382,7 @@ Item {
                                     required property int index
                                     Layout.fillWidth: true
                                     implicitHeight: 44
-                                    radius: 10
+                                    radius: Theme.r(10)
                                     color: identityMouse.containsMouse ? Theme.alpha(Theme.text, 0.05) : "transparent"
                                     RowLayout {
                                         anchors { fill: parent; leftMargin: 8; rightMargin: 10 }
@@ -390,7 +390,7 @@ Item {
                                         ArtCover {
                                             Layout.preferredWidth: 28
                                             Layout.preferredHeight: 28
-                                            radius: 14
+                                            radius: Theme.r(14)
                                             decorated: false
                                             colorA: "#cf9d9d"
                                             colorB: "#5c3a42"
@@ -454,7 +454,7 @@ Item {
                                 spacing: 2
                                 Text {
                                     Layout.fillWidth: true
-                                    text: Nav.mobile ? qsTr("Playback through the Nokturn server") : qsTr("Playback engine (yt-dlp)")
+                                    text: Nav.mobile ? qsTr("Playback through the Everplay server") : qsTr("Playback engine (yt-dlp)")
                                     color: Theme.text
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
@@ -499,12 +499,12 @@ Item {
                             spacing: 12
 
                             Hint {
-                                text: qsTr("Spotify doesn't let other apps play its music, so Nokturn syncs your playlists and liked songs and plays each track from YouTube Music.")
+                                text: qsTr("Spotify doesn't let other apps play its music, so Everplay syncs your playlists and liked songs and plays each track from YouTube Music.")
                             }
                             Hint {
                                 visible: !spotifySignIn.ownApp
                                 text: YouTube.browserName !== ""
-                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to Spotify there as usual — a free account is enough. When the web player appears, the window closes by itself and Nokturn downloads your playlists and liked songs.").arg(YouTube.browserName)
+                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to Spotify there as usual — a free account is enough. When the web player appears, the window closes by itself and Everplay downloads your playlists and liked songs.").arg(YouTube.browserName)
                                       : qsTr("Signing in needs Google Chrome, Microsoft Edge or Brave.")
                             }
                             Flow {
@@ -573,7 +573,7 @@ Item {
                             Spinner { size: 22; color: Theme.warning }
                             Hint {
                                 text: Spotify.loginStatus !== "" ? Spotify.loginStatus
-                                      : qsTr("Sign in in the browser and allow access — Nokturn continues by itself.")
+                                      : qsTr("Sign in in the browser and allow access — Everplay continues by itself.")
                             }
                             PillButton {
                                 kind: "ghost"
@@ -591,7 +591,7 @@ Item {
                             ArtCover {
                                 Layout.preferredWidth: 44
                                 Layout.preferredHeight: 44
-                                radius: 22
+                                radius: Theme.r(22)
                                 decorated: false
                                 colorA: "#8fc79a"
                                 colorB: "#2f4a36"
@@ -652,7 +652,7 @@ Item {
                             }
                             Hint {
                                 visible: !soundcloudSignIn.manual
-                                text: Nav.mobile ? qsTr("Sign in to SoundCloud on the page that opens; Nokturn takes over once you're signed in.")
+                                text: Nav.mobile ? qsTr("Sign in to SoundCloud on the page that opens; Everplay takes over once you're signed in.")
                                       : YouTube.browserName !== ""
                                       ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to SoundCloud there as usual; once your feed appears, the window closes by itself.").arg(YouTube.browserName)
                                       : qsTr("Signing in needs Google Chrome, Microsoft Edge or Brave.")
@@ -731,7 +731,7 @@ Item {
                             ArtCover {
                                 Layout.preferredWidth: 44
                                 Layout.preferredHeight: 44
-                                radius: 22
+                                radius: Theme.r(22)
                                 decorated: false
                                 colorA: "#d9a27e"
                                 colorB: "#5a3a28"

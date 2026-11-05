@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Step 7: summary of the choices.
 Item {
@@ -88,7 +88,7 @@ Item {
                     required property int index
                     Layout.fillWidth: true
                     Layout.preferredHeight: 64
-                    radius: 16
+                    radius: Theme.r(16)
                     color: Theme.alpha(Theme.surface, 0.72)
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.06)

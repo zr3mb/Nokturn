@@ -1,13 +1,13 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
-// A wallpaper that moves with the music. Nokturn stretches this item over the whole window, behind
+// A wallpaper that moves with the music. Everplay stretches this item over the whole window, behind
 // the panels; the panels are translucent, so it shows through them.
 Item {
     id: root
 
-    // Set by Nokturn: this plugin's settings, files and id (see docs/plugins.md).
+    // Set by Everplay: this plugin's settings, files and id (see docs/plugins.md).
     property var plugin
 
     // Settings (Settings.qml writes them). `plugin.revision` makes the bindings follow changes.

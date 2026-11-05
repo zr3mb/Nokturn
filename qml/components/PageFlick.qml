@@ -1,13 +1,13 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // Scrollable page: a column of sections with margins and a thin scroll bar.
 Flickable {
     id: root
     default property alias content: column.data
-    property real padding: Nav.mobile ? 16 : 34
+    property real padding: Nav.mobile ? 16 : 38
     property alias spacing: column.spacing
 
     contentWidth: width
@@ -24,6 +24,6 @@ Flickable {
         x: root.padding
         y: root.padding
         width: root.width - root.padding * 2
-        spacing: 34
+        spacing: 40
     }
 }

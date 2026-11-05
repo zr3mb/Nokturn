@@ -1,4 +1,4 @@
-﻿# Releases a new Nokturn version: bumps the number, builds the installer, publishes a GitHub Release.
+﻿# Releases a new Everplay version: bumps the number, builds the installer, publishes a GitHub Release.
 # Users' apps will show the "New version available" dialog (src/Updater.cpp).
 #   .\release.ps1 -Version 0.2.0 -Notes "- Faster start for YouTube tracks"
 #   .\release.ps1 -Version 0.2.0 -NotesFile changes.md
@@ -17,7 +17,7 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     throw "The version must look like X.Y.Z (e.g. 0.2.0)"
 }
 $cmake = Join-Path $root 'CMakeLists.txt'
-$current = (Select-String -Path $cmake -Pattern 'project\(Nokturn VERSION ([\d.]+)').Matches[0].Groups[1].Value
+$current = (Select-String -Path $cmake -Pattern 'project\(Everplay VERSION ([\d.]+)').Matches[0].Groups[1].Value
 if ([version]$Version -le [version]$current) {
     throw "The new version ($Version) must be higher than the current one ($current)"
 }
@@ -31,16 +31,16 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     throw "GitHub CLI (gh) is missing — install it: winget install GitHub.cli"
 }
 
-# 1. Version number (reaches the app through NOKTURN_VERSION and the installer)
-$text = [IO.File]::ReadAllText($cmake) -replace 'project\(Nokturn VERSION [\d.]+', "project(Nokturn VERSION $Version"
+# 1. Version number (reaches the app through EVERPLAY_VERSION and the installer)
+$text = [IO.File]::ReadAllText($cmake) -replace 'project\(Everplay VERSION [\d.]+', "project(Everplay VERSION $Version"
 [IO.File]::WriteAllText($cmake, $text, (New-Object Text.UTF8Encoding $false))   # without BOM
 
 # 2. Setup + the package it downloads, and the checksum the Updater verifies before running the setup
 & (Join-Path $root 'build-installer.ps1')
 if ($LASTEXITCODE) { git checkout -- $cmake; exit $LASTEXITCODE }
-$setupName = "Nokturn-$Version-setup.exe"
+$setupName = "Everplay-$Version-setup.exe"
 $setup = Join-Path $root "installer\$setupName"
-$payload = Join-Path $root "installer\Nokturn-$Version-win64.tar.zst"
+$payload = Join-Path $root "installer\Everplay-$Version-win64.tar.zst"
 $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
 $sha = "$setup.sha256"
 Set-Content $sha "$hash  $setupName" -Encoding ascii -NoNewline
@@ -54,10 +54,10 @@ git push origin main "v$Version"
 if ($LASTEXITCODE) { throw "Couldn't push version $Version" }
 
 # 4. GitHub Release with the setup and its package (the setup downloads it from this release)
-$ghArgs = @("v$Version", $setup, $sha, $payload, '--title', "Nokturn $Version")
+$ghArgs = @("v$Version", $setup, $sha, $payload, '--title', "Everplay $Version")
 if ($NotesFile) { $ghArgs += @('--notes-file', $NotesFile) }
 elseif ($Notes) { $ghArgs += @('--notes', $Notes) }
 else { $ghArgs += '--generate-notes' }
 gh release create @ghArgs
 if ($LASTEXITCODE) { throw "Couldn't create the GitHub release" }
-Write-Host "Published Nokturn $Version"
+Write-Host "Published Everplay $Version"

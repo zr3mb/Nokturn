@@ -1,17 +1,17 @@
-# Writing plugins for Nokturn
+# Writing plugins for Everplay
 
 *[Po polsku](plugins.pl.md)*
 
-A plugin adds something to Nokturn without changing the app itself: an animated wallpaper that
+A plugin adds something to Everplay without changing the app itself: an animated wallpaper that
 moves with the music, a colour theme, a small card that pops up when a track changes, or logic
 that restyles the interface. Plugins are written in **QML** (with JavaScript), the same language
-Nokturn's interface is made of, so a plugin can use everything the app's own screens use.
+Everplay's interface is made of, so a plugin can use everything the app's own screens use.
 
 Users install plugins on the **Plugins** page: from the catalog with one click, or from a `.zip`
 file. This guide shows how to write one.
 
-> **A plugin is code.** It runs inside Nokturn with the app's rights: it can see what is playing
-> and use the internet. Nokturn warns about this before every install. Don't publish plugins that
+> **A plugin is code.** It runs inside Everplay with the app's rights: it can see what is playing
+> and use the internet. Everplay warns about this before every install. Don't publish plugins that
 > collect data, and don't install plugins you don't trust.
 
 ## Contents
@@ -30,11 +30,11 @@ file. This guide shows how to write one.
 
 ## Your first plugin in five minutes
 
-1. In Nokturn open **Plugins → Plugins folder**. Every plugin is one folder in there.
-   The folder is in Nokturn's data directory:
-   - Windows: `%APPDATA%\Nokturn\Nokturn\plugins`
-   - Linux: `~/.local/share/Nokturn/Nokturn/plugins`
-   - macOS: `~/Library/Application Support/Nokturn/Nokturn/plugins`
+1. In Everplay open **Plugins → Plugins folder**. Every plugin is one folder in there.
+   The folder is in Everplay's data directory:
+   - Windows: `%APPDATA%\Everplay\Everplay\plugins`
+   - Linux: `~/.local/share/Everplay/Everplay/plugins`
+   - macOS: `~/Library/Application Support/Everplay/Everplay/plugins`
 2. Make a folder `hello-wallpaper` with two files.
 
    `plugin.json`:
@@ -55,7 +55,7 @@ file. This guide shows how to write one.
 
    ```qml
    import QtQuick
-   import Nokturn
+   import Everplay
 
    Item {
        Rectangle {
@@ -70,10 +70,10 @@ file. This guide shows how to write one.
    }
    ```
 
-3. Back in Nokturn press **Reload**. The plugin shows up under **Installed**, switched on. Play
+3. Back in Everplay press **Reload**. The plugin shows up under **Installed**, switched on. Play
    something: a circle in the colour of the cover breathes behind the panels.
 
-Edit the files and press **Reload** again to see the change; there's no need to restart Nokturn.
+Edit the files and press **Reload** again to see the change; there's no need to restart Everplay.
 If something is wrong in the QML, the error appears in red on the plugin's card.
 
 The [`plugins/`](../plugins) folder of this repository has three complete examples:
@@ -100,7 +100,7 @@ The [`plugins/`](../plugins) folder of this repository has three complete exampl
 | `preview` | no | A square picture (PNG, 256×256 is plenty) for the card and the catalog. |
 
 `name` and `description` (and a theme's `name`) can be translated. Give an object with language
-codes instead of a string; Nokturn picks the interface language, then English:
+codes instead of a string; Everplay picks the interface language, then English:
 
 ```json
 "name": { "en": "Spectrum wallpaper", "pl": "Tapeta spektrum" }
@@ -110,7 +110,7 @@ All paths are relative to the plugin's folder and can't leave it.
 
 ## Where a plugin draws: slots
 
-Each QML file named in `plugin.json` is built once when Nokturn starts (or when the plugin is
+Each QML file named in `plugin.json` is built once when Everplay starts (or when the plugin is
 switched on), in one of these places:
 
 | Slot | Where | Size | Mouse |
@@ -127,7 +127,7 @@ When the plugin is switched off or removed, its items are destroyed.
 
 ## The `plugin` object: settings and files
 
-Declare `property var plugin` in the root item of any of your files and Nokturn fills it in
+Declare `property var plugin` in the root item of any of your files and Everplay fills it in
 before your bindings run:
 
 ```qml
@@ -160,7 +160,7 @@ them too.
 
 ## What a plugin can read and do
 
-`import Nokturn` gives a plugin the same singletons the app's own screens use. The ones below
+`import Everplay` gives a plugin the same singletons the app's own screens use. The ones below
 are what plugins can rely on in API version 1; anything else in the module may change between
 versions.
 
@@ -199,7 +199,7 @@ app's own animations).
 **Components**: `ArtCover` (a cover with a gradient fallback), `Icon` (`name`, `size`, `color`;
 the names are in `qml/Icons.qml`), `Visualizer` (spectrum bars), `PillButton`, `IconButton`,
 `Toggle`, `SegmentedTabs`, `ProgressSlider`. Using them keeps a plugin looking like part of
-Nokturn.
+Everplay.
 
 Plugins can also use everything Qt Quick offers: `QtQuick.Shapes`, `QtQuick.Effects`
 (`MultiEffect`), `ShaderEffect`, `Canvas`, `XMLHttpRequest`, timers and animations.
@@ -231,10 +231,10 @@ The themes appear in **Settings → Appearance** next to the built-in ones. The 
 | `text`, `textDim`, `textFaint` | Main text, secondary text, hints. |
 | `accent`, `accent2` | The accent colour and its darker partner (gradients, the vinyl label). |
 | `onAccent` | Text on accent-coloured buttons. |
-| `fixedAccent` | `true` (the default for plugin themes): the theme keeps its accent. `false`: the accent follows the cover like in the Nokturn theme. |
+| `fixedAccent` | `true` (the default for plugin themes): the theme keeps its accent. `false`: the accent follows the cover like in the Everplay theme. |
 | `fontDisplay`, `fontText` | Optional font families for headings and body text, for example `"Georgia"`. The font has to be installed on the computer. |
 
-A missing colour is taken from the Nokturn theme. Keep themes dark with light text: covers,
+A missing colour is taken from the Everplay theme. Keep themes dark with light text: covers,
 lyrics and overlays are drawn assuming that. Check that `textDim` stays readable on `surface`.
 
 ## Restyling the interface from QML
@@ -245,7 +245,7 @@ back.
 
 ```qml
 import QtQuick
-import Nokturn
+import Everplay
 
 // The accent pulses with the bass, whatever theme is chosen.
 Item {
@@ -265,12 +265,12 @@ pick it like any other.
 ## A settings screen
 
 Name a QML file in `"settings"` and the plugin's card gets a settings button that opens it in a
-window. Its root gets `plugin` like any other file. Nokturn's components make it look native:
+window. Its root gets `plugin` like any other file. Everplay's components make it look native:
 
 ```qml
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 ColumnLayout {
     property var plugin
@@ -297,29 +297,29 @@ The other files see the change at once through `plugin.revision`.
 inside one folder. Others install it with **Plugins → Install from file**. Selecting a
 `plugin.json` on disk works too: the folder is copied in.
 
-**The catalog.** The catalog on the Nokturn server is what the **Catalog** tab shows. To get a
+**The catalog.** The catalog on the Everplay server is what the **Catalog** tab shows. To get a
 plugin in, send it to the maintainers: open an issue or a pull request that adds its folder under
 [`plugins/`](../plugins). Plugins in the catalog are read before they're published.
 
 For maintainers: `python plugins/build-catalog.py` packs every folder in `plugins/` into
 `dist/plugins` (`<id>-<version>.zip`, `<id>.png`, `index.json` with sizes and SHA-256 sums). Upload
-those files to `/var/lib/nokturn/plugins` on the server; Nokturn reads
+those files to `/var/lib/nokturn/plugins` on the server; Everplay reads
 `https://<server>/plugins/index.json` and checks every download against the sum in it.
 
 ## Debugging
 
 - **Errors** from loading a plugin's QML appear on its card, with the file and line.
-- **`console.log()`** output goes to the terminal when Nokturn is started from one with its output
+- **`console.log()`** output goes to the terminal when Everplay is started from one with its output
   piped (on Windows, from Git Bash or a similar shell):
 
   ```bash
-  QT_FORCE_STDERR_LOGGING=1 "C:/Program Files/Nokturn/Nokturn.exe" 2>&1 | cat
+  QT_FORCE_STDERR_LOGGING=1 "C:/Program Files/Everplay/Everplay.exe" 2>&1 | cat
   ```
 
 - **Reload** builds every plugin again from its files.
-- **A separate profile** keeps experiments away from your library: start Nokturn with
-  `NOKTURN_PROFILE=<an empty folder>`; plugins then live in `<that folder>/plugins`.
-- **A test catalog**: `NOKTURN_PLUGIN_CATALOG=file:///path/to/index.json` makes the Catalog tab
+- **A separate profile** keeps experiments away from your library: start Everplay with
+  `EVERPLAY_PROFILE=<an empty folder>`; plugins then live in `<that folder>/plugins`.
+- **A test catalog**: `EVERPLAY_PLUGIN_CATALOG=file:///path/to/index.json` makes the Catalog tab
   read your own `index.json` (build it with `build-catalog.py <folder>`).
 
 ## Good manners: speed and safety

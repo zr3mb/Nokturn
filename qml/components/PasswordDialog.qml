@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // A shared playlist's password: asked when joining one that has it, or set / removed by its owner.
 Popup {
@@ -46,7 +46,7 @@ Popup {
     focus: true
     padding: 26
     background: Rectangle {
-        radius: 22
+        radius: Theme.r(22)
         color: Theme.surfaceHi
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.07)

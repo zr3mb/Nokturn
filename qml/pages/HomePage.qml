@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 Item {
     id: page
@@ -95,7 +95,7 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            radius: 16
+            radius: Theme.r(16)
             color: Theme.alpha(Theme.text, miniHover.hovered ? 0.075 : 0.045)
             border.width: 1
             border.color: Theme.alpha(mini.modelData.color, miniHover.hovered ? 0.3 : 0.08)
@@ -107,7 +107,7 @@ Item {
             id: miniIcon
             x: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: 46; height: 46; radius: 14
+            width: 46; height: 46; radius: Theme.r(14)
             color: Theme.alpha(mini.modelData.color, 0.15)
             scale: miniHover.hovered ? 1.06 : 1
             rotation: miniHover.hovered ? -5 : 0
@@ -152,6 +152,94 @@ Item {
         }
     }
 
+    // A built-in list on the home page: the cover at the left edge, the name, a Play button on hover.
+    component QuickPick: Item {
+        id: pick
+        required property var modelData
+        required property int index
+        readonly property var p: modelData.p
+
+        opacity: 0
+        transform: [
+            Scale { id: pickScale; origin.x: pick.width / 2; origin.y: pick.height / 2; xScale: 0.9; yScale: 0.9 },
+            Translate { y: pickHover.hovered ? -3 : 0; Behavior on y { NumberAnimation { duration: Theme.ms(280); easing.type: Easing.OutCubic } } }
+        ]
+        SequentialAnimation {
+            running: true
+            PauseAnimation { duration: Theme.ms(200 + pick.index * 60) }
+            ParallelAnimation {
+                NumberAnimation { target: pick; property: "opacity"; to: 1; duration: Theme.ms(420); easing.type: Easing.OutCubic }
+                NumberAnimation { target: pickScale; properties: "xScale,yScale"; to: 1; duration: Theme.ms(700); easing.type: Easing.OutBack }
+            }
+        }
+        signal clicked
+        signal playClicked
+
+        Layout.fillWidth: true
+        Layout.preferredWidth: 100
+        implicitHeight: 72
+
+        HoverHandler { id: pickHover; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: pick.clicked() }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radiusM + 2
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: Theme.alpha(pick.p.colorA || Theme.accent, pickHover.hovered ? 0.32 : 0.2) }
+                GradientStop { position: 1; color: Theme.alpha(Theme.text, pickHover.hovered ? 0.07 : 0.04) }
+            }
+            border.width: 1
+            border.color: pickHover.hovered ? Theme.alpha(pick.p.colorA || Theme.accent, 0.4) : Theme.hairline
+            scale: pickHover.hovered ? 1.015 : 1
+            Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutCubic } }
+        }
+
+        ArtCover {
+            id: pickCover
+            x: 10
+            anchors.verticalCenter: parent.verticalCenter
+            width: 52; height: 52
+            radius: Theme.r(12)
+            decorated: false
+            colorA: pick.p.colorA || Theme.accent
+            colorB: pick.p.colorB || Theme.accent2
+            seed: pick.p.seed || 0
+            source: pick.p.cover || ""
+            mosaic: pick.p.mosaic || []
+            Icon {
+                anchors.centerIn: parent
+                visible: !pickCover.hasPicture
+                name: pick.p.icon || "music"
+                size: 22
+                color: "#ffffff"
+            }
+        }
+        Text {
+            // The phone has no hover play button: the name takes its room and two lines.
+            anchors { left: pickCover.right; leftMargin: Nav.mobile ? 12 : 14; right: Nav.mobile ? parent.right : pickPlay.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+            text: pick.p.name || ""
+            color: Theme.text
+            font.pixelSize: Nav.mobile ? 14 : 15
+            font.weight: Font.Bold
+            wrapMode: Text.Wrap
+            maximumLineCount: Nav.mobile ? 2 : 1
+            elide: Text.ElideRight
+        }
+        PlayFab {
+            id: pickPlay
+            anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+            size: 38
+            visible: !Nav.mobile
+            opacity: pickHover.hovered ? 1 : 0
+            scale: pickHover.hovered ? 1 : 0.7
+            Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+            Behavior on scale { NumberAnimation { duration: Theme.ms(300); easing.type: Easing.OutBack } }
+            onClicked: pick.playClicked()
+        }
+    }
+
     // The shadow shared by the album cards
     CardShadow {
         id: albumShadow
@@ -172,7 +260,7 @@ Item {
                 id: banner
                 width: parent.width
                 height: 168
-                radius: 22
+                radius: Theme.r(22)
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop { position: 0.0; color: Theme.alpha(Theme.accent2, 0.5) }
@@ -209,7 +297,7 @@ Item {
                         spacing: 10
                         Text {
                             id: bannerTitle
-                            text: "Nokturn"
+                            text: "Everplay"
                             color: Qt.lighter(Theme.accent, 1.12)
                             font.family: Theme.fontDisplay
                             font.pixelSize: 64
@@ -247,13 +335,21 @@ Item {
         Reveal {
             ColumnLayout {
                 width: parent.width
-                spacing: 4
+                spacing: 2
+                Text {
+                    text: new Date().toLocaleDateString(Qt.locale(), "dddd, d MMMM").toUpperCase()
+                    color: Theme.accent
+                    font.pixelSize: 12
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.8
+                }
                 Text {
                     text: Theme.greeting()
                     color: Theme.text
                     font.family: Theme.fontDisplay
-                    font.pixelSize: 38
+                    font.pixelSize: 48
                     font.weight: Font.Bold
+                    font.letterSpacing: -1.4
                 }
                 Text {
                     Layout.fillWidth: true
@@ -268,33 +364,24 @@ Item {
 
         Reveal {
             delay: 70
+            visible: !Nav.mobile   // a phone starts from YouTube Music, not from a folder
+            HeroCard { width: parent.width }
+        }
+
+        // The built-in lists as colour tiles, three to a row
+        Reveal {
+            delay: 110
             GridLayout {
-                id: topRow
+                id: shortcutGrid
                 width: parent.width
-                columns: width > 800 ? 2 : 1
-                columnSpacing: 18
+                columns: width > 980 ? 3 : 2
+                columnSpacing: 14
                 rowSpacing: 14
-                HeroCard {
-                    Layout.alignment: Qt.AlignTop
-                    visible: !Nav.mobile   // a phone starts from YouTube Music, not from a folder
-                }
-                // The built-in lists, beside the card (below it, in two columns, in a narrow window)
-                Grid {
-                    id: shortcutList
-                    Layout.preferredWidth: topRow.columns > 1 ? 230 : topRow.width
-                    Layout.alignment: Qt.AlignTop
-                    columns: topRow.columns > 1 ? 1 : 2
-                    columnSpacing: 14
-                    readonly property real cellW: (Layout.preferredWidth - columnSpacing * (columns - 1)) / columns
-                    Repeater {
-                        model: page.shortcuts
-                        PlaylistRow {
-                            required property var modelData
-                            width: shortcutList.cellW
-                            playlist: modelData.p
-                            onClicked: page.openPick(modelData.p, modelData.index)
-                            onPlayClicked: page.playPick(modelData.p, modelData.index)
-                        }
+                Repeater {
+                    model: page.shortcuts
+                    QuickPick {
+                        onClicked: page.openPick(modelData.p, modelData.index)
+                        onPlayClicked: page.playPick(modelData.p, modelData.index)
                     }
                 }
             }
@@ -602,7 +689,7 @@ Item {
                 SectionHeader {
                     Layout.fillWidth: true
                     title: qsTr("Your sources")
-                    subtitle: qsTr("Where Nokturn gets its music")
+                    subtitle: qsTr("Where Everplay gets its music")
                     action: qsTr("Manage")
                     onActionClicked: Nav.navigate("sources")
                 }

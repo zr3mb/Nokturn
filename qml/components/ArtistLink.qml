@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Artist name that opens the artist profile on click (underlined on hover).
 Text {

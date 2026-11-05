@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import QtQuick.Window
-import Nokturn
+import Everplay
 
 // What sits behind the panels: the chosen wallpaper (any theme) and, in the Cat theme,
 // a neon night city with hearts and sparkles. The translucent panels let it show through.

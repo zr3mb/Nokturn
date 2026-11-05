@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Preview of a transition between tracks: the envelope of the ending track and the incoming next one
 // (overlap length = crossfade), with a moving playhead.
@@ -21,7 +21,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 14
+        radius: Theme.r(14)
         color: Theme.alpha(Theme.text, 0.035)
     }
 

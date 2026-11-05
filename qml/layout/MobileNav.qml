@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Phone layout: the bottom navigation bar in place of the sidebar.
 Rectangle {

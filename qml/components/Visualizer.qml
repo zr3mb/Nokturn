@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Bar visualizer fed with the spectrum from PlayerController.
 Item {

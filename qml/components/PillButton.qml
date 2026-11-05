@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Pill-shaped button: "primary" | "secondary" | "ghost".
 Item {
@@ -13,9 +13,16 @@ Item {
 
     readonly property color fg: kind === "primary" ? Theme.onAccent : Theme.text
 
-    implicitHeight: 40
-    implicitWidth: row.implicitWidth + 36
+    implicitHeight: 44
+    implicitWidth: row.implicitWidth + 40
     opacity: enabled ? 1 : 0.45
+
+    PressRing {
+        id: ring
+        radius: bg.radius
+        color: root.kind === "primary" ? Theme.accent : Theme.text
+        spread: 1.12
+    }
 
     Rectangle {
         id: bg
@@ -24,10 +31,10 @@ Item {
         color: root.kind === "primary"
                ? (mouse.containsMouse ? Qt.lighter(Theme.accent, 1.1) : Theme.accent)
                : root.kind === "secondary"
-                 ? Theme.alpha(Theme.text, mouse.containsMouse ? 0.13 : 0.08)
-                 : Theme.alpha(Theme.text, mouse.containsMouse ? 0.06 : 0)
-        border.width: root.kind === "ghost" ? 1 : 0
-        border.color: Theme.alpha(Theme.text, mouse.containsMouse ? 0.3 : 0.16)
+                 ? Theme.alpha(Theme.text, mouse.containsMouse ? 0.15 : 0.09)
+                 : Theme.alpha(Theme.text, mouse.containsMouse ? 0.07 : 0)
+        border.width: root.kind === "primary" ? 0 : 1
+        border.color: Theme.alpha(Theme.text, root.kind === "ghost" ? (mouse.containsMouse ? 0.28 : 0.14) : 0.08)
         scale: mouse.pressed ? 0.96 : 1
         Behavior on color { ColorAnimation { duration: Theme.normal } }
         Behavior on scale { NumberAnimation { duration: Theme.ms(220); easing.type: Easing.OutBack } }
@@ -50,13 +57,21 @@ Item {
             name: root.icon
             size: 18
             color: root.fg
+            rotation: mouse.containsMouse ? -8 : 0
+            scale: mouse.containsMouse ? 1.12 : 1
+            Behavior on rotation { NumberAnimation { duration: Theme.ms(320); easing.type: Easing.OutBack } }
+            Behavior on scale { NumberAnimation { duration: Theme.ms(320); easing.type: Easing.OutBack } }
+            rotation: mouse.containsMouse ? -8 : 0
+            scale: mouse.containsMouse ? 1.12 : 1
+            Behavior on rotation { NumberAnimation { duration: Theme.ms(320); easing.type: Easing.OutBack } }
+            Behavior on scale { NumberAnimation { duration: Theme.ms(320); easing.type: Easing.OutBack } }
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
             color: root.fg
             font.pixelSize: root.fontSize
-            font.weight: Font.DemiBold
+            font.weight: Font.Bold
         }
     }
 
@@ -66,6 +81,9 @@ Item {
         hoverEnabled: true
         enabled: !root.busy
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        onClicked: {
+            ring.burst()
+            root.clicked()
+        }
     }
 }

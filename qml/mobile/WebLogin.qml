@@ -1,6 +1,6 @@
 import QtQuick
 import QtWebView
-import Nokturn
+import Everplay
 
 // Android: signing in to YouTube Music or SoundCloud inside the app. The page runs in the system
 // WebView; once the account's cookies are there, they're read from Android's CookieManager and

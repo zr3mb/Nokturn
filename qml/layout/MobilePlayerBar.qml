@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Phone layout: the mini player above the bottom navigation. Tapping it opens the full-screen player.
 Item {

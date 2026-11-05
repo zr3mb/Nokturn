@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Step 5: transitions between tracks (crossfade / mix style) and lyrics.
 Item {

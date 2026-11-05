@@ -51,15 +51,15 @@ jobs:
           $msys = Join-Path '${{ steps.msys.outputs.msys2-location }}' 'ucrt64'
           ./build-installer.ps1 -Msys $msys
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(Nokturn VERSION ([\d.]+)').Matches[0].Groups[1].Value
-          $setup = "installer/Nokturn-$version-setup.exe"
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(Everplay VERSION ([\d.]+)').Matches[0].Groups[1].Value
+          $setup = "installer/Everplay-$version-setup.exe"
           $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
-          Set-Content "$setup.sha256" "$hash  Nokturn-$version-setup.exe" -Encoding ascii -NoNewline
+          Set-Content "$setup.sha256" "$hash  Everplay-$version-setup.exe" -Encoding ascii -NoNewline
           Get-ChildItem installer
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Nokturn-windows
+          name: Everplay-windows
           path: installer/*
 
       - name: Attach to the release

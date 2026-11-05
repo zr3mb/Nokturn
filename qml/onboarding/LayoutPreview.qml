@@ -1,8 +1,8 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
-// Animated thumbnail of the Nokturn window for the wizard: shows what a layout variant looks like
+// Animated thumbnail of the Everplay window for the wizard: shows what a layout variant looks like
 // (full / compact sidebar, the "Now playing" panel, accent color, live background).
 // Everything is drawn with simple shapes in relative units (u = 1% of the width).
 Item {

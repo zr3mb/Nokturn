@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 ScrollBar {
     id: control

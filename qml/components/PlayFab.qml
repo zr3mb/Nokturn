@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // Round play button shown on cards on hover.
 Item {
@@ -13,6 +13,8 @@ Item {
 
     implicitWidth: size
     implicitHeight: size
+
+    PressRing { id: ring }
 
     Rectangle {
         id: disc
@@ -46,7 +48,10 @@ Item {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onPressed: if (root.prefetchRow >= 0 && !root.playing) Player.prefetch(root.prefetchRow)
-        onClicked: root.clicked()
+        onClicked: {
+            ring.burst()
+            root.clicked()
+        }
     }
 
     Timer {

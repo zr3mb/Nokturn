@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Step 3: accent color (from the cover / fixed) and background (live / calm).
 Item {
@@ -12,7 +12,7 @@ Item {
 
         StepTitle {
             title: qsTr("Colors and mood")
-            subtitle: qsTr("Nokturn can take on the colors of the playing track's cover and gently pulse with light to the music.")
+            subtitle: qsTr("Everplay can take on the colors of the playing track's cover and gently pulse with light to the music.")
         }
 
         RowLayout {

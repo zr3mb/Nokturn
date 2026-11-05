@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 Item {
     id: root
@@ -17,27 +17,40 @@ Item {
     property var coverMosaic: []
     property bool ownHighlight: false
     property bool playing: false
+    property int revealDelay: -1   // >= 0: slides in after this many ms (the menu at startup)
     signal clicked
 
+    transform: Translate { id: enterShift }
+    SequentialAnimation {
+        id: enterAnim
+        PauseAnimation { duration: Theme.ms(Math.max(0, root.revealDelay)) }
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.ms(500); easing.type: Easing.OutCubic }
+            NumberAnimation { target: enterShift; property: "x"; to: 0; duration: Theme.ms(700); easing.type: Easing.OutQuint }
+        }
+    }
+    Component.onCompleted: if (revealDelay >= 0) { opacity = 0; enterShift.x = -24; enterAnim.start() }
+
     width: parent ? parent.width : 220
-    height: cover ? 50 : 40
+    height: cover ? 52 : 44
 
     Rectangle {
         anchors.fill: parent
-        radius: 12
-        color: Theme.alpha(Theme.text, root.selected && root.ownHighlight ? 0.08 : 0.045)
+        radius: Theme.r(14)
+        color: root.selected && root.ownHighlight ? Theme.alpha(Theme.accent, 0.16) : Theme.alpha(Theme.text, 0.05)
         opacity: (mouse.containsMouse && !root.selected) || (root.selected && root.ownHighlight) ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.fast } }
     }
 
     Icon {
         visible: !root.cover
-        x: 15
+        x: root.compact ? (parent.width - width) / 2 : 15
         anchors.verticalCenter: parent.verticalCenter
         name: root.icon
-        size: 20
-        color: root.selected || mouse.containsMouse ? Theme.text : Theme.textDim
-        scale: mouse.pressed ? 0.84 : 1
+        size: 21
+        color: root.selected ? Theme.accent : mouse.containsMouse ? Theme.text : Theme.textDim
+        Behavior on x { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutQuint } }
+        scale: mouse.pressed ? 0.84 : mouse.containsMouse || root.selected ? 1.12 : 1
         Behavior on color { ColorAnimation { duration: Theme.normal } }
         Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
     }
@@ -45,10 +58,11 @@ Item {
     ArtCover {
         id: art
         visible: root.cover
-        x: 10
-        width: 34; height: 34
+        x: root.compact ? (parent.width - width) / 2 : 9
+        width: 38; height: 38
         anchors.verticalCenter: parent.verticalCenter
-        radius: 9
+        radius: Theme.r(11)
+        Behavior on x { NumberAnimation { duration: Theme.ms(460); easing.type: Easing.OutQuint } }
         decorated: false
         colorA: root.colorA
         colorB: root.colorB
@@ -69,11 +83,15 @@ Item {
 
     Column {
         anchors {
-            left: parent.left; leftMargin: root.cover ? 56 : 50
+            left: parent.left; leftMargin: root.cover ? 58 : 50
             right: parent.right; rightMargin: 10
             verticalCenter: parent.verticalCenter
         }
         spacing: 1
+        transform: Translate {
+            x: mouse.containsMouse && !root.selected ? 5 : 0
+            Behavior on x { NumberAnimation { duration: Theme.ms(300); easing.type: Easing.OutCubic } }
+        }
         opacity: root.compact ? 0 : 1
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: root.compact ? 120 : 380; easing.type: Easing.OutCubic } }
@@ -84,7 +102,7 @@ Item {
             elide: Text.ElideRight
             color: root.selected || root.playing ? (root.playing ? Theme.accent : Theme.text) : Theme.textDim
             font.pixelSize: 14
-            font.weight: root.selected ? Font.DemiBold : Font.Medium
+            font.weight: root.selected ? Font.Bold : Font.Medium
             Behavior on color { ColorAnimation { duration: Theme.normal } }
         }
         Text {

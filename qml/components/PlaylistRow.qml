@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // A compact playlist row (small cover, name, Play on hover): the shortcuts on the home page and the
 // playlists found by the search. playlist: a Library.playlists entry (or one shaped like it).
@@ -18,7 +18,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 8
+        radius: Theme.r(8)
         color: Theme.alpha(Theme.text, hover.hovered ? 0.06 : 0)
         Behavior on color { ColorAnimation { duration: Theme.fast } }
     }
@@ -28,7 +28,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: root.subtitle !== "" ? 38 : 26
         height: width
-        radius: root.subtitle !== "" ? 8 : 7
+        radius: Theme.r(root.subtitle !== "" ? 8 : 7)
         decorated: false
         colorA: root.playlist.colorA || Theme.accent
         colorB: root.playlist.colorB || Theme.accent2

@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Source status as a tinted label (a spinner while connecting).
 Rectangle {

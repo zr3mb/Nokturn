@@ -142,7 +142,7 @@ Library::Library(QObject *parent)
         const QString id = track.id;
         if (track.source == QLatin1String("youtube") && !track.demo) {
             YouTubeService::instance()->setTrackLiked(id, liked);   // the heart also goes to the account
-            OnlineService::instance()->noteLiked(track, liked);     // and to the Nokturn account's devices
+            OnlineService::instance()->noteLiked(track, liked);     // and to the Everplay account's devices
             return;
         }
         if (track.source == QLatin1String("soundcloud") && SoundCloudService::instance()->connected()) {
@@ -449,7 +449,7 @@ void Library::requestRebuild()
 void Library::rebuildModel()
 {
     m_rebuildTimer.stop();
-    static const bool perf = qEnvironmentVariableIsSet("NOKTURN_PERF_DEBUG");
+    static const bool perf = qEnvironmentVariableIsSet("EVERPLAY_PERF_DEBUG");
     QElapsedTimer clock;
     clock.start();
     bool changed = false;

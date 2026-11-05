@@ -27,7 +27,7 @@ AudioCache::AudioCache(QObject *parent)
     : QObject(parent)
 {
     // A test profile keeps its own cache; otherwise the system's cache location (not the roaming profile).
-    const QString profile = qEnvironmentVariable("NOKTURN_PROFILE");
+    const QString profile = qEnvironmentVariable("EVERPLAY_PROFILE");
     m_dir = (profile.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
                                : AppPaths::dataDir() + QStringLiteral("/cache"))
             + QStringLiteral("/audio");

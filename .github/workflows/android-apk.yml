@@ -75,9 +75,9 @@ jobs:
           if [[ -n "$KEYSTORE" ]]; then
             echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.keystore"
             {
-              echo "NOKTURN_KEYSTORE=$RUNNER_TEMP/release.keystore"
-              echo "NOKTURN_KEYSTORE_PASS=$PASSWORD"
-              echo "NOKTURN_KEY_ALIAS=$ALIAS"
+              echo "EVERPLAY_KEYSTORE=$RUNNER_TEMP/release.keystore"
+              echo "EVERPLAY_KEYSTORE_PASS=$PASSWORD"
+              echo "EVERPLAY_KEY_ALIAS=$ALIAS"
             } >> "$GITHUB_ENV"
           else
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — the APK is signed with a throwaway key."
@@ -95,7 +95,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Nokturn-android
+          name: Everplay-android
           path: dist/*
 
       - name: Attach to the release

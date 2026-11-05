@@ -3,7 +3,7 @@ import struct, subprocess, sys
 from pathlib import Path
 
 here = Path(__file__).resolve().parent
-icon_svg = here.parent / "linux" / "nokturn.svg"
+icon_svg = here.parent / "linux" / "everplay.svg"
 out = here / "assets"
 out.mkdir(exist_ok=True)
 rsvg = sys.argv[1] if len(sys.argv) > 1 else "rsvg-convert"
@@ -21,7 +21,7 @@ entries = b""
 for s, data in zip(sizes, pngs):
     entries += struct.pack("<BBBBHHII", s % 256, s % 256, 0, 0, 1, 32, len(data), offset)
     offset += len(data)
-(out / "nokturn.ico").write_bytes(head + entries + b"".join(pngs))
+(out / "everplay.ico").write_bytes(head + entries + b"".join(pngs))
 for s in sizes:
     (out / f"icon-{s}.png").unlink()
 print("Done:", out)

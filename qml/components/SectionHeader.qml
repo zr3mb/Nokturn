@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 RowLayout {
     id: root
@@ -16,13 +16,28 @@ RowLayout {
         Layout.fillWidth: true
         spacing: 2
 
+        Rectangle {
+            id: stroke
+            Layout.preferredWidth: 0
+            Layout.preferredHeight: 4
+            Layout.bottomMargin: 6
+            radius: Theme.r(2)
+            color: Theme.accent
+            SequentialAnimation {
+                running: true
+                PauseAnimation { duration: Theme.ms(260) }
+                NumberAnimation { target: stroke; property: "Layout.preferredWidth"; to: 28; duration: Theme.ms(700); easing.type: Easing.OutQuint }
+            }
+        }
+
         Text {
             Layout.fillWidth: true
             text: root.title
             color: Theme.text
             font.family: Theme.fontDisplay
-            font.pixelSize: 22
-            font.weight: Font.DemiBold
+            font.pixelSize: 25
+            font.weight: Font.Bold
+            font.letterSpacing: -0.6
         }
         Text {
             visible: root.subtitle !== ""
@@ -32,20 +47,30 @@ RowLayout {
         }
     }
 
-    Text {
+    Rectangle {
         visible: root.action !== ""
-        Layout.alignment: Qt.AlignBottom
-        text: root.action
-        color: actionMouse.containsMouse ? Theme.text : Theme.textDim
-        font.pixelSize: 13
-        font.weight: Font.DemiBold
-        font.underline: actionMouse.containsMouse
+        Layout.alignment: Qt.AlignVCenter
+        implicitWidth: actionText.implicitWidth + 26
+        implicitHeight: 32
+        radius: 16
+        color: actionMouse.containsMouse ? Theme.fillHover : Theme.fill
+        border.width: 1
+        border.color: Theme.hairline
         Behavior on color { ColorAnimation { duration: Theme.fast } }
+
+        Text {
+            id: actionText
+            anchors.centerIn: parent
+            text: root.action
+            color: actionMouse.containsMouse ? Theme.text : Theme.textDim
+            font.pixelSize: 12
+            font.weight: Font.Bold
+            Behavior on color { ColorAnimation { duration: Theme.fast } }
+        }
 
         MouseArea {
             id: actionMouse
             anchors.fill: parent
-            anchors.margins: -6
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: root.actionClicked()

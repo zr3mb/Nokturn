@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 Item {
     id: root
@@ -9,7 +9,7 @@ Item {
     property color hoverColor: Theme.text
     property bool active: false
     property color activeColor: Theme.accent
-    property bool showDot: true
+    property bool showDot: false   // the tinted circle marks an active button
     property bool popOnActivate: true
     readonly property bool hovered: mouse.containsMouse
     signal clicked
@@ -21,9 +21,15 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: width / 2
-        color: Theme.text
-        opacity: mouse.pressed ? 0.12 : mouse.containsMouse ? 0.07 : 0
+        color: root.active ? root.activeColor : Theme.text
+        opacity: mouse.pressed ? 0.16 : mouse.containsMouse ? 0.09 : root.active ? 0.1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.fast } }
+    }
+
+    PressRing {
+        id: ring
+        color: root.active ? root.activeColor : Theme.text
+        spread: 1.45
     }
 
     Icon {
@@ -60,6 +66,9 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        onClicked: {
+            ring.burst()
+            root.clicked()
+        }
     }
 }

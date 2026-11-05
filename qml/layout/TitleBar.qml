@@ -1,13 +1,13 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
-// Custom title bar: back/forward navigation, search, profile, window buttons.
+// Title bar over the page: back / forward, the search field, the profile and the window buttons.
+// The empty space drags the window; a double click maximizes it.
 Item {
     id: root
     readonly property var win: Window.window
 
-    // Window dragging and double-click to maximize
     Item {
         anchors.fill: parent
         DragHandler {
@@ -19,74 +19,80 @@ Item {
         }
     }
 
-    Row {
-        anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
-        spacing: 4
+    // Back / forward: two halves of one capsule
+    Rectangle {
+        id: history
+        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+        width: 84; height: 40
+        radius: 20
+        color: Theme.glass
+        border.width: 1
+        border.color: Theme.hairline
 
-        IconButton {
-            icon: Nav.sidebarCompact ? "menu" : "menuOpen"
-            iconSize: 20
-            showDot: false
-            onClicked: Nav.sidebarCompact = !Nav.sidebarCompact
-        }
-        Item { width: 8; height: 1 }
-        IconButton {
-            icon: "chevronLeft"
-            iconSize: 22
-            enabled: Nav.canGoBack
-            showDot: false
-            onClicked: Nav.back()
-        }
-        IconButton {
-            icon: "chevronRight"
-            iconSize: 22
-            enabled: Nav.canGoForward
-            showDot: false
-            onClicked: Nav.forward()
+        Row {
+            anchors.centerIn: parent
+            IconButton {
+                width: 40; height: 40
+                icon: "chevronLeft"
+                iconSize: 22
+                enabled: Nav.canGoBack
+                showDot: false
+                onClicked: Nav.back()
+            }
+            IconButton {
+                width: 40; height: 40
+                icon: "chevronRight"
+                iconSize: 22
+                enabled: Nav.canGoForward
+                showDot: false
+                onClicked: Nav.forward()
+            }
         }
     }
 
-    // Search pill
+    // Search field (opens the search page)
     Rectangle {
         id: search
-        anchors.centerIn: parent
-        width: Math.min(480, root.width * 0.34)
-        height: 38
-        radius: 19
-        color: Theme.alpha(Theme.text, searchMouse.containsMouse ? 0.085 : 0.055)
+        anchors { left: history.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
+        width: Math.min(560, root.width * 0.42)
+        height: 44
+        radius: 22
+        color: searchMouse.containsMouse ? Theme.alpha(Theme.surfaceHi, 0.85) : Theme.glass
         border.width: 1
-        border.color: Theme.alpha(Theme.text, searchMouse.containsMouse ? 0.12 : 0.06)
-        scale: searchMouse.pressed ? 0.985 : 1
-        Behavior on color { ColorAnimation { duration: Theme.fast } }
+        border.color: searchMouse.containsMouse ? Theme.alpha(Theme.accent, 0.45) : Theme.hairline
+        scale: searchMouse.pressed ? 0.99 : 1
+        Behavior on color { ColorAnimation { duration: Theme.normal } }
+        Behavior on border.color { ColorAnimation { duration: Theme.normal } }
         Behavior on scale { NumberAnimation { duration: Theme.ms(200); easing.type: Easing.OutBack } }
 
         Icon {
             id: searchIcon
-            x: 14
+            x: 16
             anchors.verticalCenter: parent.verticalCenter
             name: "search"
-            size: 19
-            color: searchMouse.containsMouse ? Theme.text : Theme.textDim
+            size: 20
+            color: searchMouse.containsMouse ? Theme.accent : Theme.textDim
+            Behavior on color { ColorAnimation { duration: Theme.normal } }
         }
         Text {
-            anchors { left: searchIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+            anchors { left: searchIcon.right; leftMargin: 12; right: kbd.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
             text: qsTr("Search tracks, artists, albums…")
             color: Theme.textFaint
             font.pixelSize: 14
+            elide: Text.ElideRight
         }
         Rectangle {
-            anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
-            width: kbd.implicitWidth + 12
-            height: 22
-            radius: 6
-            color: Theme.alpha(Theme.text, 0.06)
-            border.width: 1
-            border.color: Theme.alpha(Theme.text, 0.08)
+            id: kbd
+            anchors { right: parent.right; rightMargin: 9; verticalCenter: parent.verticalCenter }
+            width: kbdText.implicitWidth + 14
+            height: 26
+            radius: 13
+            color: Theme.fill
             Text {
-                id: kbd
+                id: kbdText
                 anchors.centerIn: parent
                 text: "Ctrl K"
-                color: Theme.textFaint
+                color: Theme.textDim
                 font.pixelSize: 11
                 font.weight: Font.DemiBold
             }
@@ -101,42 +107,30 @@ Item {
     }
 
     Row {
-        anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-        spacing: 10
+        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+        spacing: 12
 
-        // Profile
+        // Profile: the avatar alone, ringed in the accent on hover
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
-            width: profileRow.implicitWidth + 10
-            height: 36
-            radius: 18
-            color: Theme.alpha(Theme.text, profileMouse.containsMouse ? 0.09 : 0.05)
-            Behavior on color { ColorAnimation { duration: Theme.fast } }
-
-            Row {
-                id: profileRow
-                anchors { left: parent.left; leftMargin: 4; verticalCenter: parent.verticalCenter }
-                spacing: 8
-                Rectangle {
-                    width: 28; height: 28; radius: 14
-                    gradient: Gradient {
-                        GradientStop { position: 0; color: Theme.accent }
-                        GradientStop { position: 1; color: Theme.accent2 }
-                    }
-                    Icon {
-                        anchors.centerIn: parent
-                        name: "person"
-                        size: 17
-                        color: "#f4efe8"
-                    }
+            width: 40; height: 40; radius: 20
+            color: "transparent"
+            border.width: 2
+            border.color: profileMouse.containsMouse ? Theme.accent : Theme.hairline
+            Behavior on border.color { ColorAnimation { duration: Theme.normal } }
+            Rectangle {
+                anchors.centerIn: parent
+                width: 32; height: 32; radius: 16
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: Theme.accent }
+                    GradientStop { position: 1; color: Theme.accent2 }
                 }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Profile")
-                    color: Theme.text
-                    font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                    rightPadding: 6
+                Icon {
+                    anchors.centerIn: parent
+                    name: "person"
+                    size: 18
+                    color: Theme.onAccent
                 }
             }
             MouseArea {
@@ -146,12 +140,6 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: Nav.navigate("settings")
             }
-        }
-
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            width: 1; height: 20
-            color: Qt.rgba(1, 1, 1, 0.08)
         }
 
         WindowControls {

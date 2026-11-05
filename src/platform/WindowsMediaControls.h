@@ -7,7 +7,7 @@
 
 class PlayerController;
 
-// Windows: System Media Transport Controls (SMTC) — Nokturn in the system media flyout
+// Windows: System Media Transport Controls (SMTC) — Everplay in the system media flyout
 // (next to the volume control, in Quick Settings, on the lock screen) with the title, artist,
 // cover and timeline; Play/Pause/Next/Previous/Stop buttons and seeking from the system.
 // Hardware media keys go to the active SMTC session, so they work even with the window

@@ -25,8 +25,8 @@ public:
     explicit StreamResolver(QObject *parent = nullptr);
 
     bool ready() const { return m_remote || !m_enginePath.isEmpty(); }
-    // Tracks are resolved by the Nokturn server instead of a local yt-dlp — always on Android,
-    // where apps can't run downloaded programs; NOKTURN_SERVER_STREAMS=1 turns it on elsewhere.
+    // Tracks are resolved by the Everplay server instead of a local yt-dlp — always on Android,
+    // where apps can't run downloaded programs; EVERPLAY_SERVER_STREAMS=1 turns it on elsewhere.
     bool remote() const { return m_remote; }
     QString version() const { return m_version; }
     bool downloading() const { return m_downloading; }

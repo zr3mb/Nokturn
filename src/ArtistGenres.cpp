@@ -92,7 +92,7 @@ void ArtistGenres::next()
         { QStringLiteral("country"), country.size() == 2 ? country : QStringLiteral("US") },
     });
     QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Nokturn/" NOKTURN_VERSION));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Everplay/" EVERPLAY_VERSION));
     request.setTransferTimeout(15'000);
     m_busy = true;
     QNetworkReply *reply = m_net.get(request);

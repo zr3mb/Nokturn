@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Artist profile: the YouTube Music page (photo, description, popular songs, albums, singles,
 // playlists, related artists) and the artist's tracks from the library. An artist known only by
@@ -110,7 +110,7 @@ Item {
                     Layout.preferredWidth: side
                     Layout.preferredHeight: side
                     Layout.alignment: Qt.AlignHCenter
-                    radius: side / 2
+                    radius: Theme.r(side / 2)
                     colorA: Theme.accent
                     colorB: Theme.accent2
                     seed: 0

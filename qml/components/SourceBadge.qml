@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Track source badge: local file / YouTube Music / Spotify / SoundCloud / radio.
 Rectangle {

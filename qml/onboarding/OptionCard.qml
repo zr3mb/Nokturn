@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Choice card in the wizard: a preview (e.g. LayoutPreview) + title + description, selected with the accent.
 Item {
@@ -20,7 +20,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 18
+        radius: Theme.r(18)
         color: root.selected ? Theme.alpha(Theme.accent, 0.1) : Theme.alpha(Theme.text, mouse.containsMouse ? 0.06 : 0.035)
         border.width: root.selected ? 2 : 1
         border.color: root.selected ? Theme.accent : Theme.alpha(Theme.text, 0.08)

@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 Item {
     id: page
@@ -182,7 +182,7 @@ Item {
 
             ArtCover {
                 anchors.fill: parent
-                radius: 18
+                radius: Theme.r(18)
                 colorA: tile.modelData.a
                 colorB: tile.modelData.b
                 seed: tile.modelData.seed
@@ -194,7 +194,7 @@ Item {
                 visible: (tile.modelData.cover || "") !== ""
                 anchors { right: parent.right; bottom: parent.bottom; rightMargin: 14; bottomMargin: 14 }
                 width: 66; height: 66
-                radius: 8
+                radius: Theme.r(8)
                 colorA: tile.modelData.a
                 colorB: tile.modelData.b
                 seed: tile.modelData.seed
@@ -246,7 +246,7 @@ Item {
         visible: page.sideShown
         anchors { top: parent.top; bottom: parent.bottom; right: parent.right; topMargin: 34; bottomMargin: 34; rightMargin: 24 }
         width: 250
-        radius: 16
+        radius: Theme.r(16)
         color: Theme.alpha(Theme.text, 0.035)
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.05)

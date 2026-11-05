@@ -101,9 +101,9 @@ jobs:
       - name: Name and checksum
         id: out
         run: |
-          version="$(grep -oP 'project\(Nokturn VERSION \K[0-9.]+' CMakeLists.txt)"
-          file="Nokturn-${version}-x86_64.AppImage"
-          mv Nokturn*-x86_64.AppImage "$file"
+          version="$(grep -oP 'project\(Everplay VERSION \K[0-9.]+' CMakeLists.txt)"
+          file="Everplay-${version}-x86_64.AppImage"
+          mv Everplay*-x86_64.AppImage "$file"
           sha256sum "$file" | awk '{print $1"  "$2}' > "$file.sha256"
           echo "file=$file" >> "$GITHUB_OUTPUT"
           ls -l "$file"
@@ -124,7 +124,7 @@ jobs:
 
       - name: Smoke test (the AppImage starts)
         run: |
-          export APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=offscreen NOKTURN_PROFILE=/tmp/nokturn-profile
+          export APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=offscreen EVERPLAY_PROFILE=/tmp/everplay-profile
           timeout 20 ./${{ steps.out.outputs.file }} > /tmp/run.log 2>&1 || code=$?
           cat /tmp/run.log | tail -40
           # 124 = still running when the timeout hit, i.e. it started fine

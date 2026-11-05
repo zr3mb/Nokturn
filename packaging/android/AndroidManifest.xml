@@ -20,7 +20,7 @@
     <application
         android:name="org.qtproject.qt.android.bindings.QtApplication"
         android:hardwareAccelerated="true"
-        android:label="Nokturn"
+        android:label="Everplay"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"
         android:allowBackup="true"
@@ -36,11 +36,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Invite and share links (nokturn://r/<code>…); the web pages of the links open them this way. -->
+            <!-- Invite and share links (everplay://r/<code>…); the web pages of the links open them this way,
+                 with nokturn://, the scheme of the app's former name. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="everplay" />
                 <data android:scheme="nokturn" />
             </intent-filter>
 

@@ -9,7 +9,7 @@
 class PlayerController;
 
 // MPRIS 2 (Linux): media keys, GNOME/KDE panel controls, playerctl.
-// Service org.mpris.MediaPlayer2.nokturn, object /org/mpris/MediaPlayer2.
+// Service org.mpris.MediaPlayer2.everplay, object /org/mpris/MediaPlayer2.
 class Mpris : public QObject
 {
     Q_OBJECT
@@ -46,8 +46,8 @@ public:
     bool canQuit() const { return true; }
     bool canRaise() const { return true; }
     bool hasTrackList() const { return false; }
-    QString identity() const { return QStringLiteral("Nokturn"); }
-    QString desktopEntry() const { return QStringLiteral("nokturn"); }
+    QString identity() const { return QStringLiteral("Everplay"); }
+    QString desktopEntry() const { return QStringLiteral("everplay"); }
     QStringList supportedUriSchemes() const { return {}; }
     QStringList supportedMimeTypes() const { return {}; }
 

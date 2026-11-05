@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Compact "quick pick" tile on the home page.
 Item {
@@ -35,7 +35,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 14
+        radius: Theme.r(14)
         color: Theme.alpha(Theme.text, hover.hovered ? 0.1 : 0.055)
         border.width: 1
         border.color: Theme.alpha(Theme.text, hover.hovered ? 0.08 : 0.03)
@@ -46,7 +46,7 @@ Item {
         id: cover
         width: root.height
         height: root.height
-        radius: 14
+        radius: Theme.r(14)
         decorated: false
         colorA: root.colorA
         colorB: root.colorB

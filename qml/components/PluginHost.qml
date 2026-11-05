@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // One place in the window where plugins draw (docs/plugins.md): "wallpaper" behind the panels,
 // "overlay" above everything (it never takes the mouse), "main" for logic without a look of its own.

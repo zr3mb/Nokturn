@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // The queue over the full-screen player (Nav.immersiveQueue: "half" or "full", "" = closed). Its header drags
 // it between the two heights or down to close it; a click on the header switches them. A click above it
@@ -229,7 +229,7 @@ Item {
             anchors.fill: parent
             anchors.topMargin: 2
             anchors.bottomMargin: 2
-            radius: 12
+            radius: Theme.r(12)
             color: Theme.alpha(Theme.text, row.current ? 0.06 : 0.07)
             opacity: row.current || hover.hovered ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Theme.fast } }
@@ -242,14 +242,14 @@ Item {
             x: 10
             width: 44; height: 44
             anchors.verticalCenter: parent.verticalCenter
-            radius: 8
+            radius: Theme.r(8)
             colorA: row.colorA
             colorB: row.colorB
             seed: row.seed
             source: row.cover
             Rectangle {
                 anchors.fill: parent
-                radius: 8
+                radius: Theme.r(8)
                 color: "#80000000"
                 opacity: hover.hovered ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: Theme.fast } }

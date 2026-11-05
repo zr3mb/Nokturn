@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Equalizer graph: frequency/dB grid, spectrum of the playing audio, the combined curve,
 // the selected band's curve and draggable band points.
@@ -68,7 +68,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 20
+        radius: Theme.r(20)
         color: Qt.rgba(0, 0, 0, 0.22)
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.06)
@@ -235,7 +235,7 @@ Item {
                 visible: node.active
                 width: readout.implicitWidth + 16
                 height: 24
-                radius: 7
+                radius: Theme.r(7)
                 x: (node.width - width) / 2
                 y: node.y > 40 ? -height - 10 : node.height + 10
                 color: Theme.surfaceHi

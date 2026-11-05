@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
-import Nokturn
+import Everplay
 
 // Playlist, album or artist view. The list is virtualized (ListView), because YouTube Music
 // playlists can have thousands of tracks.
@@ -200,7 +200,7 @@ Item {
                             Layout.preferredWidth: side
                             Layout.preferredHeight: side
                             Layout.alignment: Qt.AlignHCenter
-                            radius: page.info.round ? side / 2 : 20
+                            radius: page.info.round ? side / 2 : Theme.r(20)
                             colorA: page.info.colorA
                             colorB: page.info.colorB
                             seed: page.info.seed
@@ -478,7 +478,7 @@ Item {
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle {
-            radius: 14
+            radius: Theme.r(14)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)
@@ -639,7 +639,7 @@ Item {
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle {
-            radius: 14
+            radius: Theme.r(14)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)
@@ -704,7 +704,7 @@ Item {
         focus: true
         padding: 26
         background: Rectangle {
-            radius: 22
+            radius: Theme.r(22)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)

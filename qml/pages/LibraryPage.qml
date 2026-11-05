@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // Library. The lists are virtualized (ListView / GridView), so they only create
 // the visible rows — it stays smooth even with thousands of tracks.
@@ -81,7 +81,7 @@ Item {
             visible: page.libraryRows.length === 0 && !Library.scanning
             Layout.fillWidth: true
             implicitHeight: Math.max(72, emptyText.implicitHeight + 28)
-            radius: 16
+            radius: Theme.r(16)
             color: Theme.alpha(Theme.accent, 0.08)
             border.width: 1
             border.color: Theme.alpha(Theme.accent, 0.18)
@@ -95,7 +95,7 @@ Item {
                 Text {
                     id: emptyText
                     Layout.fillWidth: true
-                    text: qsTr("You don't have any local files yet. Add a music folder — Nokturn will read the tags and covers.")
+                    text: qsTr("You don't have any local files yet. Add a music folder — Everplay will read the tags and covers.")
                     color: Theme.textDim
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap
@@ -191,7 +191,7 @@ Item {
         CardShadow {
             id: cardShadow
             size: grid.cellWidth - 22
-            radius: grid.roundCards ? size / 2 : 14
+            radius: grid.roundCards ? size / 2 : Theme.r(14)
         }
     }
 

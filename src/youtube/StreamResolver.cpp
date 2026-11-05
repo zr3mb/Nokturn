@@ -64,7 +64,7 @@ QString releaseAsset()
 void hideConsole(QProcess *process)
 {
 #ifdef Q_OS_WIN
-    // Nokturn is a GUI app — without this every yt-dlp call would flash a console.
+    // Everplay is a GUI app — without this every yt-dlp call would flash a console.
     process->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
         args->flags |= CREATE_NO_WINDOW;
     });
@@ -81,7 +81,7 @@ StreamResolver::StreamResolver(QObject *parent)
 #ifdef Q_OS_ANDROID
     m_remote = true;
 #else
-    m_remote = qEnvironmentVariableIsSet("NOKTURN_SERVER_STREAMS");
+    m_remote = qEnvironmentVariableIsSet("EVERPLAY_SERVER_STREAMS");
 #endif
 }
 
@@ -95,7 +95,7 @@ QString StreamResolver::toolsDir() const
 void StreamResolver::detect()
 {
     if (m_remote) {
-        m_version = tr("Nokturn server");
+        m_version = tr("Everplay server");
         emit engineChanged();
         return;
     }
@@ -152,7 +152,7 @@ QStringList StreamResolver::baseArguments() const
         QStringLiteral("--print"), QStringLiteral("urls"),
     };
     // yt-dlp needs a JavaScript runtime for full YouTube support (it looks for Deno by default).
-    // The Windows installer ships deno.exe next to Nokturn.exe — it takes precedence.
+    // The Windows installer ships deno.exe next to Everplay.exe — it takes precedence.
     const QString bundled = QStandardPaths::findExecutable(QStringLiteral("deno"),
                                                            { QCoreApplication::applicationDirPath() });
     const QString deno = QStandardPaths::findExecutable(QStringLiteral("deno"));
@@ -207,7 +207,7 @@ void StreamResolver::fallback(const QString &videoId)
 
 bool StreamResolver::directUsable() const
 {
-    if (qEnvironmentVariable("NOKTURN_STREAM_DIRECT") == QLatin1String("0"))
+    if (qEnvironmentVariable("EVERPLAY_STREAM_DIRECT") == QLatin1String("0"))
         return false;
     return !m_directPausedUntil.isValid() || m_directPausedUntil < QDateTime::currentDateTimeUtc();
 }
@@ -311,7 +311,7 @@ void StreamResolver::askPlayer(const QString &videoId)
         }
         m_directRunning.remove(videoId);
         m_directFailures = 0;
-        if (qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+        if (qEnvironmentVariableIsSet("EVERPLAY_STREAM_DEBUG"))
             qInfo("stream: %s resolved directly in %lld ms", qPrintable(videoId), started.elapsed());
         const QUrl u(best);
         const qint64 expire = QUrlQuery(u).queryItemValue(QStringLiteral("expire")).toLongLong();
@@ -325,7 +325,7 @@ void StreamResolver::askPlayer(const QString &videoId)
 void StreamResolver::directFailed(const QString &videoId, const QString &why, bool trackOnly)
 {
     m_directRunning.remove(videoId);
-    if (qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+    if (qEnvironmentVariableIsSet("EVERPLAY_STREAM_DEBUG"))
         qInfo("stream: %s direct lookup failed (%s), using yt-dlp", qPrintable(videoId), qPrintable(why));
     // A few failures in a row (YouTube changed something): yt-dlp alone for a while. A refusal of
     // one track (a music video that's unplayable here, an age check) says nothing about that.
@@ -425,8 +425,8 @@ void StreamResolver::run(const QString &videoId, bool withCookies)
         process->deleteLater();
         if (!cookieFile.isEmpty())
             QFile::remove(cookieFile);
-        // Diagnostics: NOKTURN_STREAM_DEBUG=1 prints how long each yt-dlp call took.
-        if (qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+        // Diagnostics: EVERPLAY_STREAM_DEBUG=1 prints how long each yt-dlp call took.
+        if (qEnvironmentVariableIsSet("EVERPLAY_STREAM_DEBUG"))
             qInfo("stream: %s resolved in %lld ms (%s, exit %d)", qPrintable(videoId), started.elapsed(),
                   cookieFile.isEmpty() ? "anonymous" : "with cookies", code);
 

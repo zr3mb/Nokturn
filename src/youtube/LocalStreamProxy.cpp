@@ -13,7 +13,7 @@ constexpr qint64 kAhead = 4 * kChunk;            // how far the download may run
 
 bool debug()
 {
-    static const bool on = qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG");
+    static const bool on = qEnvironmentVariableIsSet("EVERPLAY_STREAM_DEBUG");
     return on;
 }
 

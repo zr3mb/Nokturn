@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Window buttons (minimize / maximize / close) for the frameless window.
 Row {
@@ -19,7 +19,7 @@ Row {
 
         Rectangle {
             anchors.fill: parent
-            radius: 9
+            radius: Theme.r(9)
             color: btn.danger ? "#b85c5c" : Qt.rgba(1, 1, 1, 0.08)
             opacity: m.containsMouse ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Theme.ms(140) } }

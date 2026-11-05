@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
-// Plugins: what's installed (on/off, settings, remove) and the catalog on the Nokturn server.
+// Plugins: what's installed (on/off, settings, remove) and the catalog on the Everplay server.
 // Installing anything asks first: a plugin is code that runs with the app's rights.
 Item {
     id: page
@@ -43,7 +43,7 @@ Item {
 
     component Card: Rectangle {
         Layout.fillWidth: true
-        radius: 18
+        radius: Theme.r(18)
         color: Theme.alpha(Theme.text, 0.04)
         border.width: 1
         border.color: Theme.alpha(Theme.text, 0.06)
@@ -54,7 +54,7 @@ Item {
         property string icon: "grid"
         implicitWidth: 64
         implicitHeight: 64
-        radius: 14
+        radius: Theme.r(14)
         gradient: Gradient {
             GradientStop { position: 0; color: Theme.alpha(Theme.accent, 0.5) }
             GradientStop { position: 1; color: Theme.alpha(Theme.accent2, 0.5) }
@@ -446,7 +446,7 @@ Item {
     FileDialog {
         id: fileDialog
         title: qsTr("Choose a plugin")
-        nameFilters: [qsTr("Nokturn plugin (*.zip plugin.json)")]
+        nameFilters: [qsTr("Everplay plugin (*.zip plugin.json)")]
         onAccepted: page.ask({ file: selectedFile, name: "" })
     }
 
@@ -462,7 +462,7 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         Overlay.modal: Rectangle { color: "#99000000" }
         background: Rectangle {
-            radius: 20
+            radius: Theme.r(20)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)
@@ -481,7 +481,7 @@ Item {
             }
             Text {
                 Layout.fillWidth: true
-                text: qsTr("A plugin is code that runs inside Nokturn with the same rights as the app: it can see what you play and use the internet. Install only plugins you trust.")
+                text: qsTr("A plugin is code that runs inside Everplay with the same rights as the app: it can see what you play and use the internet. Install only plugins you trust.")
                 color: Theme.textDim
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
@@ -534,7 +534,7 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         Overlay.modal: Rectangle { color: "#99000000" }
         background: Rectangle {
-            radius: 20
+            radius: Theme.r(20)
             color: Theme.surfaceHi
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.07)

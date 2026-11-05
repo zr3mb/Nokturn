@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Cover art: the real image (when there is one), and under it — or instead of it — a generative
 // gradient in the album's colors with one of four graphic motifs.
@@ -11,7 +11,7 @@ Item {
     // The generated gradient leans toward the theme's own colors in the Cat theme.
     readonly property color fillA: Theme.cat ? Qt.tint(colorA, Theme.alpha(Theme.staticAccent, 0.7)) : colorA
     readonly property color fillB: Theme.cat ? Qt.tint(colorB, Theme.alpha(Theme.staticAccent2, 0.7)) : colorB
-    property real radius: 10
+    property real radius: Theme.r(10)
     property int seed: 0
     property bool decorated: true
     property string source: ""

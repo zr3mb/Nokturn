@@ -15,7 +15,7 @@
 
 namespace {
 
-const QString kService = QStringLiteral("org.mpris.MediaPlayer2.nokturn");
+const QString kService = QStringLiteral("org.mpris.MediaPlayer2.everplay");
 const QString kPath = QStringLiteral("/org/mpris/MediaPlayer2");
 const QString kPlayerInterface = QStringLiteral("org.mpris.MediaPlayer2.Player");
 
@@ -24,7 +24,7 @@ QDBusObjectPath trackPath(const QString &id)
     if (id.isEmpty())
         return QDBusObjectPath(QStringLiteral("/org/mpris/MediaPlayer2/TrackList/NoTrack"));
     // A D-Bus object path only allows [A-Za-z0-9_] — we use a hash of the id.
-    return QDBusObjectPath(QStringLiteral("/org/nokturn/track/")
+    return QDBusObjectPath(QStringLiteral("/org/everplay/track/")
                            + QString::fromLatin1(QCryptographicHash::hash(id.toUtf8(), QCryptographicHash::Sha1).toHex()));
 }
 

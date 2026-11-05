@@ -16,12 +16,12 @@
 
 namespace {
 
-Q_LOGGING_CATEGORY(lcPortal, "nokturn.shortcuts")
+Q_LOGGING_CATEGORY(lcPortal, "everplay.shortcuts")
 
 const QString kService = QStringLiteral("org.freedesktop.portal.Desktop");
 const QString kPath = QStringLiteral("/org/freedesktop/portal/desktop");
 const QString kInterface = QStringLiteral("org.freedesktop.portal.GlobalShortcuts");
-const QString kConnection = QStringLiteral("nokturn-shortcuts");
+const QString kConnection = QStringLiteral("everplay-shortcuts");
 
 // One shortcut as the portal passes it: (s id, a{sv} options)
 struct PortalShortcut
@@ -62,16 +62,16 @@ QVariantMap toMap(const QVariant &value)
 // then a small one goes into ~/.local/share/applications (as AppImage integration tools do).
 void ensureDesktopFile()
 {
-    if (!QStandardPaths::locate(QStandardPaths::ApplicationsLocation, QStringLiteral("nokturn.desktop")).isEmpty())
+    if (!QStandardPaths::locate(QStandardPaths::ApplicationsLocation, QStringLiteral("everplay.desktop")).isEmpty())
         return;
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
     const QString appImage = qEnvironmentVariable("APPIMAGE");
     const QString exe = appImage.isEmpty() ? QCoreApplication::applicationFilePath() : appImage;
-    QFile file(dir + QStringLiteral("/nokturn.desktop"));
+    QFile file(dir + QStringLiteral("/everplay.desktop"));
     if (!QDir().mkpath(dir) || !file.open(QIODevice::WriteOnly | QIODevice::Text))
         return;
-    file.write(QStringLiteral("[Desktop Entry]\nType=Application\nName=Nokturn\nGenericName=Music Player\n"
-                              "Exec=\"%1\" %U\nIcon=nokturn\nCategories=AudioVideo;Audio;Player;\nTerminal=false\n")
+    file.write(QStringLiteral("[Desktop Entry]\nType=Application\nName=Everplay\nGenericName=Music Player\n"
+                              "Exec=\"%1\" %U\nIcon=everplay\nCategories=AudioVideo;Audio;Player;\nTerminal=false\n")
                    .arg(exe).toUtf8());
     qCInfo(lcPortal, "wrote %s", qPrintable(file.fileName()));
 }
@@ -104,7 +104,7 @@ void ShortcutPortal::start(const QString &id, const QString &description, const 
     // refuses the session. Older portals guess it from the process.
     QDBusMessage reg = QDBusMessage::createMethodCall(kService, kPath, QStringLiteral("org.freedesktop.host.portal.Registry"),
                                                       QStringLiteral("Register"));
-    reg << QStringLiteral("nokturn") << QVariantMap();
+    reg << QStringLiteral("everplay") << QVariantMap();
     auto *registered = new QDBusPendingCallWatcher(bus.asyncCall(reg), this);
     connect(registered, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
         QDBusConnection bus = this->bus();
@@ -129,10 +129,10 @@ void ShortcutPortal::start(const QString &id, const QString &description, const 
             bus.connect(kService, kPath, kInterface, QStringLiteral("Activated"), this, SLOT(onActivated(QDBusMessage)));
             bus.connect(kService, kPath, kInterface, QStringLiteral("ShortcutsChanged"), this, SLOT(onShortcutsChanged(QDBusMessage)));
 
-            const QString token = QStringLiteral("nokturn%1").arg(++m_counter);
+            const QString token = QStringLiteral("everplay%1").arg(++m_counter);
             watchRequest(token, "session");
             QDBusMessage create = QDBusMessage::createMethodCall(kService, kPath, kInterface, QStringLiteral("CreateSession"));
-            create << QVariantMap { { "handle_token", token }, { "session_handle_token", QStringLiteral("nokturn_overlay") } };
+            create << QVariantMap { { "handle_token", token }, { "session_handle_token", QStringLiteral("everplay_overlay") } };
             call(create, "CreateSession");
             emit changed();
         });
@@ -199,7 +199,7 @@ void ShortcutPortal::onResponse(uint response, const QVariantMap &results)
 
 void ShortcutPortal::bind()
 {
-    const QString token = QStringLiteral("nokturn%1").arg(++m_counter);
+    const QString token = QStringLiteral("everplay%1").arg(++m_counter);
     watchRequest(token, "bind");
     const PortalShortcuts shortcuts { { m_id, { { "description", m_description }, { "preferred_trigger", m_preferred } } } };
     QDBusMessage call = QDBusMessage::createMethodCall(kService, kPath, kInterface, QStringLiteral("BindShortcuts"));

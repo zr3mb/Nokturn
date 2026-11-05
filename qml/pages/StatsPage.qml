@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Your listening in numbers (ListeningHistory): this month, this year or all time — minutes, plays,
 // the artists, tracks and genres you played most, and when in the day you listen.
@@ -24,7 +24,7 @@ Item {
         property string icon: ""
         Layout.fillWidth: true
         Layout.preferredHeight: 112
-        radius: 18
+        radius: Theme.r(18)
         gradient: Gradient {
             orientation: Gradient.Horizontal
             GradientStop { position: 0; color: Theme.alpha(Theme.accent, 0.10) }
@@ -292,7 +292,7 @@ Item {
                                     anchors.bottom: parent.bottom
                                     width: parent.width
                                     height: Math.max(3, 120 * modelData / day.peak)
-                                    radius: 3
+                                    radius: Theme.r(3)
                                     color: modelData === day.peak ? Theme.accent : Theme.alpha(Theme.accent, 0.45)
                                 }
                             }

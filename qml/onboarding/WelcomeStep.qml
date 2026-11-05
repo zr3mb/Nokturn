@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // Step 1: welcome.
 Item {
@@ -33,7 +33,7 @@ Item {
                 id: tile
                 anchors.centerIn: parent
                 width: 112; height: 112
-                radius: 36
+                radius: Theme.r(36)
                 gradient: Gradient {
                     GradientStop { position: 0; color: Qt.lighter(Theme.accent, 1.08) }
                     GradientStop { position: 1; color: Qt.darker(Theme.accent2, 1.05) }
@@ -59,7 +59,7 @@ Item {
         Text {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Welcome to Nokturn")
+            text: qsTr("Welcome to Everplay")
             color: Theme.text
             font.family: Theme.fontDisplay
             font.pixelSize: 54
@@ -105,7 +105,7 @@ Item {
                     required property int index
                     Layout.fillWidth: true
                     Layout.preferredHeight: 150
-                    radius: 18
+                    radius: Theme.r(18)
                     color: Theme.alpha(Theme.surface, 0.7)
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.06)
@@ -127,7 +127,7 @@ Item {
                         anchors { fill: parent; margins: 18 }
                         spacing: 8
                         Rectangle {
-                            width: 40; height: 40; radius: 12
+                            width: 40; height: 40; radius: Theme.r(12)
                             color: Theme.alpha(Theme.accent, 0.16)
                             Icon { anchors.centerIn: parent; name: tileCard.modelData.icon; size: 21; color: Theme.accent }
                         }

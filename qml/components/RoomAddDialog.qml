@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Adding a playlist to the listening room: all of it or tracks "from"–"to", in order or shuffled, at the
 // end of the room's queue or right after the playing track.
@@ -56,7 +56,7 @@ Popup {
     focus: true
     padding: 24
     background: Rectangle {
-        radius: 22
+        radius: Theme.r(22)
         color: Theme.surfaceHi
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.07)

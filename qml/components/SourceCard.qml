@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Music source card with a glow in the source's color and expandable content.
 Item {
@@ -64,7 +64,7 @@ Item {
                 Layout.preferredWidth: 50
                 Layout.preferredHeight: 50
                 Layout.alignment: Qt.AlignTop
-                radius: 15
+                radius: Theme.r(15)
                 color: Theme.alpha(root.tint, 0.15)
                 border.width: 1
                 border.color: Theme.alpha(root.tint, 0.22)

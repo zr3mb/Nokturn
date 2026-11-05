@@ -940,7 +940,7 @@ void YtMusicApi::fetchLyrics(const QString &videoId, LyricsCallback callback)
         callAs(androidClient(), QStringLiteral("browse"), browse,
                [this, browse, callback](const QJsonObject &timedJson, const QString &) {
             const Lyrics timed = parseTimedLyrics(timedJson);
-            static const bool debug = qEnvironmentVariableIsSet("NOKTURN_LYRICS_DEBUG");
+            static const bool debug = qEnvironmentVariableIsSet("EVERPLAY_LYRICS_DEBUG");
             if (debug)
             {
                 QList<QJsonObject> messages;

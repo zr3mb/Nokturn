@@ -24,14 +24,14 @@
 #  include <xinput.h>
 #endif
 
-#ifdef NOKTURN_DESKTOP_LINUX
+#ifdef EVERPLAY_DESKTOP_LINUX
 #  include "ShortcutPortal.h"
 #  include <cerrno>
 #  include <fcntl.h>
 #  include <linux/input.h>
 #  include <sys/ioctl.h>
 #  include <unistd.h>
-#  ifdef NOKTURN_LAYERSHELL
+#  ifdef EVERPLAY_LAYERSHELL
 #    include <LayerShellQt/window.h>
 #  endif
 #endif
@@ -56,10 +56,10 @@ enum PadButton : unsigned {
 
 QString serverName()
 {
-    // Per user: another account's Nokturn must not get the requests.
+    // Per user: another account's Everplay must not get the requests.
     QString user = qEnvironmentVariable("USER", qEnvironmentVariable("USERNAME", QStringLiteral("user")));
     user.remove(QRegularExpression(QStringLiteral("[^A-Za-z0-9_.-]")));
-    return QStringLiteral("nokturn-overlay-") + user;
+    return QStringLiteral("everplay-overlay-") + user;
 }
 
 #ifdef Q_OS_WIN
@@ -212,7 +212,7 @@ XInputGetStateFn xinputGetState()
 }
 #endif
 
-#ifdef NOKTURN_DESKTOP_LINUX
+#ifdef EVERPLAY_DESKTOP_LINUX
 // The XDG shortcut syntax ("CTRL+SHIFT+m") for the trigger the portal is asked for.
 QString portalTrigger(int key, int modifiers)
 {
@@ -351,14 +351,14 @@ GameOverlay::~GameOverlay()
 
 bool GameOverlay::supported() const
 {
-#if defined(Q_OS_WIN) || defined(NOKTURN_DESKTOP_LINUX)
+#if defined(Q_OS_WIN) || defined(EVERPLAY_DESKTOP_LINUX)
     return true;
 #else
     return false;
 #endif
 }
 
-// ---- "nokturn --overlay" ----------------------------------------------------------
+// ---- "everplay --overlay" ----------------------------------------------------------
 
 bool GameOverlay::sendToRunning(const QString &command)
 {
@@ -377,7 +377,7 @@ void GameOverlay::listen()
     m_server = new QLocalServer(this);
     m_server->setSocketOptions(QLocalServer::UserAccessOption);
     if (!m_server->listen(serverName())) {
-        // A socket left behind by a crash — unless another Nokturn is really there.
+        // A socket left behind by a crash — unless another Everplay is really there.
         QLocalSocket probe;
         probe.connectToServer(serverName());
         if (probe.waitForConnected(200))
@@ -411,7 +411,7 @@ QString GameOverlay::toggleCommand() const
         return QStringLiteral("\"%1\" --overlay").arg(appImage);
     const QString exe = QCoreApplication::applicationFilePath();
     if (exe.startsWith(QLatin1String("/usr/")) || exe.startsWith(QDir::homePath() + QLatin1String("/.local/bin/")))
-        return QStringLiteral("nokturn --overlay");
+        return QStringLiteral("everplay --overlay");
     return QStringLiteral("\"%1\" --overlay").arg(exe);
 }
 
@@ -421,7 +421,7 @@ QString GameOverlay::hotkeyMode() const
 {
 #ifdef Q_OS_WIN
     return QStringLiteral("native");
-#elif defined(NOKTURN_DESKTOP_LINUX)
+#elif defined(EVERPLAY_DESKTOP_LINUX)
     return m_portal && m_portal->available() ? QStringLiteral("portal") : QStringLiteral("command");
 #else
     return QStringLiteral("command");
@@ -430,7 +430,7 @@ QString GameOverlay::hotkeyMode() const
 
 QString GameOverlay::hotkey() const
 {
-#ifdef NOKTURN_DESKTOP_LINUX
+#ifdef EVERPLAY_DESKTOP_LINUX
     return m_portal ? m_portal->trigger() : QString();
 #else
     return QKeySequence(QKeyCombination(Qt::KeyboardModifiers(m_modifiers), Qt::Key(m_key))).toString(QKeySequence::NativeText);
@@ -439,7 +439,7 @@ QString GameOverlay::hotkey() const
 
 QString GameOverlay::lyricsHotkey() const
 {
-#ifdef NOKTURN_DESKTOP_LINUX
+#ifdef EVERPLAY_DESKTOP_LINUX
     return QString();
 #else
     return QKeySequence(QKeyCombination(Qt::KeyboardModifiers(m_lyricsModifiers), Qt::Key(m_lyricsKey))).toString(QKeySequence::NativeText);
@@ -448,7 +448,7 @@ QString GameOverlay::lyricsHotkey() const
 
 bool GameOverlay::canConfigureHotkey() const
 {
-#ifdef NOKTURN_DESKTOP_LINUX
+#ifdef EVERPLAY_DESKTOP_LINUX
     return m_portal && m_portal->canConfigure();
 #else
     return false;
@@ -457,7 +457,7 @@ bool GameOverlay::canConfigureHotkey() const
 
 void GameOverlay::configureHotkey()
 {
-#ifdef NOKTURN_DESKTOP_LINUX
+#ifdef EVERPLAY_DESKTOP_LINUX
     if (m_portal)
         m_portal->configure();
 #endif
@@ -635,7 +635,7 @@ void GameOverlay::registerHotkey()
 
     if ((m_enabled || m_lyricsEnabled) && !g_hookThread)
         CloseHandle(CreateThread(nullptr, 0, hookThread, nullptr, 0, &g_hookThread));
-#elif defined(NOKTURN_DESKTOP_LINUX)
+#elif defined(EVERPLAY_DESKTOP_LINUX)
     // Once per run: the desktop keeps the binding (and may ask the user about it the first time).
     if (!m_enabled || m_portal || QGuiApplication::platformName() == QLatin1String("offscreen"))
         return;
@@ -645,7 +645,7 @@ void GameOverlay::registerHotkey()
         m_activationToken = token;
         toggle();
     });
-    m_portal->start(QStringLiteral("overlay"), tr("Open the Nokturn menu over a game"), portalTrigger(m_key, m_modifiers));
+    m_portal->start(QStringLiteral("overlay"), tr("Open the Everplay menu over a game"), portalTrigger(m_key, m_modifiers));
 #endif
 }
 
@@ -765,7 +765,7 @@ void GameOverlay::prepare(QWindow *window)
         quick->setPersistentGraphics(true);
         quick->setPersistentSceneGraph(true);
     }
-#if defined(NOKTURN_DESKTOP_LINUX) && defined(NOKTURN_LAYERSHELL)
+#if defined(EVERPLAY_DESKTOP_LINUX) && defined(EVERPLAY_LAYERSHELL)
     // A layer surface above everything, full games included, with the keyboard while it's shown.
     // The compositor puts it on the output it chooses (the focused one).
     if (QGuiApplication::platformName().startsWith(QLatin1String("wayland")) && !window->handle()) {
@@ -775,7 +775,7 @@ void GameOverlay::prepare(QWindow *window)
             layer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorBottom
                                                             | LayerShellQt::Window::AnchorLeft | LayerShellQt::Window::AnchorRight));
             layer->setExclusiveZone(-1);
-            layer->setScope(QStringLiteral("nokturn-overlay"));
+            layer->setScope(QStringLiteral("everplay-overlay"));
             m_layerShell = true;
         }
     }
@@ -835,7 +835,7 @@ void GameOverlay::setView(QQuickItem *view)
 
 void GameOverlay::closePad()
 {
-#ifdef NOKTURN_DESKTOP_LINUX
+#ifdef EVERPLAY_DESKTOP_LINUX
     if (m_padFd >= 0)
         ::close(m_padFd);
     m_padFd = -1;
@@ -847,7 +847,7 @@ void GameOverlay::closePad()
 
 void GameOverlay::findPadAsync()
 {
-#ifdef NOKTURN_DESKTOP_LINUX
+#ifdef EVERPLAY_DESKTOP_LINUX
     if (!m_inputWatcher) {
         m_inputWatcher = new QFileSystemWatcher(this);
         // A pad plugged in shows up as a new /dev/input/event*: looked for then, and once more a moment
@@ -923,7 +923,7 @@ bool GameOverlay::readPad(unsigned &buttons, int &x, int &y)
     x = state.Gamepad.sThumbLX;
     y = state.Gamepad.sThumbLY;
     return true;
-#elif defined(NOKTURN_DESKTOP_LINUX)
+#elif defined(EVERPLAY_DESKTOP_LINUX)
     if (m_padFd < 0) {
         // Looked for in the background, when /dev/input changes (and now and then as a fallback) —
         // doing it here every few seconds froze the whole app, music included, for a moment.

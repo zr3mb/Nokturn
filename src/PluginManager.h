@@ -56,7 +56,7 @@ private:
 // User plugins: folders with a plugin.json and QML files, kept in <data>/plugins/<id>. A plugin can
 // draw a wallpaper behind the interface, an overlay above it, run invisible logic (e.g. bind Theme
 // properties) and bring its own colour themes. They are installed from a .zip or a folder, or from the
-// catalog on the Nokturn server (SHA-256 checked). Plugins run with the app's rights — the
+// catalog on the Everplay server (SHA-256 checked). Plugins run with the app's rights — the
 // interface warns about that before an install. See docs/plugins.md.
 class PluginManager : public QObject
 {

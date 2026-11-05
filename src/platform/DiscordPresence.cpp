@@ -16,8 +16,8 @@
 #include <QUuid>
 #include <QtEndian>
 
-#ifndef NOKTURN_DISCORD_CLIENT_ID
-#  define NOKTURN_DISCORD_CLIENT_ID ""
+#ifndef EVERPLAY_DISCORD_CLIENT_ID
+#  define EVERPLAY_DISCORD_CLIENT_ID ""
 #endif
 
 namespace {
@@ -57,7 +57,7 @@ DiscordPresence::DiscordPresence(QObject *parent)
     m_enabled = settings->value("discord/enabled", false).toBool();
     m_clientId = settings->value("discord/clientId").toString();
     if (m_clientId.isEmpty())
-        m_clientId = QStringLiteral(NOKTURN_DISCORD_CLIENT_ID);
+        m_clientId = QStringLiteral(EVERPLAY_DISCORD_CLIENT_ID);
     m_showWhenPaused = settings->value("discord/showPaused", false).toBool();
 
     m_retry.setSingleShot(true);
@@ -131,7 +131,7 @@ void DiscordPresence::setClientId(const QString &id)
 
 bool DiscordPresence::builtInClientId() const
 {
-    return !QStringLiteral(NOKTURN_DISCORD_CLIENT_ID).isEmpty();
+    return !QStringLiteral(EVERPLAY_DISCORD_CLIENT_ID).isEmpty();
 }
 
 void DiscordPresence::setShowWhenPaused(bool on)
@@ -380,10 +380,10 @@ QJsonObject DiscordPresence::buildActivity() const
     }
 
     // Cover: an https URL (YouTube Music) or the cover of the matched YouTube Music track
-    // for local files; otherwise the app icon (the "nokturn" asset in the Discord application).
+    // for local files; otherwise the app icon (the "everplay" asset in the Discord application).
     QString image = t->cover.startsWith(QLatin1String("https://")) ? t->cover : m_covers.value(t->id);
     if (image.isEmpty() || image.size() > 256)
-        image = QStringLiteral("nokturn");
+        image = QStringLiteral("everplay");
     QJsonObject assets { { "large_image", image } };
     assets.insert("large_text", clip(t->album.isEmpty() ? t->title : t->album));
     a.insert("assets", assets);

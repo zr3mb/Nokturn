@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Theme cards (Settings): a miniature of each theme's colors; clicking one switches to it.
 // Themes from plugins follow the built-in ones, four to a row.
@@ -29,7 +29,7 @@ GridLayout {
             Rectangle {
                 id: frame
                 anchors.fill: parent
-                radius: 16
+                radius: Theme.r(16)
                 color: card.t.bg
                 border.width: card.selected ? 2 : 1
                 border.color: card.selected ? card.t.accent : Theme.alpha(Theme.text, hover.hovered ? 0.22 : 0.1)
@@ -41,7 +41,7 @@ GridLayout {
                 Rectangle {
                     x: 10; y: 10
                     width: 24; height: parent.height - 52
-                    radius: 6
+                    radius: Theme.r(6)
                     color: card.t.surface
                     Column {
                         x: 5; y: 7
@@ -59,7 +59,7 @@ GridLayout {
                 Rectangle {
                     x: 40; y: 10
                     width: parent.width - 50; height: parent.height - 52
-                    radius: 6
+                    radius: Theme.r(6)
                     color: card.t.surface
                     Rectangle {
                         x: 8; y: 8

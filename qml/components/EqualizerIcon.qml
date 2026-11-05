@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Small animated "now playing" icon (three bouncing bars).
 Item {
@@ -23,7 +23,7 @@ Item {
                 width: 3.5
                 height: 4
                 y: root.height - height
-                radius: 1.5
+                radius: Theme.r(1.5)
                 color: root.color
 
                 SequentialAnimation on height {

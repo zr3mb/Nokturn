@@ -1,11 +1,11 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Progress/volume slider: thickens on hover, shows a handle and a value bubble.
 Item {
     id: root
     property real value: 0                 // 0..1
-    property color fillColor: Theme.text
+    property color fillColor: Theme.accent
     property color activeColor: Theme.accent
     property var labelFor: null            // function(v) -> string; bubble above the cursor
     readonly property bool active: enabled && (mouse.containsMouse || mouse.pressed)
@@ -25,7 +25,7 @@ Item {
         width: parent.width
         height: root.active ? 6 : 4
         radius: height / 2
-        color: Theme.alpha(Theme.text, 0.12)
+        color: Theme.alpha(Theme.text, 0.14)
         Behavior on height { NumberAnimation { duration: Theme.ms(180); easing.type: Easing.OutCubic } }
 
         Rectangle {
@@ -35,8 +35,8 @@ Item {
             visible: root.shown > 0
             gradient: Gradient {
                 orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: root.active ? Qt.darker(root.activeColor, 1.15) : Theme.alpha(root.fillColor, 0.75) }
-                GradientStop { position: 1; color: root.active ? root.activeColor : root.fillColor }
+                GradientStop { position: 0; color: Theme.alpha(root.fillColor, 0.55) }
+                GradientStop { position: 1; color: root.active ? Qt.lighter(root.fillColor, 1.12) : root.fillColor }
             }
         }
     }
@@ -56,7 +56,9 @@ Item {
         width: 14; height: 14; radius: 7
         x: track.width * root.shown - width / 2
         anchors.verticalCenter: parent.verticalCenter
-        color: Theme.text
+        color: "#ffffff"
+        border.width: 3
+        border.color: root.fillColor
         scale: root.active ? 1 : 0
         Behavior on scale { NumberAnimation { duration: Theme.ms(260); easing.type: Easing.OutBack } }
     }
@@ -67,8 +69,8 @@ Item {
         visible: root.labelFor !== null
         readonly property real at: mouse.pressed ? root.dragValue : root.valueAt(mouse.mouseX)
         width: bubbleText.implicitWidth + 14
-        height: 22
-        radius: 6
+        height: 24
+        radius: 12
         x: Math.max(-6, Math.min(root.width - width + 6, root.width * at - width / 2))
         y: -height - 8
         color: Theme.surfaceHi

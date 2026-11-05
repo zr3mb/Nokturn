@@ -10,7 +10,7 @@ class QDBusMessage;
 // Linux (Wayland): a global shortcut through the XDG desktop portal (org.freedesktop.portal.GlobalShortcuts)
 // — KDE Plasma, GNOME 48+, Hyprland. Apps can't grab keys on Wayland; the desktop asks the user once to
 // accept (or assign) the shortcut, then reports when it's pressed. On Hyprland the key is bound in
-// hyprland.conf ("global, nokturn:overlay").
+// hyprland.conf ("global, everplay:overlay").
 class ShortcutPortal : public QObject
 {
     Q_OBJECT

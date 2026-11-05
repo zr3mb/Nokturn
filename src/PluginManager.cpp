@@ -106,10 +106,35 @@ QJsonObject readManifest(const QString &dir, QString *error)
         return {};
     }
     if (m.value(QStringLiteral("api")).toInt(1) > PluginManager::kApiVersion) {
-        *error = PluginManager::tr("The plugin needs a newer version of Nokturn");
+        *error = PluginManager::tr("The plugin needs a newer version of Everplay");
         return {};
     }
     return m;
+}
+
+// Plugins written before the rename import the app's QML module by its former name ("import Everplay"),
+// and the catalog keeps them that way for the older app versions: the import is changed on disk.
+void adoptFormerImports(const QString &dir)
+{
+    static const QRegularExpression former(QStringLiteral("^(\\s*import\\s+)Everplay\\b"),
+                                           QRegularExpression::MultilineOption);
+    QDirIterator it(dir, { QStringLiteral("*.qml"), QStringLiteral("*.js"), QStringLiteral("*.mjs") }, QDir::Files,
+                    QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        QFile file(it.next());
+        if (file.size() > 4 * 1024 * 1024 || !file.open(QIODevice::ReadOnly))
+            continue;
+        QString text = QString::fromUtf8(file.readAll());
+        file.close();
+        if (!former.match(text).hasMatch())
+            continue;
+        text.replace(former, QStringLiteral("\\1Everplay"));
+        QSaveFile out(file.fileName());
+        if (out.open(QIODevice::WriteOnly)) {
+            out.write(text.toUtf8());
+            out.commit();
+        }
+    }
 }
 
 } // namespace
@@ -184,8 +209,8 @@ PluginManager *PluginManager::create(QQmlEngine *engine, QJSEngine *)
 PluginManager::PluginManager(QObject *parent)
     : QObject(parent)
 {
-    // NOKTURN_PLUGIN_CATALOG: another index.json (also a file:// URL), for testing a catalog.
-    const QString custom = qEnvironmentVariable("NOKTURN_PLUGIN_CATALOG");
+    // EVERPLAY_PLUGIN_CATALOG: another index.json (also a file:// URL), for testing a catalog.
+    const QString custom = qEnvironmentVariable("EVERPLAY_PLUGIN_CATALOG");
     if (!custom.isEmpty()) {
         m_catalogUrl = QUrl::fromUserInput(custom);
     } else {
@@ -215,7 +240,7 @@ QUrl PluginManager::folder() const
 QUrl PluginManager::docsUrl() const
 {
     const bool polish = Language::instance()->effective() == QLatin1String("pl");
-    return QUrl(QStringLiteral("https://github.com/zr3mb/Nokturn/blob/main/docs/")
+    return QUrl(QStringLiteral("https://github.com/zr3mb/Everplay/blob/main/docs/")
                 + (polish ? QStringLiteral("plugins.pl.md") : QStringLiteral("plugins.md")));
 }
 
@@ -256,6 +281,7 @@ void PluginManager::scan()
         if (name.startsWith(QLatin1Char('.')))
             continue;   // a half-finished install
         const QString dir = root + QLatin1Char('/') + name;
+        adoptFormerImports(dir);
         QString error;
         const QJsonObject m = readManifest(dir, &error);
         const QString id = m.isEmpty() ? name : m.value(QStringLiteral("id")).toString();

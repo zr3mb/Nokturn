@@ -1,4 +1,4 @@
-# Nokturn — notes for Claude
+# Everplay — notes for Claude
 
 Music player in C++20 / Qt 6.8 (QML) with TagLib 2 and CMake. See `README.md` for the architecture and build steps.
 
@@ -22,5 +22,5 @@ Never put any of these in a commit message:
 - jokes, emoji, exclamation marks, filler ("small fix", "stuff", "wip", "finally works");
 - a log of how the session went ("tried X, then Y"). Describe the result, not the process.
 
-A short mention of new `--tour-*` / `NOKTURN_*_DEBUG` developer switches is fine. Give the placeholder
+A short mention of new `--tour-*` / `EVERPLAY_*_DEBUG` developer switches is fine. Give the placeholder
 syntax (`--tour-listen "<q1>;<q2>"`), never real example values.

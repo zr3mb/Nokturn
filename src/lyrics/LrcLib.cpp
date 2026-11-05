@@ -48,7 +48,7 @@ void LrcLib::get(const QUrl &url, std::function<void(const QByteArray &, int)> d
     QNetworkRequest request(url);
     // LRCLIB asks clients to identify themselves.
     request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("Nokturn/%1 (https://github.com/zr3mb/Nokturn)").arg(QCoreApplication::applicationVersion()));
+                      QStringLiteral("Everplay/%1 (https://github.com/zr3mb/Everplay)").arg(QCoreApplication::applicationVersion()));
     request.setTransferTimeout(12000);
     QNetworkReply *reply = m_net.get(request);
     connect(reply, &QNetworkReply::finished, this, [reply, done] {
