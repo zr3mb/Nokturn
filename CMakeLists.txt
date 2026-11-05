@@ -166,6 +166,7 @@ qt_add_qml_module(Everplay
         qml/overlay/LyricsOverlayWindow.qml
 
         qml/onboarding/Onboarding.qml
+        qml/onboarding/RebrandIntro.qml
         qml/onboarding/LayoutPreview.qml
         qml/onboarding/CrossfadePreview.qml
         qml/onboarding/OptionCard.qml

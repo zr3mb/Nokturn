@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
     // "everplay everplay://r/<code>" (the system opens links this way): a running Everplay opens it.
     QString link;
     for (const QString &arg : app.arguments().mid(1))
-        if ((arg.startsWith(QLatin1String("everplay:")) || arg.startsWith(QLatin1String("everplay:")) || arg.startsWith(QLatin1String("http"))) && OnlineService::isLink(arg))
+        if ((arg.startsWith(QLatin1String("everplay:")) || arg.startsWith(QLatin1String("nokturn:")) || arg.startsWith(QLatin1String("http"))) && OnlineService::isLink(arg))
             link = arg;
     if (!link.isEmpty() && GameOverlay::sendToRunning(QStringLiteral("open ") + link))
         return 0;

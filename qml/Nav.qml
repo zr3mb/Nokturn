@@ -27,8 +27,11 @@ QtObject {
     // First-run wizard (appearance, music sources, playback, integrations).
     property bool onboarding: !Prefs.boolValue("onboarding/done", false)
     property int onboardingStep: 0
+    // >= 0: the Nokturn → Everplay intro held on that second (the tour's screenshots)
+    property real introTime: -1
     function finishOnboarding() {
         Prefs.setValue("onboarding/done", true)
+        Prefs.setValue("everplay/introSeen", true)   // the "Nokturn is now Everplay" show is for people coming from it
         onboarding = false
     }
     function startOnboarding() {

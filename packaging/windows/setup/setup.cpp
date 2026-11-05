@@ -270,16 +270,16 @@ int compareVersions(const std::wstring &a, const std::wstring &b)
 // ---- registry, shortcuts, processes -------------------------------------------------
 
 std::wstring ourKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Everplay-test" : L"Everplay"); }
-std::wstring innoKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Everplay-inno-test" : kInnoId); }
+std::wstring innoKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Nokturn-inno-test" : kInnoId); }
 std::wstring shortcutName() { return g_opt.test ? L"Everplay (test).lnk" : L"Everplay.lnk"; }
 std::wstring startMenuShortcut() { return join(knownFolder(FOLDERID_Programs), shortcutName()); }
 std::wstring desktopShortcut() { return join(knownFolder(FOLDERID_Desktop), shortcutName()); }
 std::wstring defaultDir() { return join(knownFolder(FOLDERID_UserProgramFiles), L"Everplay"); }
 
-// The app was called Everplay before: this setup replaces such an install (and its in-app update, which
+// The app was called Nokturn before: this setup replaces such an install (and its in-app update, which
 // runs this setup, moves it over to the new name).
-std::wstring formerKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Everplay-test" : L"Everplay"); }
-std::wstring formerShortcutName() { return g_opt.test ? L"Everplay (test).lnk" : L"Everplay.lnk"; }
+std::wstring formerKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Nokturn-test" : L"Nokturn"); }
+std::wstring formerShortcutName() { return g_opt.test ? L"Nokturn (test).lnk" : L"Nokturn.lnk"; }
 std::wstring formerDesktopShortcut() { return join(knownFolder(FOLDERID_Desktop), formerShortcutName()); }
 std::wstring formerPinnedShortcut()
 {
@@ -287,10 +287,10 @@ std::wstring formerPinnedShortcut()
                 L"Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar\\" + formerShortcutName());
 }
 
-// The folder the new name goes to: "…\Everplay" becomes "…\Everplay", any other folder stays.
+// The folder the new name goes to: "…\Nokturn" becomes "…\Everplay", any other folder stays.
 std::wstring successorDir(const std::wstring &former)
 {
-    return lower(fileName(former)) == L"everplay" ? join(parentOf(former), L"Everplay") : former;
+    return lower(fileName(former)) == L"nokturn" ? join(parentOf(former), L"Everplay") : former;
 }
 
 std::wstring regString(HKEY root, const std::wstring &key, const wchar_t *name)
@@ -318,7 +318,7 @@ void regSet(HKEY key, const wchar_t *name, DWORD value)
 }
 
 // Where Everplay is installed already: by this setup, or by the Inno Setup one before it. former: it is
-// still the install under the old name (Everplay.exe).
+// still the install under the old name (Nokturn.exe).
 struct Existing {
     std::wstring dir, version;
     bool former = false;
@@ -332,7 +332,7 @@ Existing findExisting()
             continue;
         if (fileExists(join(dir, L"Everplay.exe")))
             return { dir, regString(HKEY_CURRENT_USER, key, L"DisplayVersion") };
-        if (fileExists(join(dir, L"Everplay.exe")))
+        if (fileExists(join(dir, L"Nokturn.exe")))
             return { dir, regString(HKEY_CURRENT_USER, key, L"DisplayVersion"), true };
     }
     return {};
@@ -1018,13 +1018,13 @@ bool runUninstall(const std::wstring &dir, bool removeData, Progress &p, std::ws
     DeleteFileW(desktopShortcut().c_str());
     RegDeleteTreeW(HKEY_CURRENT_USER, ourKey().c_str());
     if (!g_opt.test) {
-        // everplay:// and the former everplay:// links (the app registers both)
+        // everplay:// and the former nokturn:// links (the app registers both)
         RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\everplay");
-        RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\everplay");
+        RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\nokturn");
     }
     if (removeData && !g_opt.test) {
         for (REFKNOWNFOLDERID base : { FOLDERID_RoamingAppData, FOLDERID_LocalAppData }) {
-            for (const wchar_t *name : { L"Everplay", L"Everplay" }) {   // a copy left under the former name too
+            for (const wchar_t *name : { L"Everplay", L"Nokturn" }) {   // a copy left under the former name too
                 const std::wstring org = join(knownFolder(base), name);
                 removeTree(join(org, name));
                 RemoveDirectoryW(org.c_str());

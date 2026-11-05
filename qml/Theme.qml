@@ -32,8 +32,8 @@ Item {
     }
     readonly property var themeIds: ["everplay", "midnight", "sunset", "cat"].concat(Object.keys(Plugins.themes))
 
-    // "everplay": the default theme's id under the app's former name.
-    property string themeId: Prefs.stringValue("ui/theme", "everplay").replace(/^everplay$/, "everplay")
+    // "nokturn": the default theme's id under the app's former name.
+    property string themeId: Prefs.stringValue("ui/theme", "everplay").replace(/^nokturn$/, "everplay")
     onThemeIdChanged: Prefs.setValue("ui/theme", themeId)
     readonly property var preset: themes[themeId] || themes.everplay
     readonly property bool cat: themeId === "cat"

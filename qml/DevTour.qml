@@ -1090,6 +1090,23 @@ Item {
         f.contentY = Math.max(0, (f.contentHeight - f.height) * fraction)
         console.warn("tour: scroll", Math.round(f.contentY), "of", Math.round(f.contentHeight), "view", Math.round(f.height), f)
     }
+    // The Nokturn → Everplay intro held on a series of moments (--tour-intro)
+    readonly property bool withIntro: Qt.application.arguments.indexOf("--tour-intro") >= 0
+    readonly property var introSteps: [
+        { name: "I00-0_6", run: () => { Nav.finishOnboarding(); Nav.introTime = 0.6 } },
+        { name: "I01-1_2", run: () => { Nav.finishOnboarding(); Nav.introTime = 1.2 } },
+        { name: "I02-1_85", run: () => { Nav.finishOnboarding(); Nav.introTime = 1.85 } },
+        { name: "I03-2_2", run: () => { Nav.finishOnboarding(); Nav.introTime = 2.2 } },
+        { name: "I04-2_55", run: () => { Nav.finishOnboarding(); Nav.introTime = 2.55 } },
+        { name: "I05-2_9", run: () => { Nav.finishOnboarding(); Nav.introTime = 2.9 } },
+        { name: "I06-3_4", run: () => { Nav.finishOnboarding(); Nav.introTime = 3.4 } },
+        { name: "I07-4_0", run: () => { Nav.finishOnboarding(); Nav.introTime = 4.0 } },
+        { name: "I08-4_6", run: () => { Nav.finishOnboarding(); Nav.introTime = 4.6 } },
+        { name: "I09-5_2", run: () => { Nav.finishOnboarding(); Nav.introTime = 5.2 } },
+        { name: "I10-5_8", run: () => { Nav.finishOnboarding(); Nav.introTime = 5.8 } },
+        { name: "I11-6_6", run: () => { Nav.finishOnboarding(); Nav.introTime = 6.6 } },
+        { name: "I99-done", run: () => Nav.introTime = -1 }
+    ]
     readonly property var redesignSteps: [
         { name: "R00-start", run: () => { Nav.finishOnboarding(); Theme.themeId = "everplay"; Theme.shape = "rounded"; Player.muted = true; Nav.queueOpen = true; Nav.sidebarCompact = false
                                           const i = root.historyIndex(); const rows = i >= 0 ? Library.playlistRows(i) : Library.libraryRows()
@@ -1195,7 +1212,7 @@ Item {
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
         { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "everplay" } }
     ]
-    readonly property var steps: withRedesign ? redesignSteps : withPlugins ? pluginSteps : withDesign ? designSteps : withAhead ? aheadSteps : withCache ? cacheSteps : withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
+    readonly property var steps: withIntro ? introSteps : withRedesign ? redesignSteps : withPlugins ? pluginSteps : withDesign ? designSteps : withAhead ? aheadSteps : withCache ? cacheSteps : withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withMobile ? mobileSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0
     property bool measuring: false
     readonly property var bigSteps: [

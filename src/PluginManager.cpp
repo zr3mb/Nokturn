@@ -112,11 +112,11 @@ QJsonObject readManifest(const QString &dir, QString *error)
     return m;
 }
 
-// Plugins written before the rename import the app's QML module by its former name ("import Everplay"),
+// Plugins written before the rename import the app's QML module by its former name ("import Nokturn"),
 // and the catalog keeps them that way for the older app versions: the import is changed on disk.
 void adoptFormerImports(const QString &dir)
 {
-    static const QRegularExpression former(QStringLiteral("^(\\s*import\\s+)Everplay\\b"),
+    static const QRegularExpression former(QStringLiteral("^(\\s*import\\s+)Nokturn\\b"),
                                            QRegularExpression::MultilineOption);
     QDirIterator it(dir, { QStringLiteral("*.qml"), QStringLiteral("*.js"), QStringLiteral("*.mjs") }, QDir::Files,
                     QDirIterator::Subdirectories);

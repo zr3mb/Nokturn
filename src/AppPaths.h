@@ -11,7 +11,7 @@
 // The EVERPLAY_PROFILE variable points to a separate directory — handy for testing.
 namespace AppPaths {
 
-// The app was called Everplay before: its folders were <base>/Everplay/Everplay. The first start under the
+// The app was called Nokturn before: its folders were <base>/Nokturn/Nokturn. The first start under the
 // new name moves them to <base>/Everplay/Everplay, so the library, sign-ins and caches stay. Data that
 // can't be moved in one piece (another program holds a file) is copied; a cache that can't is left.
 inline void adoptFormerName()
@@ -28,12 +28,12 @@ inline void adoptFormerName()
         else if (!now.endsWith(suffix, Qt::CaseInsensitive))
             return;   // Android and other systems without the organization in the path
         const QString base = now.chopped(suffix.size());
-        const QString former = base + QStringLiteral("/Everplay/Everplay");
+        const QString former = base + QStringLiteral("/Nokturn/Nokturn");
         if (QFileInfo::exists(now) || !QFileInfo(former).isDir())
             return;
         QDir().mkpath(base + QStringLiteral("/Everplay"));
         if (QDir().rename(former, now)) {
-            QDir().rmdir(base + QStringLiteral("/Everplay"));   // only when nothing else is in it
+            QDir().rmdir(base + QStringLiteral("/Nokturn"));   // only when nothing else is in it
             return;
         }
         if (!copyIfNeeded)
