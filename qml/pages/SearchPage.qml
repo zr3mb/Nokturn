@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 Item {
     id: page

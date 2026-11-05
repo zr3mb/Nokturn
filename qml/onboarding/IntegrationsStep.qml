@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Step 6: Discord and controls (shortcuts, media keys).
 Item {

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // Step 1: welcome.
 Item {
@@ -59,7 +59,7 @@ Item {
         Text {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Welcome to Nokturn")
+            text: qsTr("Welcome to Everplay")
             color: Theme.text
             font.family: Theme.fontDisplay
             font.pixelSize: 54

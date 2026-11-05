@@ -1,9 +1,9 @@
-// Nokturn setup for Windows: a small installer in the app's own look. It downloads the release from
+// Everplay setup for Windows: a small installer in the app's own look. It downloads the release from
 // GitHub (a .tar.zst checked against the SHA-256 built into this file), installs per user without
 // admin rights and doubles as the uninstaller.
 //
-//   Nokturn-<version>-setup.exe              the window: Install / Update
-//   ... /SILENT                               in-app update: a progress window, then Nokturn starts
+//   Everplay-<version>-setup.exe              the window: Install / Update
+//   ... /SILENT                               in-app update: a progress window, then Everplay starts
 //   ... /VERYSILENT                           no window at all
 //   ... /DIR="C:\path"                        install there
 //   uninstall.exe --uninstall [/SILENT]       (copied into the install folder)
@@ -269,12 +269,29 @@ int compareVersions(const std::wstring &a, const std::wstring &b)
 
 // ---- registry, shortcuts, processes -------------------------------------------------
 
-std::wstring ourKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Nokturn-test" : L"Nokturn"); }
+std::wstring ourKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Everplay-test" : L"Everplay"); }
 std::wstring innoKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Nokturn-inno-test" : kInnoId); }
-std::wstring shortcutName() { return g_opt.test ? L"Nokturn (test).lnk" : L"Nokturn.lnk"; }
+std::wstring shortcutName() { return g_opt.test ? L"Everplay (test).lnk" : L"Everplay.lnk"; }
 std::wstring startMenuShortcut() { return join(knownFolder(FOLDERID_Programs), shortcutName()); }
 std::wstring desktopShortcut() { return join(knownFolder(FOLDERID_Desktop), shortcutName()); }
-std::wstring defaultDir() { return join(knownFolder(FOLDERID_UserProgramFiles), L"Nokturn"); }
+std::wstring defaultDir() { return join(knownFolder(FOLDERID_UserProgramFiles), L"Everplay"); }
+
+// The app was called Nokturn before: this setup replaces such an install (and its in-app update, which
+// runs this setup, moves it over to the new name).
+std::wstring formerKey() { return kUninstallRoot + std::wstring(g_opt.test ? L"Nokturn-test" : L"Nokturn"); }
+std::wstring formerShortcutName() { return g_opt.test ? L"Nokturn (test).lnk" : L"Nokturn.lnk"; }
+std::wstring formerDesktopShortcut() { return join(knownFolder(FOLDERID_Desktop), formerShortcutName()); }
+std::wstring formerPinnedShortcut()
+{
+    return join(knownFolder(FOLDERID_RoamingAppData),
+                L"Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar\\" + formerShortcutName());
+}
+
+// The folder the new name goes to: "…\Nokturn" becomes "…\Everplay", any other folder stays.
+std::wstring successorDir(const std::wstring &former)
+{
+    return lower(fileName(former)) == L"nokturn" ? join(parentOf(former), L"Everplay") : former;
+}
 
 std::wstring regString(HKEY root, const std::wstring &key, const wchar_t *name)
 {
@@ -300,17 +317,23 @@ void regSet(HKEY key, const wchar_t *name, DWORD value)
     RegSetValueExW(key, name, 0, REG_DWORD, reinterpret_cast<const BYTE *>(&value), sizeof value);
 }
 
-// Where Nokturn is installed already: by this setup, or by the Inno Setup one before it.
+// Where Everplay is installed already: by this setup, or by the Inno Setup one before it. former: it is
+// still the install under the old name (Nokturn.exe).
 struct Existing {
     std::wstring dir, version;
+    bool former = false;
 };
 
 Existing findExisting()
 {
-    for (const std::wstring &key : { ourKey(), innoKey() }) {
+    for (const std::wstring &key : { ourKey(), formerKey(), innoKey() }) {
         const std::wstring dir = trimSlash(regString(HKEY_CURRENT_USER, key, L"InstallLocation"));
-        if (!dir.empty() && fileExists(join(dir, L"Nokturn.exe")))
+        if (dir.empty())
+            continue;
+        if (fileExists(join(dir, L"Everplay.exe")))
             return { dir, regString(HKEY_CURRENT_USER, key, L"DisplayVersion") };
+        if (fileExists(join(dir, L"Nokturn.exe")))
+            return { dir, regString(HKEY_CURRENT_USER, key, L"DisplayVersion"), true };
     }
     return {};
 }
@@ -323,7 +346,7 @@ bool makeShortcut(const std::wstring &lnk, const std::wstring &target, const std
     link->SetPath(target.c_str());
     link->SetWorkingDirectory(workDir.c_str());
     link->SetIconLocation(icon.c_str(), 0);
-    link->SetDescription(L"Nokturn");
+    link->SetDescription(L"Everplay");
     IPersistFile *file = nullptr;
     const bool ok = SUCCEEDED(link->QueryInterface(IID_PPV_ARGS(&file))) && SUCCEEDED(file->Save(lnk.c_str(), TRUE));
     if (file)
@@ -357,7 +380,7 @@ std::vector<DWORD> processesIn(const std::wstring &dir)
     return out;
 }
 
-// Nokturn (and the tools it started from its folder) has to let go of the files: asked to close
+// Everplay (and the tools it started from its folder) has to let go of the files: asked to close
 // first, ended after a few seconds.
 void closeAppsIn(const std::wstring &dir)
 {
@@ -387,7 +410,7 @@ void launchApp(const std::wstring &dir)
 {
     if (g_opt.noLaunch)
         return;
-    const std::wstring exe = join(dir, L"Nokturn.exe");
+    const std::wstring exe = join(dir, L"Everplay.exe");
     std::wstring command = L"\"" + exe + L"\"";
     STARTUPINFOW si { sizeof si };
     PROCESS_INFORMATION pi {};
@@ -494,7 +517,7 @@ std::wstring payloadUrl()
 {
     if (!g_opt.url.empty())
         return g_opt.url;
-    return format(L"https://github.com/zr3mb/Nokturn/releases/download/v%ls/Nokturn-%ls-win64.tar.zst", kVersion, kVersion);
+    return format(L"https://github.com/zr3mb/Everplay/releases/download/v%ls/Everplay-%ls-win64.tar.zst", kVersion, kVersion);
 }
 
 // Saves url to target, hashing on the way.
@@ -513,7 +536,7 @@ bool download(const std::wstring &url, const std::wstring &target, Progress &p, 
         error = netError(GetLastError());
         return false;
     }
-    const std::wstring agent = std::wstring(L"Nokturn-Setup/") + kVersion;
+    const std::wstring agent = std::wstring(L"Everplay-Setup/") + kVersion;
     NetHandle session(WinHttpOpen(agent.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
     if (!session)   // before Windows 8.1
         session.reset(WinHttpOpen(agent.c_str(), WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
@@ -699,7 +722,7 @@ private:
                 continue;
             }
             if (e == ERROR_SHARING_VIOLATION || e == ERROR_LOCK_VIOLATION) {
-                m_error = format(TR(L"%ls is in use. Close Nokturn and try again.", L"Plik %ls jest używany. Zamknij Nokturn i spróbuj ponownie."),
+                m_error = format(TR(L"%ls is in use. Close Everplay and try again.", L"Plik %ls jest używany. Zamknij Everplay i spróbuj ponownie."),
                                  relative.c_str());
                 return false;
             }
@@ -814,12 +837,12 @@ void registerApp(const std::wstring &dir)
     const std::wstring uninstall = L"\"" + join(dir, kUninstaller) + L"\" --uninstall" + (g_opt.test ? L" --test" : L"");
     SYSTEMTIME now;
     GetLocalTime(&now);
-    regSet(key, L"DisplayName", g_opt.test ? L"Nokturn (test)" : L"Nokturn");
+    regSet(key, L"DisplayName", g_opt.test ? L"Everplay (test)" : L"Everplay");
     regSet(key, L"DisplayVersion", kVersion);
-    regSet(key, L"DisplayIcon", join(dir, L"nokturn.ico"));
+    regSet(key, L"DisplayIcon", join(dir, L"everplay.ico"));
     regSet(key, L"Publisher", L"zr3mb");
-    regSet(key, L"URLInfoAbout", L"https://github.com/zr3mb/Nokturn");
-    regSet(key, L"HelpLink", L"https://github.com/zr3mb/Nokturn/issues");
+    regSet(key, L"URLInfoAbout", L"https://github.com/zr3mb/Everplay");
+    regSet(key, L"HelpLink", L"https://github.com/zr3mb/Everplay/issues");
     regSet(key, L"InstallLocation", dir);
     regSet(key, L"InstallDate", format(L"%04u%02u%02u", now.wYear, now.wMonth, now.wDay));
     regSet(key, L"UninstallString", uninstall);
@@ -845,9 +868,37 @@ void retireInno(const std::wstring &dir)
     RegDeleteTreeW(HKEY_CURRENT_USER, key.c_str());
 }
 
+// The install under the app's former name, once the new one is in place: its files (unless they were in
+// the same folder, where the update already replaced them), shortcuts and entry go. A shortcut pinned to
+// the taskbar is pointed at the new app instead, so it stays where the user put it.
+void retireFormer(const std::wstring &former, const std::wstring &dir)
+{
+    if (former.empty())
+        return;
+    if (lower(former) != lower(dir)) {
+        closeAppsIn(former);
+        for (const std::wstring &f : readManifest(former)) {
+            const std::wstring path = join(former, f);
+            SetFileAttributesW(path.c_str(), FILE_ATTRIBUTE_NORMAL);
+            DeleteFileW(path.c_str());
+            removeEmptyParents(former, f);
+        }
+        for (const wchar_t *name : { kUninstaller, kManifest })
+            DeleteFileW(join(former, name).c_str());
+        RemoveDirectoryW(former.c_str());   // only if nothing else is left in it
+    }
+    const std::wstring exe = join(dir, L"Everplay.exe"), icon = join(dir, L"everplay.ico");
+    if (fileExists(formerPinnedShortcut()))
+        makeShortcut(formerPinnedShortcut(), exe, dir, icon);
+    DeleteFileW(join(knownFolder(FOLDERID_Programs), formerShortcutName()).c_str());
+    DeleteFileW(formerDesktopShortcut().c_str());
+    RegDeleteTreeW(HKEY_CURRENT_USER, formerKey().c_str());
+}
+
 struct Plan {
     std::wstring dir;
     bool desktop = true;
+    std::wstring former;   // an install under the old name that this one replaces
 };
 
 bool runInstall(const Plan &plan, Progress &p, std::wstring &error)
@@ -859,7 +910,7 @@ bool runInstall(const Plan &plan, Progress &p, std::wstring &error)
         error = noAccess;
         return false;
     }
-    const HANDLE probe = CreateFileW(join(dir, L".nokturn-setup").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+    const HANDLE probe = CreateFileW(join(dir, L".everplay-setup").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                                      FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
     if (probe == INVALID_HANDLE_VALUE) {
         error = noAccess;
@@ -870,7 +921,7 @@ bool runInstall(const Plan &plan, Progress &p, std::wstring &error)
     // The package: downloaded to the temporary folder (a complete earlier download is reused).
     std::wstring archive = g_opt.payload;
     if (archive.empty()) {
-        archive = join(tempDir(), format(L"Nokturn-%ls-win64.tar.zst", kVersion));
+        archive = join(tempDir(), format(L"Everplay-%ls-win64.tar.zst", kVersion));
         p.phase = Connecting;
         if (!(fileSize(archive) == kPayloadSize && sha256File(archive) == kPayloadSha256)) {
             const std::wstring part = archive + L".part";
@@ -899,6 +950,8 @@ bool runInstall(const Plan &plan, Progress &p, std::wstring &error)
 
     p.phase = Closing;
     closeAppsIn(dir);
+    if (!plan.former.empty())
+        closeAppsIn(plan.former);
 
     const std::vector<std::wstring> previous = readManifest(dir);
     p.done = 0;
@@ -931,12 +984,13 @@ bool runInstall(const Plan &plan, Progress &p, std::wstring &error)
 
     retireInno(dir);
     registerApp(dir);
-    const std::wstring exe = join(dir, L"Nokturn.exe"), icon = join(dir, L"nokturn.ico");
+    const std::wstring exe = join(dir, L"Everplay.exe"), icon = join(dir, L"everplay.ico");
     makeShortcut(startMenuShortcut(), exe, dir, icon);
     if (plan.desktop)
         makeShortcut(desktopShortcut(), exe, dir, icon);
     else
         DeleteFileW(desktopShortcut().c_str());
+    retireFormer(plan.former, dir);
     if (g_opt.payload.empty())
         DeleteFileW(archive.c_str());
     p.phase = Finished;
@@ -963,18 +1017,23 @@ bool runUninstall(const std::wstring &dir, bool removeData, Progress &p, std::ws
     DeleteFileW(startMenuShortcut().c_str());
     DeleteFileW(desktopShortcut().c_str());
     RegDeleteTreeW(HKEY_CURRENT_USER, ourKey().c_str());
-    if (!g_opt.test)
-        RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\nokturn");   // nokturn:// links (the app registers them)
+    if (!g_opt.test) {
+        // everplay:// and the former nokturn:// links (the app registers both)
+        RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\everplay");
+        RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\nokturn");
+    }
     if (removeData && !g_opt.test) {
         for (REFKNOWNFOLDERID base : { FOLDERID_RoamingAppData, FOLDERID_LocalAppData }) {
-            const std::wstring org = join(knownFolder(base), L"Nokturn");
-            removeTree(join(org, L"Nokturn"));
-            RemoveDirectoryW(org.c_str());
+            for (const wchar_t *name : { L"Everplay", L"Nokturn" }) {   // a copy left under the former name too
+                const std::wstring org = join(knownFolder(base), name);
+                removeTree(join(org, name));
+                RemoveDirectoryW(org.c_str());
+            }
         }
     }
-    if (fileExists(join(dir, L"Nokturn.exe"))) {
-        error = TR(L"Some files couldn't be removed. Close Nokturn and try again.",
-                   L"Nie udało się usunąć części plików. Zamknij Nokturn i spróbuj ponownie.");
+    if (fileExists(join(dir, L"Everplay.exe"))) {
+        error = TR(L"Some files couldn't be removed. Close Everplay and try again.",
+                   L"Nie udało się usunąć części plików. Zamknij Everplay i spróbuj ponownie.");
         return false;
     }
     p.done = p.total.load();
@@ -1038,7 +1097,11 @@ private:
     void chooseFolder();
     bool tick();
     double targetProgress() const;
-    bool updating() const { return !existing.dir.empty() && lower(existing.dir) == lower(dir); }
+    bool updating() const
+    {
+        return !existing.dir.empty()
+               && (lower(existing.dir) == lower(dir) || (existing.former && lower(successorDir(existing.dir)) == lower(dir)));
+    }
     std::wstring subtitle() const;
     std::wstring primaryLabel() const;
     std::wstring secondaryLabel() const;
@@ -1102,7 +1165,7 @@ bool Ui::initGraphics()
     m_label = make(text, 12, DWRITE_FONT_WEIGHT_NORMAL);
     m_path = make(text, 13.5f, DWRITE_FONT_WEIGHT_NORMAL);
     {
-        // Long paths lose their middle, so the "\Nokturn" at the end stays visible.
+        // Long paths lose their middle, so the "\Everplay" at the end stays visible.
         IDWriteInlineObject *ellipsis = nullptr;
         m_dw->CreateEllipsisTrimmingSign(m_path, &ellipsis);
         const DWRITE_TRIMMING trimming { DWRITE_TRIMMING_GRANULARITY_CHARACTER, L'\\', 1 };
@@ -1132,7 +1195,7 @@ std::wstring Ui::subtitle() const
                       existing.version.c_str(), kVersion);
     case Working:
         if (uninstalling)
-            return TR(L"Removing Nokturn", L"Usuwanie Nokturna");
+            return TR(L"Removing Everplay", L"Usuwanie Everplay");
         return format(updating() ? TR(L"Updating to version %ls", L"Aktualizacja do wersji %ls")
                                  : TR(L"Installing version %ls", L"Instalowanie wersji %ls"), kVersion);
     case Done:
@@ -1141,9 +1204,9 @@ std::wstring Ui::subtitle() const
     case Failed:
         return TR(L"Something went wrong", L"Coś poszło nie tak");
     case Confirm:
-        return format(TR(L"Remove Nokturn %ls from this computer?", L"Usunąć Nokturn %ls z tego komputera?"), existing.version.c_str());
+        return format(TR(L"Remove Everplay %ls from this computer?", L"Usunąć Everplay %ls z tego komputera?"), existing.version.c_str());
     case Removed:
-        return TR(L"Nokturn has been removed", L"Nokturn został usunięty");
+        return TR(L"Everplay has been removed", L"Everplay został usunięty");
     }
     return {};
 }
@@ -1155,7 +1218,7 @@ std::wstring Ui::primaryLabel() const
         if (!updating())
             return TR(L"Install", L"Zainstaluj");
         return compareVersions(existing.version, kVersion) < 0 ? TR(L"Update", L"Zaktualizuj") : TR(L"Reinstall", L"Zainstaluj ponownie");
-    case Done: return TR(L"Open Nokturn", L"Otwórz Nokturn");
+    case Done: return TR(L"Open Everplay", L"Otwórz Everplay");
     case Failed: return TR(L"Try again", L"Spróbuj ponownie");
     case Confirm: return TR(L"Uninstall", L"Odinstaluj");
     default: return TR(L"Close", L"Zamknij");
@@ -1173,7 +1236,7 @@ std::wstring Ui::phaseLabel() const
     case Connecting: return TR(L"Connecting to GitHub…", L"Łączenie z GitHubem…");
     case Downloading: return TR(L"Downloading", L"Pobieranie");
     case Verifying: return TR(L"Checking the download…", L"Sprawdzanie pobranego pliku…");
-    case Closing: return TR(L"Closing Nokturn…", L"Zamykanie Nokturna…");
+    case Closing: return TR(L"Closing Everplay…", L"Zamykanie Everplay…");
     case Installing: return TR(L"Installing", L"Instalowanie");
     case Removing: return TR(L"Removing files", L"Usuwanie plików");
     case Finishing:
@@ -1253,7 +1316,7 @@ Control Ui::hit(float x, float y) const
 
 void Ui::drawLogo(ID2D1RenderTarget *rt, float x, float y, float size)
 {
-    // The app icon (packaging/linux/nokturn.svg): a soft gradient tile with four bars.
+    // The app icon (packaging/linux/everplay.svg): a soft gradient tile with four bars.
     const float k = size / 128;
     const D2D1_GRADIENT_STOP stops[2] = { { 0, rgb(0xb3c6bb) }, { 1, rgb(0x3f5061) } };
     ID2D1GradientStopCollection *collection = nullptr;
@@ -1332,7 +1395,7 @@ void Ui::paint(ID2D1RenderTarget *rt)
     }
 
     drawLogo(rt, (kWidth - 76) / 2, 54, 76);
-    text(m_title, L"Nokturn", { 0, 140, kWidth, 184 }, rgb(color::text), DWRITE_TEXT_ALIGNMENT_CENTER);
+    text(m_title, L"Everplay", { 0, 140, kWidth, 184 }, rgb(color::text), DWRITE_TEXT_ALIGNMENT_CENTER);
     const D2D1_COLOR_F subColor = screen == Done || screen == Removed ? rgb(color::success)
                                   : screen == Failed                  ? rgb(color::danger)
                                                                       : rgb(color::textDim);
@@ -1384,7 +1447,7 @@ void Ui::paint(ID2D1RenderTarget *rt)
         break;
     }
     case Done:
-        text(m_body, TR(L"You'll find Nokturn in the Start menu.", L"Nokturn znajdziesz w menu Start."), { 28, 240, kWidth - 28, 270 },
+        text(m_body, TR(L"You'll find Everplay in the Start menu.", L"Everplay znajdziesz w menu Start."), { 28, 240, kWidth - 28, 270 },
              rgb(color::textDim), DWRITE_TEXT_ALIGNMENT_CENTER);
         button(Primary, primaryLabel(), true);
         button(Secondary, secondaryLabel(), false);
@@ -1443,7 +1506,7 @@ void Ui::start()
     progress.reset();
     shownProgress = 0;
     screen = Working;
-    const Plan plan { dir, desktop };
+    const Plan plan { dir, desktop, existing.former ? existing.dir : std::wstring() };
     const bool uninstall = uninstalling, wipe = removeData;
     m_worker = std::thread([this, plan, uninstall, wipe] {
         CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
@@ -1488,7 +1551,7 @@ void Ui::chooseFolder()
     DWORD options = 0;
     dialog->GetOptions(&options);
     dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
-    dialog->SetTitle(TR(L"Where should Nokturn be installed?", L"Gdzie zainstalować Nokturn?"));
+    dialog->SetTitle(TR(L"Where should Everplay be installed?", L"Gdzie zainstalować Everplay?"));
     IShellItem *folder = nullptr;
     const std::wstring startAt = dirExists(dir) ? dir : parentOf(dir);
     if (SUCCEEDED(SHCreateItemFromParsingName(startAt.c_str(), nullptr, IID_PPV_ARGS(&folder)))) {
@@ -1501,8 +1564,8 @@ void Ui::chooseFolder()
         if (SUCCEEDED(result->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
             // A folder of its own, so uninstalling never touches anything else.
             std::wstring chosen = trimSlash(path);
-            if (lower(fileName(chosen)) != L"nokturn")
-                chosen = join(chosen, L"Nokturn");
+            if (lower(fileName(chosen)) != L"everplay")
+                chosen = join(chosen, L"Everplay");
             dir = chosen;
         }
         CoTaskMemFree(path);
@@ -1689,9 +1752,9 @@ int Ui::run(HINSTANCE instance)
     wc.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(1));
     wc.hIconSm = HICON(LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.lpszClassName = L"NokturnSetup";
+    wc.lpszClassName = L"EverplaySetup";
     RegisterClassExW(&wc);
-    const wchar_t *title = uninstalling ? TR(L"Uninstall Nokturn", L"Odinstaluj Nokturn") : TR(L"Nokturn Setup", L"Instalator Nokturna");
+    const wchar_t *title = uninstalling ? TR(L"Uninstall Everplay", L"Odinstaluj Everplay") : TR(L"Everplay Setup", L"Instalator Everplay");
     CreateWindowExW(WS_EX_APPWINDOW, wc.lpszClassName, title, WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_THICKFRAME,
                     CW_USEDEFAULT, CW_USEDEFAULT, 480, 440, nullptr, nullptr, instance, nullptr);
     if (!m_hwnd)
@@ -1842,7 +1905,7 @@ int preview()
 // The uninstaller can't delete itself: a copy in the temporary folder does the work.
 bool relaunchFromTemp(const std::wstring &dir)
 {
-    const std::wstring copy = join(tempDir(), format(L"Nokturn-uninstall-%lu.exe", GetCurrentProcessId()));
+    const std::wstring copy = join(tempDir(), format(L"Everplay-uninstall-%lu.exe", GetCurrentProcessId()));
     if (!CopyFileW(selfPath().c_str(), copy.c_str(), FALSE))
         return false;
     std::wstring command = format(L"\"%ls\" --uninstall --dir \"%ls\" --wait %lu", copy.c_str(), dir.c_str(), GetCurrentProcessId());
@@ -1921,12 +1984,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
     const Existing existing = findExisting();
     std::wstring dir = trimSlash(g_opt.dir);
     if (dir.empty())
-        dir = existing.dir.empty() ? defaultDir() : existing.dir;
-    const bool desktop = existing.dir.empty() || lower(existing.dir) != lower(dir) || fileExists(desktopShortcut());
+        dir = existing.dir.empty() ? defaultDir() : existing.former ? successorDir(existing.dir) : existing.dir;
+    // A desktop shortcut for a new install; an update keeps the choice made before (under either name).
+    const bool desktop = existing.former ? fileExists(formerDesktopShortcut())
+                                         : existing.dir.empty() || lower(existing.dir) != lower(dir) || fileExists(desktopShortcut());
     if (g_opt.verySilent) {
         Progress p;
         std::wstring error;
-        if (!runInstall({ dir, desktop }, p, error))
+        if (!runInstall({ dir, desktop, existing.former ? existing.dir : std::wstring() }, p, error))
             return 1;
         launchApp(dir);
         return 0;

@@ -387,7 +387,7 @@ void BrowserLogin::log(const QString &line)
         file.remove();   // only recent attempts matter
     if (file.open(QIODevice::Append | QIODevice::Text))
         file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + QLatin1Char(' ') + line + QLatin1Char('\n')).toUtf8());
-    if (qEnvironmentVariableIsSet("NOKTURN_LOGIN_DEBUG"))
+    if (qEnvironmentVariableIsSet("EVERPLAY_LOGIN_DEBUG"))
         qInfo("login: %s", qPrintable(line));
 }
 

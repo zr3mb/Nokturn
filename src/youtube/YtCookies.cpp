@@ -27,7 +27,7 @@ const QByteArray kPlainMagic = "NKP1";
 
 QByteArray keyringKey(bool create)
 {
-    const QStringList attributes = { QStringLiteral("application"), QStringLiteral("nokturn"),
+    const QStringList attributes = { QStringLiteral("application"), QStringLiteral("everplay"),
                                      QStringLiteral("type"), QStringLiteral("youtube-cookie-key") };
     QProcess lookup;
     lookup.start(QStringLiteral("secret-tool"), QStringList { QStringLiteral("lookup") } + attributes);
@@ -44,7 +44,7 @@ QByteArray keyringKey(bool create)
                                          reinterpret_cast<quint32 *>(key.data() + key.size()));
     QProcess store;
     store.start(QStringLiteral("secret-tool"),
-                QStringList { QStringLiteral("store"), QStringLiteral("--label=Nokturn (YouTube Music session)") } + attributes);
+                QStringList { QStringLiteral("store"), QStringLiteral("--label=Everplay (YouTube Music session)") } + attributes);
     if (!store.waitForStarted(3000))
         return {};
     store.write(key.toBase64());
@@ -82,7 +82,7 @@ QByteArray protect(const QByteArray &plain)
 #ifdef Q_OS_WIN
     DATA_BLOB in { DWORD(plain.size()), reinterpret_cast<BYTE *>(const_cast<char *>(plain.constData())) };
     DATA_BLOB out {};
-    if (!CryptProtectData(&in, L"Nokturn", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &out))
+    if (!CryptProtectData(&in, L"Everplay", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &out))
         return {};
     QByteArray result(reinterpret_cast<const char *>(out.pbData), int(out.cbData));
     LocalFree(out.pbData);

@@ -27,7 +27,7 @@ constexpr int kCheckInterval = 6 * 60 * 60 * 1000;   // check again every 6 hour
 QNetworkRequest githubRequest(const QUrl &url)
 {
     QNetworkRequest req(url);
-    req.setRawHeader("User-Agent", "Nokturn");
+    req.setRawHeader("User-Agent", "Everplay");
     req.setRawHeader("Accept", "application/vnd.github+json");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     return req;
@@ -84,7 +84,7 @@ Updater::Updater(QObject *parent)
 
 QString Updater::currentVersion() const
 {
-    return QStringLiteral(NOKTURN_VERSION);
+    return QStringLiteral(EVERPLAY_VERSION);
 }
 
 bool Updater::canInstall() const
@@ -104,8 +104,8 @@ void Updater::check(bool manual)
     if (m_state != QLatin1String("idle"))
         return;
     setState(QStringLiteral("checking"));
-    // NOKTURN_UPDATE_API overrides the API URL (testing with a local, fake release).
-    QString api = qEnvironmentVariable("NOKTURN_UPDATE_API");
+    // EVERPLAY_UPDATE_API overrides the API URL (testing with a local, fake release).
+    QString api = qEnvironmentVariable("EVERPLAY_UPDATE_API");
     if (api.isEmpty())
         api = QString::fromLatin1(kReleaseApi);
     QNetworkReply *reply = m_net.get(githubRequest(QUrl(api)));
@@ -186,7 +186,7 @@ void Updater::install()
 void Updater::startDownload()
 {
 #ifdef Q_OS_WIN
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QStringLiteral("/Nokturn-update");
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QStringLiteral("/Everplay-update");
     QDir().mkpath(dir);
     m_installerPath = dir + QChar('/') + m_installerUrl.fileName();
 #else
@@ -250,7 +250,7 @@ void Updater::verifyAndRun(const QByteArray &expectedSha)
     }
     setState(QStringLiteral("installing"));
 #ifdef Q_OS_WIN
-    // Silent mode: a progress window without questions. The setup downloads the release, closes Nokturn,
+    // Silent mode: a progress window without questions. The setup downloads the release, closes Everplay,
     // replaces the files in the same folder and starts the new version.
     const QStringList args = { QStringLiteral("/SILENT"), QStringLiteral("/SUPPRESSMSGBOXES"),
                                QStringLiteral("/NORESTART"), QStringLiteral("/NOCANCEL") };
@@ -271,7 +271,7 @@ void Updater::verifyAndRun(const QByteArray &expectedSha)
         return;
     }
     if (!QProcess::startDetached(target, {})) {
-        fail(tr("Couldn't start the new version — start Nokturn again"));
+        fail(tr("Couldn't start the new version — start Everplay again"));
         return;
     }
 #endif

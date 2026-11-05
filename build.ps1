@@ -1,4 +1,4 @@
-# Builds Nokturn with the MSYS2 UCRT64 toolchain (GCC + Qt 6).
+# Builds Everplay with the MSYS2 UCRT64 toolchain (GCC + Qt 6).
 #   .\build.ps1          — build (Release)
 #   .\build.ps1 -Run     — build and run
 #   .\build.ps1 -Deploy  — build + a standalone dist\ folder with the Qt libraries
@@ -22,13 +22,13 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 cmake --build $build
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-$exe = Join-Path $build 'Nokturn.exe'
+$exe = Join-Path $build 'Everplay.exe'
 
 if ($Deploy) {
     $dist = Join-Path $root 'dist'
     New-Item -ItemType Directory -Force $dist | Out-Null
     Copy-Item $exe $dist -Force
-    & (Join-Path $bin 'windeployqt6.exe') --release --qmldir (Join-Path $root 'qml') --no-translations (Join-Path $dist 'Nokturn.exe')
+    & (Join-Path $bin 'windeployqt6.exe') --release --qmldir (Join-Path $root 'qml') --no-translations (Join-Path $dist 'Everplay.exe')
     # windeployqt doesn't copy the MSYS2 libraries (GCC runtime, ICU, zlib, freetype…),
     # so we pick them up by following each binary's dependencies with ldd.
     $ldd = Join-Path (Split-Path $Msys) 'usr\bin\ldd.exe'

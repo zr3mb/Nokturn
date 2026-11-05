@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // “New version available” dialog (Updater): the change list from the GitHub release,
 // download with progress and one-click install.
@@ -70,7 +70,7 @@ Item {
                                 font.weight: Font.Bold
                             }
                             Text {
-                                text: qsTr("Nokturn %1  ·  you have %2").arg(Updater.latestVersion).arg(Updater.currentVersion)
+                                text: qsTr("Everplay %1  ·  you have %2").arg(Updater.latestVersion).arg(Updater.currentVersion)
                                 color: Theme.textDim
                                 font.pixelSize: 14
                             }
@@ -128,7 +128,7 @@ Item {
                         }
                         Text {
                             text: Updater.state === "installing"
-                                  ? qsTr("Installing the update — Nokturn will restart in a moment…")
+                                  ? qsTr("Installing the update — Everplay will restart in a moment…")
                                   : qsTr("Downloading… %1%").arg(Math.round(Updater.progress * 100))
                             color: Theme.textDim
                             font.pixelSize: 13

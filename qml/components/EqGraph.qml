@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Equalizer graph: frequency/dB grid, spectrum of the playing audio, the combined curve,
 // the selected band's curve and draggable band points.

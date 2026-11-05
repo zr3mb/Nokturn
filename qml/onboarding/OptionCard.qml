@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Choice card in the wizard: a preview (e.g. LayoutPreview) + title + description, selected with the accent.
 Item {

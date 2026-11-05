@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // The full-screen player's "Up next": the next track; a click or a swipe up opens the queue.
 Item {

@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Logo: a rounded tile with an accent gradient and "breathing" bars.
 Rectangle {

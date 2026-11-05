@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // Lyrics of the playing track. With timestamps: the current line is highlighted and smoothly scrolled
 // to the center, and clicking a line seeks the track. Without timestamps: plain text to read
@@ -182,7 +182,7 @@ Item {
             Layout.topMargin: 2
             visible: Lyrics.canTranscribe || (Lyrics.state === "missing" && Lyrics.recognizing)
             horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Test feature: Nokturn listens to the recording on this computer and writes down the words with their timing. Expect mistakes, especially over loud music.")
+            text: qsTr("Test feature: Everplay listens to the recording on this computer and writes down the words with their timing. Expect mistakes, especially over loud music.")
                   + " " + (Lyrics.sttUsesGpu ? qsTr("On your graphics card it takes a few seconds.") : qsTr("It takes a few minutes."))
             color: Theme.warning
             font.pixelSize: 11

@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // The queue over the full-screen player (Nav.immersiveQueue: "half" or "full", "" = closed). Its header drags
 // it between the two heights or down to close it; a click on the header switches them. A click above it

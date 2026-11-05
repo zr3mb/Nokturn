@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Vertical slider (fader) in decibels: drag, mouse wheel, double-click = 0 dB.
 Item {

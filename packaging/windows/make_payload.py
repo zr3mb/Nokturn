@@ -1,12 +1,12 @@
 # Packs dist\ and the icon into the .tar.zst the setup downloads from the GitHub release, and writes
 # what the setup is built with (version, sizes, SHA-256) to setup_config.h.
-#   python make_payload.py <dist> <nokturn.ico> <version> <out.tar.zst> <setup_config.h> <zstd.exe>
+#   python make_payload.py <dist> <everplay.ico> <version> <out.tar.zst> <setup_config.h> <zstd.exe>
 import hashlib, subprocess, sys, tarfile
 from pathlib import Path
 
 dist, icon, version, out, config, zstd = sys.argv[1:7]
 dist, out = Path(dist), Path(out)
-tar_path = out.with_suffix("")   # Nokturn-X-win64.tar
+tar_path = out.with_suffix("")   # Everplay-X-win64.tar
 installed = 0
 
 def add(tar, path, name):
@@ -23,7 +23,7 @@ def add(tar, path, name):
 with tarfile.open(tar_path, "w", format=tarfile.USTAR_FORMAT, encoding="utf-8") as tar:
     for path in sorted(p for p in dist.rglob("*") if p.is_file()):
         add(tar, path, path.relative_to(dist).as_posix())
-    add(tar, Path(icon), "nokturn.ico")
+    add(tar, Path(icon), "everplay.ico")
 
 subprocess.run([zstd, "-19", "--long=27", "-T0", "-q", "-f", str(tar_path), "-o", str(out)], check=True)
 tar_path.unlink()

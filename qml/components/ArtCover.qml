@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Cover art: the real image (when there is one), and under it — or instead of it — a generative
 // gradient in the album's colors with one of four graphic motifs.

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Spotify track played from the wrong YouTube Music version: a few search results ("artist title",
 // editable) to pick the right one from. The choice is remembered and plays straight away.

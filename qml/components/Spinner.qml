@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 Item {
     id: root

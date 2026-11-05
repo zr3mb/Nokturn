@@ -13,7 +13,7 @@ class QJSEngine;
 class QQmlEngine;
 
 // The user's own playlists: created here, kept on this computer (playlists.json), on the YouTube
-// Music account, or on the Nokturn server as a shared playlist (OnlineService) that everyone with
+// Music account, or on the Everplay server as a shared playlist (OnlineService) that everyone with
 // its link can add to. Local playlists can hold any track — local files, YouTube and Spotify
 // tracks (their data is kept too, so they stay playable after the search results are gone).
 // A YouTube Music playlist only takes YouTube videos: Spotify tracks go in as their YouTube Music

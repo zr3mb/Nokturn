@@ -2,7 +2,7 @@
     "id": "night-themes",
     "name": { "en": "Night themes", "pl": "Nocne motywy" },
     "version": "1.0.0",
-    "author": "Nokturn",
+    "author": "Everplay",
     "description": {
         "en": "Two extra colour themes: Deep Sea and Forest. Pick them in Settings → Appearance. A theme can be just a few lines of JSON.",
         "pl": "Dwa dodatkowe motywy kolorów: Głębia i Las. Wybierzesz je w Ustawienia → Wygląd. Motyw to może być kilka linijek JSON-a."

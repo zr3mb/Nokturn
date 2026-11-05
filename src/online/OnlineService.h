@@ -19,8 +19,8 @@ class PlayerController;
 class QJSEngine;
 class QQmlEngine;
 
-// Online features through the Nokturn server (server/ in the repository):
-//  - share links for tracks (…/t/<code>), opened in Nokturn through nokturn://t/<code>;
+// Online features through the Everplay server (server/ in the repository):
+//  - share links for tracks (…/t/<code>), opened in Everplay through everplay://t/<code>;
 //  - shared playlists: everyone who joins through the link (…/p/<id>) adds and removes tracks;
 //  - listening rooms (…/r/<code>): one queue played at the same time for everyone in the room,
 //    in "open" mode (everyone adds and controls) or "host" mode (one leader, the others listen along).
@@ -122,8 +122,8 @@ public:
     // ---- links ----
     Q_INVOKABLE void shareTrack(int row);   // copies the link to the clipboard
     Q_INVOKABLE void shareCurrent();
-    // nokturn://t|r|p/<code>, the same as an https link to the server, or a room code alone.
-    // False when the text isn't a Nokturn link.
+    // everplay://t|r|p/<code>, the same as an https link to the server, or a room code alone.
+    // False when the text isn't a Everplay link.
     Q_INVOKABLE bool openLink(const QString &link);
     static bool isLink(const QString &text);
 

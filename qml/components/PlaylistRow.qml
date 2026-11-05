@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // A compact playlist row (small cover, name, Play on hover): the shortcuts on the home page and the
 // playlists found by the search. playlist: a Library.playlists entry (or one shaped like it).

@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
-// Plugins: what's installed (on/off, settings, remove) and the catalog on the Nokturn server.
+// Plugins: what's installed (on/off, settings, remove) and the catalog on the Everplay server.
 // Installing anything asks first: a plugin is code that runs with the app's rights.
 Item {
     id: page
@@ -445,7 +445,7 @@ Item {
     FileDialog {
         id: fileDialog
         title: qsTr("Choose a plugin")
-        nameFilters: [qsTr("Nokturn plugin (*.zip plugin.json)")]
+        nameFilters: [qsTr("Everplay plugin (*.zip plugin.json)")]
         onAccepted: page.ask({ file: selectedFile, name: "" })
     }
 
@@ -480,7 +480,7 @@ Item {
             }
             Text {
                 Layout.fillWidth: true
-                text: qsTr("A plugin is code that runs inside Nokturn with the same rights as the app: it can see what you play and use the internet. Install only plugins you trust.")
+                text: qsTr("A plugin is code that runs inside Everplay with the same rights as the app: it can see what you play and use the internet. Install only plugins you trust.")
                 color: Theme.textDim
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap

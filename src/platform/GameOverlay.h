@@ -16,7 +16,7 @@ class QLocalServer;
 class ShortcutPortal;
 
 // The in-game overlay: an XMB-style menu (qml/overlay) over the game, opened with a global shortcut,
-// by holding View + Menu on a pad, or with "nokturn --overlay" (sent to the running app). It covers the
+// by holding View + Menu on a pad, or with "everplay --overlay" (sent to the running app). It covers the
 // game's monitor, takes the keyboard while open and gives the focus back when it closes.
 // Windows: a low-level keyboard hook (games can switch RegisterHotKey off), XInput, and the focus moved
 // by hand; a game in exclusive fullscreen is minimized while the menu is open.
@@ -35,13 +35,13 @@ class GameOverlay : public QObject
     Q_PROPERTY(QRect area READ area NOTIFY openChanged)               // the game's monitor (logical pixels)
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY settingsChanged)
     Q_PROPERTY(bool padEnabled READ padEnabled WRITE setPadEnabled NOTIFY settingsChanged)
-    // How the shortcut works here: "native" (Windows, set in Nokturn), "portal" (the desktop owns it),
+    // How the shortcut works here: "native" (Windows, set in Everplay), "portal" (the desktop owns it),
     // "command" (no portal: bind toggleCommand in the desktop's settings).
     Q_PROPERTY(QString hotkeyMode READ hotkeyMode NOTIFY settingsChanged)
     Q_PROPERTY(QString hotkey READ hotkey NOTIFY settingsChanged)     // "Ctrl+Shift+M"; "" while the desktop hasn't set one
     Q_PROPERTY(bool hotkeyTaken READ hotkeyTaken NOTIFY settingsChanged)   // another app has the hotkey (Windows)
     Q_PROPERTY(bool canConfigureHotkey READ canConfigureHotkey NOTIFY settingsChanged)   // the desktop's dialog
-    Q_PROPERTY(QString toggleCommand READ toggleCommand CONSTANT)     // "nokturn --overlay"
+    Q_PROPERTY(QString toggleCommand READ toggleCommand CONSTANT)     // "everplay --overlay"
     Q_PROPERTY(bool padConnected READ padConnected NOTIFY padConnectedChanged)
     Q_PROPERTY(QQuickItem *view READ view WRITE setView NOTIFY viewChanged)   // the open menu (DevTour)
 
@@ -59,7 +59,7 @@ public:
     static GameOverlay *create(QQmlEngine *, QJSEngine *);
     ~GameOverlay() override;
 
-    // "nokturn --overlay" / "--lyrics-overlay": hands the request to a running Nokturn; false when none is running.
+    // "everplay --overlay" / "--lyrics-overlay": hands the request to a running Everplay; false when none is running.
     static bool sendToRunning(const QString &command = QStringLiteral("overlay"));
 
     bool supported() const;
@@ -120,7 +120,7 @@ signals:
     void viewChanged();
     // "left", "right", "up", "down", "accept", "back", "playPause", "previousTrack", "nextTrack"
     void padInput(const QString &action);
-    // A nokturn:// link opened while Nokturn was already running ("open <link>" on the local socket).
+    // A everplay:// link opened while Everplay was already running ("open <link>" on the local socket).
     void linkReceived(const QString &link);
 
 private:

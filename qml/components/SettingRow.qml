@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Settings row: title + description on the left, the control on the right.
 Item {

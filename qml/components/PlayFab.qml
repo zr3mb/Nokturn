@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // Round play button shown on cards on hover.
 Item {

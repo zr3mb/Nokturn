@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
-import Nokturn
+import Everplay
 
 // Playlist, album or artist view. The list is virtualized (ListView), because YouTube Music
 // playlists can have thousands of tracks.

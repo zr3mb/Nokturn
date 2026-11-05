@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Translucent rounded panel — content is clipped to the rounded corners.
 Item {

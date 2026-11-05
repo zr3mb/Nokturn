@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 Item {
     id: root

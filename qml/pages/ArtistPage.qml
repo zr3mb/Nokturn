@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Artist profile: the YouTube Music page (photo, description, popular songs, albums, singles,
 // playlists, related artists) and the artist's tracks from the library. An artist known only by

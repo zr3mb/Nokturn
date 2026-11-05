@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Tabs with a sliding highlight: "pill" or "underline" style.
 Item {

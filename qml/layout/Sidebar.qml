@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // Sidebar: logo, menu with a "floating" selection indicator, playlists.
 Panel {
@@ -74,7 +74,7 @@ Panel {
         Text {
             id: brand
             anchors { left: mark.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
-            text: "Nokturn"
+            text: "Everplay"
             color: Theme.cat ? Theme.accent : Theme.text
             font.family: Theme.fontDisplay
             font.pixelSize: 21

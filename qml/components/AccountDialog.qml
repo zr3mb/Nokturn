@@ -1,9 +1,9 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
-// The Nokturn account: give this device's account a login and a password, sign in to one, set a new password
+// The Everplay account: give this device's account a login and a password, sign in to one, set a new password
 // with the recovery key, change the password, get a new recovery key. A new key is shown once, at the end.
 Popup {
     id: root
@@ -120,8 +120,8 @@ Popup {
             Text {
                 Layout.fillWidth: true
                 text: ({
-                    create: Online.registered ? qsTr("Set a login and a password") : qsTr("Create a Nokturn account"),
-                    signin: qsTr("Sign in to Nokturn"),
+                    create: Online.registered ? qsTr("Set a login and a password") : qsTr("Create a Everplay account"),
+                    signin: qsTr("Sign in to Everplay"),
                     recover: qsTr("Forgot the password"),
                     password: qsTr("Change the password"),
                     newkey: qsTr("New recovery key"),

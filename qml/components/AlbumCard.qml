@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // Album / artist card: lifts on hover, the shadow grows and a Play button slides in.
 Item {

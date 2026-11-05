@@ -2,7 +2,7 @@
 #include <windows.h>
 #include "setup_config.h"
 
-1 ICON "nokturn.ico"
+1 ICON "everplay.ico"
 1 RT_MANIFEST "setup.manifest"
 
 VS_VERSION_INFO VERSIONINFO
@@ -16,12 +16,12 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "zr3mb"
-            VALUE "FileDescription", "Nokturn Setup"
+            VALUE "FileDescription", "Everplay Setup"
             VALUE "FileVersion", SETUP_VERSION
-            VALUE "ProductName", "Nokturn"
+            VALUE "ProductName", "Everplay"
             VALUE "ProductVersion", SETUP_VERSION
             VALUE "LegalCopyright", "zr3mb"
-            VALUE "OriginalFilename", "Nokturn-setup.exe"
+            VALUE "OriginalFilename", "Everplay-setup.exe"
         END
     END
     BLOCK "VarFileInfo"

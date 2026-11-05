@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // In-game HUD lyrics overlay: pure floating text directly over the dimmed game screen
 // with click-through transparency and configurable full-screen dimming.
@@ -13,7 +13,7 @@ Window {
            | Qt.WindowTransparentForInput
     transientParent: null
     color: "transparent"
-    title: "Nokturn Lyrics"
+    title: "Everplay Lyrics"
     x: GameOverlay.area.x
     y: GameOverlay.area.y
     width: Math.max(640, GameOverlay.area.width)
@@ -203,7 +203,7 @@ Window {
                     Layout.fillWidth: true
                     visible: !Player.hasTrack
                     horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("Play music in Nokturn to see lyrics")
+                    text: qsTr("Play music in Everplay to see lyrics")
                     color: Theme.textDim
                     font.family: Theme.fontDisplay
                     font.pixelSize: 22 * hud.s

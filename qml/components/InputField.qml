@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // Text field with an icon and a glow on focus.
 TextField {

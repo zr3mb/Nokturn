@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import QtQuick.Effects
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // Right panel: cover with a vinyl record sliding out, track details, queue.
 Panel {

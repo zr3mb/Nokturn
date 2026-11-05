@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
-import Nokturn
+import Everplay
 
 ApplicationWindow {
     id: win
@@ -10,7 +10,7 @@ ApplicationWindow {
     minimumWidth: 1120
     minimumHeight: 720
     visible: true
-    title: "Nokturn"
+    title: "Everplay"
     color: Theme.bg
     flags: Qt.Window | Qt.FramelessWindowHint
 
@@ -220,7 +220,7 @@ ApplicationWindow {
             }
         }
 
-        // The Nokturn account: a login and a password, signing in, the recovery key
+        // The Everplay account: a login and a password, signing in, the recovery key
         Loader {
             id: accountDialog
             active: false
@@ -355,7 +355,7 @@ ApplicationWindow {
         function onRoomOpened() { Nav.navigate("room") }
         function onPlaylistOpened(id) { Nav.openPlaylist("shared", id) }
         function onPasswordNeeded(id, wrong) { passwordDialog.ask(id, wrong) }
-        // A nokturn:// link opened from a browser or a chat app
+        // A everplay:// link opened from a browser or a chat app
         function onActivateRequested() {
             if (win.visibility === Window.Minimized || win.visibility === Window.Hidden)
                 win.showNormal()

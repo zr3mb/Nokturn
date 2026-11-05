@@ -70,10 +70,10 @@ Track serverTrack(const QJsonObject &o)
     return t;
 }
 
-// NOKTURN_ONLINE_DEBUG=1: room states, what the player is told and what it reports.
+// EVERPLAY_ONLINE_DEBUG=1: room states, what the player is told and what it reports.
 bool debug()
 {
-    static const bool on = qEnvironmentVariableIsSet("NOKTURN_ONLINE_DEBUG");
+    static const bool on = qEnvironmentVariableIsSet("EVERPLAY_ONLINE_DEBUG");
     return on;
 }
 
@@ -85,14 +85,15 @@ QString defaultName()
     return name.isEmpty() ? QStringLiteral("Listener") : name.left(40);
 }
 
-// "nokturn://r/ABC123" / "https://host/r/ABC123" -> { "r", "ABC123" }
+// "everplay://r/ABC123" / "https://host/r/ABC123" -> { "r", "ABC123" }
+// (nokturn:// is the scheme of the app's former name: the server's link pages and old links use it.)
 std::optional<std::pair<QString, QString>> parseLink(const QString &text, const QString &server)
 {
     const QString trimmed = text.trimmed();
     const QUrl url(trimmed);
     static const QRegularExpression code(QStringLiteral("^[A-Za-z0-9]{4,20}$"));
     QString kind, value;
-    if (url.scheme() == QLatin1String("nokturn")) {
+    if (url.scheme() == QLatin1String("everplay") || url.scheme() == QLatin1String("nokturn")) {
         kind = url.host();
         value = url.path().mid(1).section(QLatin1Char('/'), 0, 0);
     } else if (url.scheme().startsWith(QLatin1String("http"))) {
@@ -135,7 +136,7 @@ OnlineService::OnlineService(QObject *parent)
 {
     m_monotonic.start();
     auto settings = AppPaths::settings();
-    m_server = qEnvironmentVariable("NOKTURN_SERVER");
+    m_server = qEnvironmentVariable("EVERPLAY_SERVER");
     if (m_server.isEmpty())
         m_server = settings->value("online/server", QString::fromLatin1(kDefaultServer)).toString();
     m_server = m_server.trimmed();
@@ -207,7 +208,7 @@ OnlineService::OnlineService(QObject *parent)
     });
     connect(&m_ws, &QWebSocket::textMessageReceived, this, &OnlineService::onSocketMessage);
 
-    // Shared playlists and the library may have changed while Nokturn was closed.
+    // Shared playlists and the library may have changed while Everplay was closed.
     if (registered() && (!m_playlists.isEmpty() || m_librarySync))
         QTimer::singleShot(4'000, this, &OnlineService::connectSocket);
     if (registered() && m_librarySync)
@@ -315,7 +316,7 @@ void OnlineService::ensureAccount(std::function<void(bool ok)> then)
                 QTimer::singleShot(0, this, &OnlineService::syncLibrary);
             }
         } else {
-            emit notice(tr("Can't reach the Nokturn server: %1").arg(error), QStringLiteral("close"));
+            emit notice(tr("Can't reach the Everplay server: %1").arg(error), QStringLiteral("close"));
         }
         const auto waiting = std::exchange(m_waitingForAccount, {});
         for (const auto &cb : waiting)
@@ -415,7 +416,7 @@ void OnlineService::send(const QByteArray &method, const QString &path, const QB
 {
     QNetworkRequest req(QUrl(m_server + QStringLiteral("/api/v1") + path));
     req.setHeader(QNetworkRequest::ContentTypeHeader, QString::fromLatin1(type));
-    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Nokturn/" NOKTURN_VERSION));
+    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Everplay/" EVERPLAY_VERSION));
     req.setTransferTimeout(15'000);
     if (!m_token.isEmpty())
         req.setRawHeader("Authorization", "Bearer " + m_token.toUtf8());
@@ -432,7 +433,7 @@ void OnlineService::send(const QByteArray &method, const QString &path, const QB
             const bool hadLogin = !m_login.isEmpty();
             dropAccount();
             if (hadLogin)
-                emit notice(tr("This device was signed out of your Nokturn account"), QStringLiteral("close"));
+                emit notice(tr("This device was signed out of your Everplay account"), QStringLiteral("close"));
         }
         QString error;
         if (reply->error() != QNetworkReply::NoError || status >= 400) {
@@ -471,7 +472,7 @@ void OnlineService::connectSocket()
     url.setScheme(url.scheme() == QLatin1String("http") ? QStringLiteral("ws") : QStringLiteral("wss"));
     QNetworkRequest req(url);
     req.setRawHeader("Authorization", "Bearer " + m_token.toUtf8());
-    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Nokturn/" NOKTURN_VERSION));
+    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Everplay/" EVERPLAY_VERSION));
     m_ws.open(req);
 }
 
@@ -2093,7 +2094,7 @@ void OnlineService::redeemPairCode(const QString &code)
             return;
         }
         switchAccount(token, reply.value("user").toObject());
-        emit notice(tr("Linked — this device uses the same Nokturn account now"), QStringLiteral("check"));
+        emit notice(tr("Linked — this device uses the same Everplay account now"), QStringLiteral("check"));
     });
 }
 
@@ -2230,39 +2231,42 @@ void OnlineService::signOut()
         return;   // an account with no login would be lost
     request("POST", QStringLiteral("/account/logout"), {}, [this](const QJsonObject &, const QString &) {
         dropAccount();   // signed out here even if the server couldn't be told
-        emit notice(tr("Signed out of your Nokturn account"), QStringLiteral("check"));
+        emit notice(tr("Signed out of your Everplay account"), QStringLiteral("check"));
     });
 }
 
-// ---- nokturn:// links open Nokturn ------------------------------------------------
+// ---- everplay:// links open Everplay ------------------------------------------------
 
 void OnlineService::registerUrlScheme()
 {
-    if (qEnvironmentVariableIsSet("NOKTURN_PROFILE"))
+    if (qEnvironmentVariableIsSet("EVERPLAY_PROFILE"))
         return;   // test profiles shouldn't take the links over
 #ifdef Q_OS_WIN
     // Per user, no admin rights needed; points at this executable, so it follows updates and moves.
+    // Both schemes: nokturn:// is the one of the app's former name, still used by the server's link pages.
     const QString exe = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
-    QSettings key(QStringLiteral("HKEY_CURRENT_USER\\Software\\Classes\\nokturn"), QSettings::NativeFormat);
     const QString command = QStringLiteral("\"%1\" \"%2\"").arg(exe, QStringLiteral("%1"));
-    if (key.value(QStringLiteral("shell/open/command/Default")).toString() == command)
-        return;
-    key.setValue(QStringLiteral("Default"), QStringLiteral("URL:Nokturn"));
-    key.setValue(QStringLiteral("URL Protocol"), QString());
-    key.setValue(QStringLiteral("DefaultIcon/Default"), QStringLiteral("\"%1\",0").arg(exe));
-    key.setValue(QStringLiteral("shell/open/command/Default"), command);
+    for (const char *scheme : { "everplay", "nokturn" }) {
+        QSettings key(QStringLiteral("HKEY_CURRENT_USER\\Software\\Classes\\") + QLatin1String(scheme), QSettings::NativeFormat);
+        if (key.value(QStringLiteral("shell/open/command/Default")).toString() == command)
+            continue;
+        key.setValue(QStringLiteral("Default"), QStringLiteral("URL:Everplay"));
+        key.setValue(QStringLiteral("URL Protocol"), QString());
+        key.setValue(QStringLiteral("DefaultIcon/Default"), QStringLiteral("\"%1\",0").arg(exe));
+        key.setValue(QStringLiteral("shell/open/command/Default"), command);
+    }
 #elif defined(Q_OS_LINUX)
     // An AppImage has no installed .desktop file: a hidden one for the links points at it.
-    // (Installed from source, packaging/linux/nokturn.desktop handles nokturn:// itself.)
+    // (Installed from source, packaging/linux/everplay.desktop handles the links itself.)
     const QString appImage = qEnvironmentVariable("APPIMAGE");
     if (appImage.isEmpty())
         return;
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
-    const QString file = dir + QStringLiteral("/nokturn-links.desktop");
+    const QString file = dir + QStringLiteral("/everplay-links.desktop");
     const QString exec = QString(appImage).replace(QLatin1Char('"'), QStringLiteral("\\\""));
     const QByteArray content = QStringLiteral(
-        "[Desktop Entry]\nType=Application\nName=Nokturn\nNoDisplay=true\nIcon=nokturn\n"
-        "Exec=\"%1\" %u\nMimeType=x-scheme-handler/nokturn;\n").arg(exec).toUtf8();
+        "[Desktop Entry]\nType=Application\nName=Everplay\nNoDisplay=true\nIcon=everplay\n"
+        "Exec=\"%1\" %u\nMimeType=x-scheme-handler/everplay;x-scheme-handler/nokturn;\n").arg(exec).toUtf8();
     QFile current(file);
     if (current.open(QIODevice::ReadOnly) && current.readAll() == content)
         return;
@@ -2275,8 +2279,8 @@ void OnlineService::registerUrlScheme()
     if (!out.commit())
         return;
     QProcess::startDetached(QStringLiteral("xdg-mime"),
-                            { QStringLiteral("default"), QStringLiteral("nokturn-links.desktop"),
-                              QStringLiteral("x-scheme-handler/nokturn") });
+                            { QStringLiteral("default"), QStringLiteral("everplay-links.desktop"),
+                              QStringLiteral("x-scheme-handler/everplay"), QStringLiteral("x-scheme-handler/nokturn") });
     QProcess::startDetached(QStringLiteral("update-desktop-database"), { dir });
 #endif
 }

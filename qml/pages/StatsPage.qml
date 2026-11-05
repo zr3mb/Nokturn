@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Your listening in numbers (ListeningHistory): this month, this year or all time — minutes, plays,
 // the artists, tracks and genres you played most, and when in the day you listen.

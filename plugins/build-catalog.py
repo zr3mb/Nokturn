@@ -19,6 +19,9 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ID = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
 SKIP = {"__pycache__", ".git", ".DS_Store", "Thumbs.db"}
+# The app was called Nokturn before, and versions from then import its QML module by that name. The
+# catalog serves them too, so the archives keep the former name; Everplay changes it back on install.
+IMPORT = re.compile(rb"^(\s*import\s+)Everplay\b", re.MULTILINE)
 
 
 def pack(folder, target):
@@ -35,7 +38,10 @@ def pack(folder, target):
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = 0o644 << 16
                 with open(path, "rb") as f:
-                    z.writestr(info, f.read())
+                    data = f.read()
+                if name.endswith((".qml", ".js", ".mjs")):
+                    data = IMPORT.sub(rb"\1Nokturn", data)
+                z.writestr(info, data)
 
 
 def main():

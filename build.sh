@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Builds Nokturn on Linux (Qt 6.8+, TagLib 2, CMake, Ninja).
+# Builds Everplay on Linux (Qt 6.8+, TagLib 2, CMake, Ninja).
 #   ./build.sh                 — build (Release) into build/
 #   ./build.sh --run           — build and run
 #   ./build.sh --install       — build and install into ~/.local (program, icon, .desktop file)
-#   ./build.sh --appimage      — build + a standalone Nokturn-x86_64.AppImage file (linuxdeploy)
+#   ./build.sh --appimage      — build + a standalone Everplay-x86_64.AppImage file (linuxdeploy)
 # Variables: QT_DIR=/path/to/Qt/6.x/gcc_64 (when Qt isn't the system one), PREFIX=/usr/local (for --install),
-#            DISCORD_CLIENT_ID=<Application ID> (another built-in ID for the Discord status; default: Nokturn's).
+#            DISCORD_CLIENT_ID=<Application ID> (another built-in ID for the Discord status; default: Everplay's).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,13 +38,13 @@ install_prefix="${PREFIX:-$HOME/.local}"
 
 cmake -S "$root" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$install_prefix" \
-    ${DISCORD_CLIENT_ID:+-DNOKTURN_DISCORD_CLIENT_ID="$DISCORD_CLIENT_ID"} "${prefix_path[@]}"
+    ${DISCORD_CLIENT_ID:+-DEVERPLAY_DISCORD_CLIENT_ID="$DISCORD_CLIENT_ID"} "${prefix_path[@]}"
 cmake --build "$build"
 
 if [[ $install == 1 ]]; then
     cmake --install "$build"
     command -v update-desktop-database >/dev/null && update-desktop-database "$install_prefix/share/applications" || true
-    echo "Installed into $install_prefix (run: nokturn)"
+    echo "Installed into $install_prefix (run: everplay)"
 fi
 
 if [[ $appimage == 1 ]]; then
@@ -86,12 +86,12 @@ if [[ $appimage == 1 ]]; then
     [[ -n "${QT_DIR:-}" ]] && export QMAKE="$QT_DIR/bin/qmake"
     (cd "$build" && "$tools/linuxdeploy-$arch.AppImage" --appdir "$appdir" --plugin qt --output appimage \
         "${extra_deps[@]}" \
-        --desktop-file "$appdir/usr/share/applications/nokturn.desktop" \
-        --icon-file "$appdir/usr/share/icons/hicolor/scalable/apps/nokturn.svg")
-    mv "$build"/Nokturn*.AppImage "$root/" 2>/dev/null || true
-    echo "Done: $(ls "$root"/Nokturn*.AppImage 2>/dev/null)"
+        --desktop-file "$appdir/usr/share/applications/everplay.desktop" \
+        --icon-file "$appdir/usr/share/icons/hicolor/scalable/apps/everplay.svg")
+    mv "$build"/Everplay*.AppImage "$root/" 2>/dev/null || true
+    echo "Done: $(ls "$root"/Everplay*.AppImage 2>/dev/null)"
 fi
 
 if [[ $run == 1 ]]; then
-    exec "$build/nokturn"
+    exec "$build/everplay"
 fi

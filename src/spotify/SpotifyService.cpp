@@ -132,7 +132,7 @@ SpotifyService::SpotifyService(QObject *parent)
 {
     m_clientId = AppPaths::settings()->value("spotify/clientId").toString();
     if (m_clientId.isEmpty())
-        m_clientId = QStringLiteral(NOKTURN_SPOTIFY_CLIENT_ID);
+        m_clientId = QStringLiteral(EVERPLAY_SPOTIFY_CLIENT_ID);
 
     connect(&m_server, &QTcpServer::newConnection, this, &SpotifyService::onCallback);
     connect(&m_webLogin, &SpotifyWebLogin::statusChanged, this, &SpotifyService::loggingInChanged);
@@ -160,7 +160,7 @@ void SpotifyService::setClientId(const QString &id)
 
 bool SpotifyService::builtInClientId() const
 {
-    return !QStringLiteral(NOKTURN_SPOTIFY_CLIENT_ID).isEmpty();
+    return !QStringLiteral(EVERPLAY_SPOTIFY_CLIENT_ID).isEmpty();
 }
 
 QString SpotifyService::redirectUri() const
@@ -288,9 +288,9 @@ void SpotifyService::onCallback()
             const QUrlQuery q(QUrl(QString::fromLatin1(line.at(1))).query());
             const QString code = q.queryItemValue(QStringLiteral("code"));
             const bool ok = !code.isEmpty() && q.queryItemValue(QStringLiteral("state")) == m_state;
-            const QString message = ok ? tr("Nokturn is connected to Spotify — you can close this tab.")
-                                       : tr("Signing in to Spotify didn't work — go back to Nokturn and try again.");
-            const QByteArray body = "<!doctype html><meta charset=utf-8><title>Nokturn</title>"
+            const QString message = ok ? tr("Everplay is connected to Spotify — you can close this tab.")
+                                       : tr("Signing in to Spotify didn't work — go back to Everplay and try again.");
+            const QByteArray body = "<!doctype html><meta charset=utf-8><title>Everplay</title>"
                                     "<body style=\"font:16px system-ui;background:#101114;color:#e8e4dd;"
                                     "display:grid;place-items:center;height:90vh\"><p>"
                                     + message.toHtmlEscaped().toUtf8() + "</p>";
@@ -548,7 +548,7 @@ void SpotifyService::refresh()
 // ---- sync through the web player's own queries (browser sign-in) ---------------------
 //
 // The public Web API answers the web player's token with "rate limit exceeded", so with the browser
-// sign-in Nokturn asks the same GraphQL queries the web player asks (SpotifyWebLogin captured their
+// sign-in Everplay asks the same GraphQL queries the web player asks (SpotifyWebLogin captured their
 // names, hashes and headers). Their answers are internal and may change — parsing is lenient.
 
 void SpotifyService::query(const QString &name, const QJsonObject &variables, JsonCallback callback, int attempt)

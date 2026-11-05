@@ -177,7 +177,7 @@ AudioEngine::AudioEngine(QObject *parent)
     m_ring->open(QIODevice::ReadOnly);
 
     // The sink is made on its own thread, so its timers (it pulls from the ring with them) run there.
-    m_outputThread.setObjectName(QStringLiteral("Nokturn audio output"));
+    m_outputThread.setObjectName(QStringLiteral("Everplay audio output"));
     m_outputThread.start(QThread::TimeCriticalPriority);
     m_output = new QObject;
     m_output->moveToThread(&m_outputThread);
@@ -259,8 +259,8 @@ void AudioEngine::push(int deck, const QAudioBuffer &buffer)
     stage.data.insert(stage.data.end(), m_scratch.begin(), m_scratch.end());
     pump();
 
-    // Diagnostics (NOKTURN_AUDIO_DEBUG=1): whether samples arrive at playback speed.
-    static const bool debug = qEnvironmentVariableIsSet("NOKTURN_AUDIO_DEBUG");
+    // Diagnostics (EVERPLAY_AUDIO_DEBUG=1): whether samples arrive at playback speed.
+    static const bool debug = qEnvironmentVariableIsSet("EVERPLAY_AUDIO_DEBUG");
     if (debug && deck == m_active) {
         static QElapsedTimer clock;
         static qint64 total = 0;

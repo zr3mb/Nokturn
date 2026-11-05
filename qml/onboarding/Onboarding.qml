@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // First-run wizard: welcome → layout → colors → music (folders, YouTube Music)
 // → playback (mix, lyrics) → integrations (Discord) → summary. Every choice takes effect at once
@@ -78,7 +78,7 @@ Item {
                     LogoMark {}
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Nokturn"
+                        text: "Everplay"
                         color: Theme.text
                         font.family: Theme.fontDisplay
                         font.pixelSize: 20

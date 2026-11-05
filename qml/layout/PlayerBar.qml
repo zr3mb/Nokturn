@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // The player: a floating glass dock along the bottom of the window, tinted by the cover.
 Item {

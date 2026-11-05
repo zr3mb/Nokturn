@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Window
-import Nokturn
+import Everplay
 
 // The in-game overlay (GameOverlay): an XMB-style menu over the dimmed game. Categories run across,
 // the chosen one's items run down from under it — the items before the selected one move above the
@@ -16,7 +16,7 @@ Window {
            | (Theme.windows ? Qt.WindowDoesNotAcceptFocus : 0)
     transientParent: null      // its own window: not hidden with a minimized main window
     color: "transparent"
-    title: "Nokturn"
+    title: "Everplay"
     x: GameOverlay.area.x
     y: GameOverlay.area.y
     width: Math.max(640, GameOverlay.area.width)
@@ -295,7 +295,7 @@ Window {
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Nokturn"
+                text: "Everplay"
                 color: Theme.text
                 font.family: Theme.fontDisplay
                 font.pixelSize: 22 * menu.s

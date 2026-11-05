@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // Full-screen "Now playing" mode: big cover, a stronger background, a wide visualizer.
 Item {

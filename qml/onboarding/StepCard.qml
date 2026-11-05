@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Card with a step's content (music sources, playback, integrations).
 Rectangle {

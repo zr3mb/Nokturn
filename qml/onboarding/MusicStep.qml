@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // Step 4: where the music comes from — folders on disk and a YouTube Music account.
 Item {

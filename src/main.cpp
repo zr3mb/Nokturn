@@ -41,7 +41,7 @@ private:
 
 int main(int argc, char *argv[])
 {
-    QElapsedTimer startClock;   // NOKTURN_PERF_DEBUG: how long the start takes
+    QElapsedTimer startClock;   // EVERPLAY_PERF_DEBUG: how long the start takes
     startClock.start();
     // Images (covers) give up their memory copy once they're uploaded to the GPU, and skip the shared
     // texture atlas — covers are drawn from a mipmapped copy of their own, so the atlas only kept a
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 #endif
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_SIZE_LIMIT"))
         qputenv("QSG_ATLAS_SIZE_LIMIT", "1");
-    // Nokturn plays audio only, but Qt's FFmpeg backend probes every hardware video decoder (CUDA,
+    // Everplay plays audio only, but Qt's FFmpeg backend probes every hardware video decoder (CUDA,
     // Vulkan, QSV…) the first time it loads, which held the start for well over a second. An unknown
     // device name leaves the lists empty, so nothing is probed.
     if (!qEnvironmentVariableIsSet("QT_FFMPEG_DECODING_HW_DEVICE_TYPES"))
@@ -62,12 +62,13 @@ int main(int argc, char *argv[])
         qputenv("QT_FFMPEG_ENCODING_HW_DEVICE_TYPES", "none");
 
     QGuiApplication app(argc, argv);
-    QGuiApplication::setApplicationName(QStringLiteral("Nokturn"));
-    QGuiApplication::setApplicationDisplayName(QStringLiteral("Nokturn"));
-    QGuiApplication::setOrganizationName(QStringLiteral("Nokturn"));
-    QGuiApplication::setApplicationVersion(QStringLiteral(NOKTURN_VERSION));
-    // Wayland/X11: ties the window to the nokturn.desktop file (icon, name in the panel, MPRIS).
-    QGuiApplication::setDesktopFileName(QStringLiteral("nokturn"));
+    QGuiApplication::setApplicationName(QStringLiteral("Everplay"));
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("Everplay"));
+    QGuiApplication::setOrganizationName(QStringLiteral("Everplay"));
+    QGuiApplication::setApplicationVersion(QStringLiteral(EVERPLAY_VERSION));
+    // Wayland/X11: ties the window to the everplay.desktop file (icon, name in the panel, MPRIS).
+    QGuiApplication::setDesktopFileName(QStringLiteral("everplay"));
+    AppPaths::adoptFormerName();   // before anything reads the data folder
 
     // The "Basic" style allows fully restyling the controls in QML.
     QQuickStyle::setStyle(QStringLiteral("Basic"));
@@ -78,7 +79,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setFont(font);
 #endif
 
-    // "nokturn --overlay" / "--lyrics-overlay": the running Nokturn opens or closes its overlay;
+    // "everplay --overlay" / "--lyrics-overlay": the running Everplay opens or closes its overlay;
     // with none running, this one starts and opens it.
     const bool overlayRequest = app.arguments().contains(QStringLiteral("--overlay"));
     const bool lyricsOverlayRequest = app.arguments().contains(QStringLiteral("--lyrics-overlay"));
@@ -86,10 +87,10 @@ int main(int argc, char *argv[])
         return 0;
     if (lyricsOverlayRequest && GameOverlay::sendToRunning(QStringLiteral("lyrics-overlay")))
         return 0;
-    // "nokturn nokturn://r/<code>" (the system opens links this way): a running Nokturn opens it.
+    // "everplay everplay://r/<code>" (the system opens links this way): a running Everplay opens it.
     QString link;
     for (const QString &arg : app.arguments().mid(1))
-        if ((arg.startsWith(QLatin1String("nokturn:")) || arg.startsWith(QLatin1String("http"))) && OnlineService::isLink(arg))
+        if ((arg.startsWith(QLatin1String("everplay:")) || arg.startsWith(QLatin1String("nokturn:")) || arg.startsWith(QLatin1String("http"))) && OnlineService::isLink(arg))
             link = arg;
     if (!link.isEmpty() && GameOverlay::sendToRunning(QStringLiteral("open ") + link))
         return 0;
@@ -103,8 +104,8 @@ int main(int argc, char *argv[])
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
         [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
 
-    engine.loadFromModule("Nokturn", "Main");
-    const bool perfDebug = qEnvironmentVariableIsSet("NOKTURN_PERF_DEBUG");
+    engine.loadFromModule("Everplay", "Main");
+    const bool perfDebug = qEnvironmentVariableIsSet("EVERPLAY_PERF_DEBUG");
     if (perfDebug)
         qInfo("perf: the interface was built %lld ms after start", startClock.elapsed());
     QObject::connect(GameOverlay::instance(), &GameOverlay::linkReceived, OnlineService::instance(), &OnlineService::openLink);
@@ -118,14 +119,14 @@ int main(int argc, char *argv[])
     // After a GPU reset the scene graph rebuilds its textures from the images' memory copies, which
     // QSG_TRANSIENT_IMAGES dropped — so the images are loaded again (Theme.imageEpoch changes their URLs).
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
-    if (QObject *theme = engine.singletonInstance<QObject *>("Nokturn", "Theme");
+    if (QObject *theme = engine.singletonInstance<QObject *>("Everplay", "Theme");
         window && theme && qgetenv("QSG_TRANSIENT_IMAGES") == "1") {
         QObject::connect(window, &QQuickWindow::sceneGraphInvalidated, theme, [theme] {
             theme->setProperty("imageEpoch", theme->property("imageEpoch").toInt() + 1);
         }, Qt::QueuedConnection);
     }
 
-    // Diagnostics (NOKTURN_PERF_DEBUG=1): reports when the GUI thread was blocked — audio samples go
+    // Diagnostics (EVERPLAY_PERF_DEBUG=1): reports when the GUI thread was blocked — audio samples go
     // through it, so a stall over ~200 ms is heard as a gap.
     QTimer stallProbe;
     QElapsedTimer stallClock;

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Track row in lists: number ↔ play ↔ equalizer, cover, title, album, source, like, duration.
 Item {

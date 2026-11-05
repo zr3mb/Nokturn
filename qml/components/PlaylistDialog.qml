@@ -1,9 +1,9 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
-// New playlist — kept on this computer, on the YouTube Music account or shared through the Nokturn
+// New playlist — kept on this computer, on the YouTube Music account or shared through the Everplay
 // server — or editing an existing one (name, description; who can see it for YouTube Music).
 Popup {
     id: root
@@ -130,8 +130,8 @@ Popup {
                 text: root.target === "youtube"
                       ? qsTr("Saved on your YouTube Music account — you'll see it on your phone too. Spotify tracks go in as their YouTube Music version, local files are skipped.")
                       : root.target === "shared"
-                      ? qsTr("Saved on the Nokturn server with an invite link — everyone who opens it can add and remove tracks. Local files and Spotify tracks go in as their YouTube Music version.")
-                      : qsTr("Saved only in Nokturn on this computer. It can hold any track — local files, YouTube Music, Spotify and SoundCloud.")
+                      ? qsTr("Saved on the Everplay server with an invite link — everyone who opens it can add and remove tracks. Local files and Spotify tracks go in as their YouTube Music version.")
+                      : qsTr("Saved only in Everplay on this computer. It can hold any track — local files, YouTube Music, Spotify and SoundCloud.")
                 color: Theme.textFaint
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap

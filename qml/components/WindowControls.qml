@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Window buttons (minimize / maximize / close) for the frameless window.
 Row {

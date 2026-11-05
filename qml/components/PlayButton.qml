@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Main Play/Pause button: smooth icon swap.
 Item {

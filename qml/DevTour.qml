@@ -1,8 +1,8 @@
 import QtQuick
 import QtQuick.Controls
-import Nokturn
+import Everplay
 
-// Developer tool: `Nokturn.exe --tour <folder>` walks through the screens
+// Developer tool: `Everplay.exe --tour <folder>` walks through the screens
 // and saves a screenshot of each one as PNG. Inactive in a normal run.
 Item {
     id: root
@@ -81,7 +81,7 @@ Item {
         { name: "Q5-nolimit", run: () => { Equalizer.limiter = false; Equalizer.preamp = 12 } },
         { name: "Q6-clip", run: () => { console.log("tour: no limiter peak", Equalizer.peak.toFixed(1), "dB, clipping", Equalizer.clipping); Equalizer.limiter = true; Equalizer.preamp = 0 } }
     ]
-    // Performance (--tour-perf, with NOKTURN_PERF_DEBUG=1): playback while searching and opening artists.
+    // Performance (--tour-perf, with EVERPLAY_PERF_DEBUG=1): playback while searching and opening artists.
     readonly property bool withPerf: Qt.application.arguments.indexOf("--tour-perf") >= 0
     function findSearchPage(item) {
         if (item.onlineEnabled !== undefined && item.query !== undefined)
@@ -457,7 +457,7 @@ Item {
         } })
         return s
     }
-    // The order of the tracks in a playlist (--tour-track-order "<pair code or ->", with NOKTURN_SERVER): a local
+    // The order of the tracks in a playlist (--tour-track-order "<pair code or ->", with EVERPLAY_SERVER): a local
     // playlist and a shared one made from the first liked tracks, the last track moved to the top of each.
     readonly property bool withTrackOrder: Qt.application.arguments.indexOf("--tour-track-order") >= 0
     readonly property var trackOrderSteps: {
@@ -509,7 +509,7 @@ Item {
             { name: "O6-kept", run: () => console.log("tour: order kept", JSON.stringify(Library.organizer ? 1 : 0), names("ytmusic")) }
         ]
     }
-    // Playlist folders and hidden playlists (--tour-folders "<pair code or ->", with NOKTURN_SERVER): links the
+    // Playlist folders and hidden playlists (--tour-folders "<pair code or ->", with EVERPLAY_SERVER): links the
     // account (to see the layout reach it), makes a folder with a playlist in it, hides one, shows the hidden.
     readonly property bool withFolders: Qt.application.arguments.indexOf("--tour-folders") >= 0
     readonly property var folderSteps: {
@@ -532,8 +532,8 @@ Item {
             { name: "F9-pick", run: () => Nav.moveToFolder(find("history")) }
         ]
     }
-    // Dragging the window's edge while music plays (--tour-resize "<query>", with NOKTURN_AUDIO_DEBUG and
-    // NOKTURN_PERF_DEBUG): the width changes every frame for a while; the log shows buffer underruns.
+    // Dragging the window's edge while music plays (--tour-resize "<query>", with EVERPLAY_AUDIO_DEBUG and
+    // EVERPLAY_PERF_DEBUG): the width changes every frame for a while; the log shows buffer underruns.
     readonly property bool withResize: Qt.application.arguments.indexOf("--tour-resize") >= 0
     Timer {
         id: resizer
@@ -645,7 +645,7 @@ Item {
         ]
     }
     // Listening to a few tracks muted, with the lyrics open (--tour-listen "<q1>;<q2>", "_" = space):
-    // with NOKTURN_AUDIO_DEBUG the log shows whether the sound keeps up (buffer underruns).
+    // with EVERPLAY_AUDIO_DEBUG the log shows whether the sound keeps up (buffer underruns).
     readonly property bool withListen: Qt.application.arguments.indexOf("--tour-listen") >= 0
     readonly property var listenSteps: {
         if (!withListen)
@@ -663,7 +663,7 @@ Item {
         })
         return s
     }
-    // A playlist into a listening room (--tour-room-add, with NOKTURN_SERVER): a new room, the dialog,
+    // A playlist into a listening room (--tour-room-add, with EVERPLAY_SERVER): a new room, the dialog,
     // over a hundred tracks at once, then shuffling and clearing what is still to play.
     readonly property bool withRoomAdd: Qt.application.arguments.indexOf("--tour-room-add") >= 0
     readonly property var roomAddSteps: {
@@ -683,7 +683,7 @@ Item {
         ]
     }
 
-    // A shared playlist's own cover (--tour-shared-cover "<playlist id>;<picture>", with NOKTURN_SERVER and a test
+    // A shared playlist's own cover (--tour-shared-cover "<playlist id>;<picture>", with EVERPLAY_SERVER and a test
     // profile): joining shows the cover the others set; a new one goes to the server for everyone.
     readonly property bool withSharedCover: Qt.application.arguments.indexOf("--tour-shared-cover") >= 0
     readonly property var sharedCoverSteps: {
@@ -724,7 +724,7 @@ Item {
     }
 
     // Online features against a server (--tour-online "<room code>;<playlist id>;<share code>", with
-    // NOKTURN_SERVER and NOKTURN_ONLINE_DEBUG): a share link, joining a shared playlist and a room,
+    // EVERPLAY_SERVER and EVERPLAY_ONLINE_DEBUG): a share link, joining a shared playlist and a room,
     // the player's buttons going to the room, the dialogs, leaving.
     readonly property bool withOnline: Qt.application.arguments.indexOf("--tour-online") >= 0
     readonly property var onlineSteps: {
@@ -734,7 +734,7 @@ Item {
         const sharedIndex = () => Library.playlists.findIndex(p => p.kind === "shared")
         return [
             { name: "O1-share", run: () => { Nav.finishOnboarding(); Player.muted = true
-                                            console.log("tour: link opened =", Online.openLink("nokturn://t/" + share)) } },
+                                            console.log("tour: link opened =", Online.openLink("everplay://t/" + share)) } },
             { name: "O2-playlist", run: () => { console.log("tour: shared track =", Player.title, "|", Player.artist)
                                                Online.openLink("https://" + Online.serverUrl.replace(/^https?:\/\//, "") + "/p/" + playlist) } },
             { name: "O3-playlist-add", run: () => { const i = sharedIndex()
@@ -742,7 +742,7 @@ Item {
                                                    if (i >= 0 && Player.currentIndex >= 0) Playlists.addRows(i, [Player.currentIndex]) } },
             { name: "O4-playlist-after", run: () => { const i = sharedIndex()
                                                      console.log("tour: after adding", i >= 0 ? Library.playlistRows(i).length : -1, JSON.stringify(Online.playlistInfo(Library.playlists[i].sharedId))) } },
-            { name: "O5-room", run: () => Online.openLink("nokturn://r/" + room) },
+            { name: "O5-room", run: () => Online.openLink("everplay://r/" + room) },
             { name: "O6-room-state", run: () => console.log("tour: in room", Online.inRoom, JSON.stringify(Online.room)) },
             { name: "O7-buttons", run: () => { Player.next(); Player.pause(); Player.seek(42) } },
             { name: "O8-after-buttons", run: () => console.log("tour: room playing", Online.room.playing, "| player", Player.title, Player.inRoom) },
@@ -753,7 +753,7 @@ Item {
             { name: "O11-dialog", run: () => Nav.createPlaylist([]) }
         ]
     }
-    // The account's library on this device (--tour-library "<pair code>", with NOKTURN_SERVER): links with a
+    // The account's library on this device (--tour-library "<pair code>", with EVERPLAY_SERVER): links with a
     // code from another device, shows what came over, then unlikes one track so the other device sees it.
     readonly property bool withLibrarySync: Qt.application.arguments.indexOf("--tour-library") >= 0
     readonly property var librarySyncSteps: {
@@ -774,7 +774,7 @@ Item {
             { name: "S7-after", run: () => console.log("tour: liked at the end", JSON.stringify(liked())) }
         ]
     }
-    // Copies of the YouTube Music playlists on the account (--tour-mirrors, with NOKTURN_SERVER and a profile
+    // Copies of the YouTube Music playlists on the account (--tour-mirrors, with EVERPLAY_SERVER and a profile
     // signed in to YouTube Music): makes the account, then waits while the playlists load and go up.
     readonly property bool withMirrors: Qt.application.arguments.indexOf("--tour-mirrors") >= 0
     readonly property var mirrorSteps: {
@@ -789,7 +789,7 @@ Item {
         return s
     }
     // Joining a shared playlist that has a password (--tour-password "<playlist id>;<password>", with
-    // NOKTURN_SERVER): the dialog, a wrong password, the right one.
+    // EVERPLAY_SERVER): the dialog, a wrong password, the right one.
     readonly property bool withPassword: Qt.application.arguments.indexOf("--tour-password") >= 0
     readonly property var passwordSteps: {
         if (!withPassword)
@@ -806,7 +806,7 @@ Item {
             { name: "P6-joined", run: () => console.log("tour: shared after", JSON.stringify(shared()), JSON.stringify(Online.playlistInfo(id))) }
         ]
     }
-    // The Nokturn account (--tour-account "<login>;<password>", with NOKTURN_SERVER): an account made on this
+    // The Everplay account (--tour-account "<login>;<password>", with EVERPLAY_SERVER): an account made on this
     // device gets a login and a password, the recovery key, a new password, signing out and in again, and is
     // deleted at the end (so it can run against the real server).
     readonly property bool withAccount: Qt.application.arguments.indexOf("--tour-account") >= 0
@@ -1050,7 +1050,7 @@ Item {
         console.warn("tour: scroll", Math.round(f.contentY), "of", Math.round(f.contentHeight), "view", Math.round(f.height), f)
     }
     readonly property var redesignSteps: [
-        { name: "R00-start", run: () => { Nav.finishOnboarding(); Theme.themeId = "nokturn"; Theme.shape = "rounded"; Player.muted = true; Nav.queueOpen = true; Nav.sidebarCompact = false
+        { name: "R00-start", run: () => { Nav.finishOnboarding(); Theme.themeId = "everplay"; Theme.shape = "rounded"; Player.muted = true; Nav.queueOpen = true; Nav.sidebarCompact = false
                                           const i = root.historyIndex(); const rows = i >= 0 ? Library.playlistRows(i) : Library.libraryRows()
                                           if (rows.length) Player.playFrom(rows.slice(0, 30), rows[0], "test")
                                           Nav.navigate("home") } },
@@ -1101,7 +1101,7 @@ Item {
         { name: "D15-immersive", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Nav.immersive = true } },
         { name: "D16-back", run: () => Nav.immersive = false }
     ]
-    // Plugins (--tour-plugins, with NOKTURN_PLUGIN_CATALOG pointing at a built catalog): installs everything
+    // Plugins (--tour-plugins, with EVERPLAY_PLUGIN_CATALOG pointing at a built catalog): installs everything
     // from the catalog, plays muted with the wallpaper, picks a plugin's theme, shows an overlay, removes one.
     readonly property bool withPlugins: Qt.application.arguments.indexOf("--tour-plugins") >= 0
     function pluginLog(label) {
@@ -1124,7 +1124,7 @@ Item {
         { name: "P10-theme-home", run: () => Nav.navigate("library") },
         { name: "P11-badge", run: () => Player.next() },
         { name: "P12-off", run: () => { Plugins.setEnabled("spectrum-wallpaper", false); root.pluginLog("wallpaper off") } },
-        { name: "P13-remove", run: () => { Theme.themeId = "nokturn"; Plugins.remove("night-themes"); root.pluginLog("removed themes")
+        { name: "P13-remove", run: () => { Theme.themeId = "everplay"; Plugins.remove("night-themes"); root.pluginLog("removed themes")
                                            Nav.navigate("plugins", { tab: 0 }) } },
         { name: "P14-file", run: () => {
             const dir = Qt.application.arguments[Qt.application.arguments.indexOf("--tour-plugins") + 1]
@@ -1145,14 +1145,14 @@ Item {
     readonly property bool withThemes: Qt.application.arguments.indexOf("--tour-themes") >= 0
     // Every theme on the home page, then the Cat theme across the main screens.
     readonly property var themeSteps: [
-        { name: "T1-nokturn", run: () => { Nav.finishOnboarding(); Nav.queueOpen = true; Theme.themeId = "nokturn"; Nav.navigate("home") } },
+        { name: "T1-everplay", run: () => { Nav.finishOnboarding(); Nav.queueOpen = true; Theme.themeId = "everplay"; Nav.navigate("home") } },
         { name: "T2-midnight", run: () => { Theme.themeId = "midnight"; Nav.navigate("home") } },
         { name: "T3-sunset", run: () => { Theme.themeId = "sunset"; Nav.navigate("home") } },
         { name: "T4-cat", run: () => { Theme.themeId = "cat"; Nav.navigate("home") } },
         { name: "T5-cat-settings", run: () => Nav.navigate("settings") },
         { name: "T6-cat-library", run: () => Nav.navigate("library") },
         { name: "T7-cat-compact", run: () => { Nav.sidebarCompact = true; Nav.queueOpen = false; Nav.navigate("home") } },
-        { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "nokturn" } }
+        { name: "T8-back", run: () => { Nav.sidebarCompact = false; Nav.queueOpen = true; Theme.themeId = "everplay" } }
     ]
     readonly property var steps: withRedesign ? redesignSteps : withPlugins ? pluginSteps : withDesign ? designSteps : withAhead ? aheadSteps : withCache ? cacheSteps : withSmall ? smallSteps : withSharedCover ? sharedCoverSteps : withQueue ? queueSteps : withRoomAdd ? roomAddSteps : withAccount ? accountSteps : withTrackOrder ? trackOrderSteps : withOrder ? orderSteps : withFolders ? folderSteps : withResize ? resizeSteps : withPassword ? passwordSteps : withMirrors ? mirrorSteps : withLibrarySync ? librarySyncSteps : withOnline ? onlineSteps : withListen ? listenSteps : withAlign ? alignSteps : withScSeekLiked ? scSeekLikedSteps : withFakeTiming ? fakeTimingSteps : withScSeek ? scSeekSteps : withSearchTitle ? searchTitleSteps : withKaraoke ? karaokeSteps : withScLogin ? scLoginSteps : withSoundCloud ? soundcloudSteps : withRecognize ? recognizeSteps : withThemes ? themeSteps : withStats ? statsSteps : withSearchPlaylists ? searchPlaylistSteps : withOverlayCycle ? overlayCycleSteps : withHotkey ? hotkeySteps : withOverlay ? overlaySteps : withLiked ? likedSteps : withArtist ? artistSteps : withHome ? homeSteps : withLyrics ? lyricSteps : withPlaylists ? playlistSteps : withAlbums ? albumSteps : withSeek ? seekSteps : withPerf ? perfSteps : withCovers ? coverSteps : withMatch ? matchSteps : withEq ? eqSteps : withBig ? bigSteps : withEngine ? engineSteps : withLogin ? loginSteps : baseSteps
     property double navStart: 0

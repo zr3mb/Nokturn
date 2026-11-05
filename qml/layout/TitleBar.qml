@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Title bar over the page: back / forward, the search field, the profile and the window buttons.
 // The empty space drags the window; a double click maximizes it.

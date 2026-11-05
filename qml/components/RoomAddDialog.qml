@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Adding a playlist to the listening room: all of it or tracks "from"–"to", in order or shuffled, at the
 // end of the room's queue or right after the playing track.

@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Progress/volume slider: thickens on hover, shows a handle and a value bubble.
 Item {

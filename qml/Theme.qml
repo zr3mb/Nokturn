@@ -1,6 +1,6 @@
 pragma Singleton
 import QtQuick
-import Nokturn
+import Everplay
 
 // Palette: one of the themes below + an accent taken from the current track's cover art.
 Item {
@@ -9,7 +9,7 @@ Item {
     // Every theme is dark: the covers, overlays and white-on-art text stay readable in all of them.
     // fixedAccent: the theme keeps its own accent instead of following the cover.
     readonly property var builtinThemes: ({
-        nokturn: { name: "Nokturn", bg: "#08080b", surface: "#121217", surfaceHi: "#1b1b22",
+        everplay: { name: "Everplay", bg: "#08080b", surface: "#121217", surfaceHi: "#1b1b22",
                    text: "#f5f5f7", textDim: "#a4a4ae", textFaint: "#6a6a76",
                    accent: "#9aa6ff", accent2: "#5a3fd6", onAccent: "#0a0a12", fixedAccent: false },
         midnight: { name: "Midnight", bg: "#000000", surface: "#0c0c0f", surfaceHi: "#16161b",
@@ -22,19 +22,20 @@ Item {
                   text: "#fbeaf6", textDim: "#c9a3c2", textFaint: "#8a6a86",
                   accent: "#ff7ad6", accent2: "#8a3fd0", onAccent: "#2a0a23", fixedAccent: true }
     })
-    // Plugins add their own ("<plugin>/<theme>"); a missing colour comes from the Nokturn theme.
+    // Plugins add their own ("<plugin>/<theme>"); a missing colour comes from the Everplay theme.
     readonly property var themes: {
         const all = Object.assign({}, builtinThemes)
         const extra = Plugins.themes
         for (const id in extra)
-            all[id] = Object.assign({}, builtinThemes.nokturn, { fixedAccent: true }, extra[id])
+            all[id] = Object.assign({}, builtinThemes.everplay, { fixedAccent: true }, extra[id])
         return all
     }
-    readonly property var themeIds: ["nokturn", "midnight", "sunset", "cat"].concat(Object.keys(Plugins.themes))
+    readonly property var themeIds: ["everplay", "midnight", "sunset", "cat"].concat(Object.keys(Plugins.themes))
 
-    property string themeId: Prefs.stringValue("ui/theme", "nokturn")
+    // "nokturn": the default theme's id under the app's former name.
+    property string themeId: Prefs.stringValue("ui/theme", "everplay").replace(/^nokturn$/, "everplay")
     onThemeIdChanged: Prefs.setValue("ui/theme", themeId)
-    readonly property var preset: themes[themeId] || themes.nokturn
+    readonly property var preset: themes[themeId] || themes.everplay
     readonly property bool cat: themeId === "cat"
 
     property color bg: preset.bg

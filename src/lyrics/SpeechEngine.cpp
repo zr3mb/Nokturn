@@ -321,7 +321,7 @@ void SpeechEngine::fetchVerified(const QUrl &url, const QString &target, const Q
     }
     auto hash = std::make_shared<QCryptographicHash>(QCryptographicHash::Sha256);
     QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Nokturn"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Everplay"));
     QNetworkReply *reply = m_net.get(request);
     m_reply = reply;
     connect(reply, &QNetworkReply::readyRead, this, [reply, file, hash] {
@@ -389,7 +389,7 @@ void SpeechEngine::fetchEngine(const QStringList &assets, const QString &dir, co
 
     // Recent releases: the package URL and its SHA-256 (the "digest" field, computed by GitHub).
     QNetworkRequest request(QUrl(QString::fromLatin1(kReleaseApi)));
-    request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Nokturn"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Everplay"));
     request.setRawHeader("Accept", "application/vnd.github+json");
     QNetworkReply *reply = m_net.get(request);
     m_reply = reply;
@@ -467,7 +467,7 @@ void SpeechEngine::downloadModel(const QString &model)
 
     // The repository file list contains the SHA-256 of every model (the lfs.oid field).
     QNetworkRequest request{QUrl(QString::fromLatin1(kModelTreeApi))};
-    request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Nokturn"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("Everplay"));
     QNetworkReply *reply = m_net.get(request);
     m_reply = reply;
     connect(reply, &QNetworkReply::finished, this, [this, reply, model] {

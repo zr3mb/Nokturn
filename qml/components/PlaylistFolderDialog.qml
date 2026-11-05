@@ -1,10 +1,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Playlist folders: a new one (optionally with a playlist moved into it), renaming or deleting one, and
-// picking the folder for a playlist (Library's folders; kept on the Nokturn account).
+// picking the folder for a playlist (Library's folders; kept on the Everplay account).
 Popup {
     id: root
     property string mode: "create"     // "create" | "edit" | "pick"

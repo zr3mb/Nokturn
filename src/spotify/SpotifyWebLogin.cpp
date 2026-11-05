@@ -354,7 +354,7 @@ void SpotifyWebLogin::onMessage(const QString &message)
 void SpotifyWebLogin::captureQuery(const QJsonObject &request)
 {
     // The web player's GraphQL calls ("persisted queries": operation name + hash of the query text).
-    // Nokturn repeats the same ones for the library — the public Web API is rate-limited for this token.
+    // Everplay repeats the same ones for the library — the public Web API is rate-limited for this token.
     const QUrl url(request.value("url").toString());
     if (url.host() != QLatin1String("api-partner.spotify.com") || !url.path().contains(QLatin1String("pathfinder")))
         return;

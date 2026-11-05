@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Parametric equalizer: a graph with band points, a preamp fader with a meter
 // and limiter, an editor for the selected band and presets.

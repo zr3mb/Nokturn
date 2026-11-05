@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Small animated "now playing" icon (three bouncing bars).
 Item {

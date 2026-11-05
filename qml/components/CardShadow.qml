@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // The blurred silhouette of a card's cover, rendered once and drawn under every card of a list
 // (AlbumCard.shadow) — instead of a MultiEffect per card, which keeps six offscreen textures each.

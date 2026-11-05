@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // Scrollable page: a column of sections with margins and a thin scroll bar.
 Flickable {

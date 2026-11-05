@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // An overlay: drawn above the whole interface and never in the way of the mouse.
 // When a new track starts, a small card with its cover and title slides in at the top for a moment.
@@ -41,7 +41,7 @@ Item {
             x: 10
             anchors.verticalCenter: parent.verticalCenter
             spacing: 12
-            // ArtCover: Nokturn's own cover component (falls back to a gradient when there's no picture)
+            // ArtCover: Everplay's own cover component (falls back to a gradient when there's no picture)
             ArtCover {
                 width: 44; height: 44
                 radius: 22

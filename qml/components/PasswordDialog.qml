@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // A shared playlist's password: asked when joining one that has it, or set / removed by its owner.
 Popup {

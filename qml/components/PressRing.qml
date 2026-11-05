@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Press feedback: an outline of the button's own shape that spreads out and fades. Several can
 // overlap when the button is clicked quickly.

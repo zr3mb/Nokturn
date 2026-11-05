@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 Item {
     id: page
@@ -275,7 +275,7 @@ Item {
                         spacing: 10
                         Text {
                             id: bannerTitle
-                            text: "Nokturn"
+                            text: "Everplay"
                             color: Qt.lighter(Theme.accent, 1.12)
                             font.family: Theme.fontDisplay
                             font.pixelSize: 64
@@ -610,7 +610,7 @@ Item {
                 SectionHeader {
                     Layout.fillWidth: true
                     title: qsTr("Your sources")
-                    subtitle: qsTr("Where Nokturn gets its music")
+                    subtitle: qsTr("Where Everplay gets its music")
                     action: qsTr("Manage")
                     onActionClicked: Nav.navigate("sources")
                 }

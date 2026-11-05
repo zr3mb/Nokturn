@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Pill-shaped button: "primary" | "secondary" | "ghost".
 Item {

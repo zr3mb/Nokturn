@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Music source card with a glow in the source's color and expandable content.
 Item {

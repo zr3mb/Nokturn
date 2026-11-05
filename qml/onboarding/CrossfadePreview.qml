@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Preview of a transition between tracks: the envelope of the ending track and the incoming next one
 // (overlap length = crossfade), with a moving playhead.

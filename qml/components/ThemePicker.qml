@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Theme cards (Settings): a miniature of each theme's colors; clicking one switches to it.
 // Themes from plugins follow the built-in ones, four to a row.

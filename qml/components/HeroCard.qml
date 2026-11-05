@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // The home page banner: the current cover, blurred, fills the card; the track, the controls and the
 // cover itself sit on top of it.
@@ -143,7 +143,7 @@ Panel {
                       : Library.scanning ? Library.scanStatus
                       : Library.localCount > 0
                         ? qsTr("%n tracks from your folders", "", Library.localCount)
-                        : qsTr("Point to a folder with files — Nokturn will read the tags and covers.")
+                        : qsTr("Point to a folder with files — Everplay will read the tags and covers.")
                 color: Theme.alpha(Theme.text, 0.72)
                 font.pixelSize: 16
                 font.weight: Font.Medium

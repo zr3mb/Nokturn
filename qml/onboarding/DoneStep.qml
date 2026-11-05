@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Step 7: summary of the choices.
 Item {

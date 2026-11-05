@@ -18,10 +18,10 @@
 #include "youtube/StreamFetch.h"
 #include "youtube/YouTubeService.h"
 
-#ifdef NOKTURN_MPRIS
+#ifdef EVERPLAY_MPRIS
 #  include "platform/Mpris.h"
 #endif
-#ifdef NOKTURN_SMTC
+#ifdef EVERPLAY_SMTC
 #  include "platform/WindowsMediaControls.h"
 #endif
 
@@ -145,10 +145,10 @@ PlayerController::PlayerController(QObject *parent)
 
     DiscordPresence::instance()->attach(this);
     OnlineService::instance()->attach(this);
-#ifdef NOKTURN_MPRIS
+#ifdef EVERPLAY_MPRIS
     new Mpris(this);   // Linux: MPRIS (system panel, media keys)
 #endif
-#ifdef NOKTURN_SMTC
+#ifdef EVERPLAY_SMTC
     new WindowsMediaControls(this);   // Windows: media flyout, lock screen, media keys
 #endif
 
@@ -224,7 +224,7 @@ void PlayerController::setupDeck(int d)
     // Straight to the mixer, on the decoder's thread: a busy GUI thread mustn't hold the sound up.
     connect(deck.buffers, &QAudioBufferOutput::audioBufferReceived, deck.buffers,
             [this, d](const QAudioBuffer &buffer) { m_engine.push(d, buffer); }, Qt::DirectConnection);
-    if (qEnvironmentVariableIsSet("NOKTURN_AUDIO_DEBUG")) {
+    if (qEnvironmentVariableIsSet("EVERPLAY_AUDIO_DEBUG")) {
         connect(deck.buffers, &QAudioBufferOutput::audioBufferReceived, deck.buffers, [](const QAudioBuffer &) {
             static bool told = false;
             if (!std::exchange(told, true))
@@ -236,7 +236,7 @@ void PlayerController::setupDeck(int d)
     connect(deck.player, &QMediaPlayer::playbackStateChanged, this, [this, d] {
         if (d != m_active)
             return;
-        if (playing() && m_loadClock.isValid() && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+        if (playing() && m_loadClock.isValid() && qEnvironmentVariableIsSet("EVERPLAY_STREAM_DEBUG"))
             qInfo("stream: deck %d playing %lld ms after the track change", d, m_loadClock.elapsed());
         m_engine.setPaused(!playing());
         emit playingChanged();
@@ -721,7 +721,7 @@ void PlayerController::startStream(int d, const Track &t)
     if (m_cache.has(videoId)) {
         delete std::exchange(deck.fetch, nullptr);
         deck.resolving.clear();
-        if (d == m_active && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+        if (d == m_active && qEnvironmentVariableIsSet("EVERPLAY_STREAM_DEBUG"))
             qInfo("stream: deck %d plays %s from the disk cache", d, qPrintable(videoId));
         deck.player->setSource(QUrl::fromLocalFile(m_cache.pathOf(videoId)));
         if (d == m_active && m_autoplayAfterResolve)
@@ -745,7 +745,7 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
     // A YouTube stream comes into memory first (see StreamFetch) — the deck stays "resolving" meanwhile,
     // so it shows as loading and play / seek wait for it. Other streams play from the URL.
     Deck &deck = m_decks[d];
-    if (d == m_active && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+    if (d == m_active && qEnvironmentVariableIsSet("EVERPLAY_STREAM_DEBUG"))
         qInfo("stream: deck %d has its URL %lld ms after the track change", d, m_loadClock.elapsed());
     delete std::exchange(deck.fetch, nullptr);
     if (!StreamFetch::suits(url)) {
@@ -764,7 +764,7 @@ void PlayerController::setStream(int d, const QString &videoId, const QUrl &url)
         fetch = new StreamFetch(&m_net, url, false, this);
     deck.fetch = fetch;
     const auto debug = [this, d](const char *what) {
-        if (d == m_active && qEnvironmentVariableIsSet("NOKTURN_STREAM_DEBUG"))
+        if (d == m_active && qEnvironmentVariableIsSet("EVERPLAY_STREAM_DEBUG"))
             qInfo("stream: deck %d %s %lld ms after the track change", d, what, m_loadClock.elapsed());
     };
     const auto playDevice = [this, d, url](QIODevice *device) {

@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // One row of a small popup menu: icon + label (the track menu, the playlist cover menu).
 Item {

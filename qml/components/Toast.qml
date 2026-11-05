@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Nokturn
+import Everplay
 
 // Short notification that slides in above the player bar.
 Item {

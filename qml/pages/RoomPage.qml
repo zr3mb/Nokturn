@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Listening room (Online): start one or join with a link; inside — who's listening, what's playing,
 // the shared queue and the room's mode ("everyone adds" or "the host picks").
@@ -23,7 +23,7 @@ Item {
         return room.currentRow >= 0 ? Library.tracks.get(room.currentRow) : ({})
     }
 
-    // Any Nokturn link (room, playlist, track) or a room code typed by hand.
+    // Any Everplay link (room, playlist, track) or a room code typed by hand.
     function join(text) {
         if (!Online.openLink(text))
             Online.joinRoom(text)
@@ -133,7 +133,7 @@ Item {
                 spacing: 16
 
                 Hint {
-                    text: qsTr("Listen to the same music at the same time with friends: everyone hears the same track at the same moment, wherever they are. Send the invite link — whoever opens it joins the room in Nokturn.")
+                    text: qsTr("Listen to the same music at the same time with friends: everyone hears the same track at the same moment, wherever they are. Send the invite link — whoever opens it joins the room in Everplay.")
                     font.pixelSize: 14
                     color: Theme.textDim
                 }
@@ -188,7 +188,7 @@ Item {
                             onClicked: page.join(joinField.text)
                         }
                     }
-                    Hint { text: qsTr("Links to shared tracks and playlists work here too — paste any Nokturn link.") }
+                    Hint { text: qsTr("Links to shared tracks and playlists work here too — paste any Everplay link.") }
                 }
             }
         }

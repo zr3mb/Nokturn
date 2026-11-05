@@ -1,15 +1,15 @@
 [Desktop Entry]
 Type=Application
-Name=Nokturn
+Name=Everplay
 GenericName=Music Player
 GenericName[pl]=Odtwarzacz muzyki
 Comment=Local files and YouTube Music in one player
 Comment[pl]=Pliki lokalne i YouTube Music w jednym odtwarzaczu
-Exec=nokturn %U
-Icon=nokturn
+Exec=everplay %U
+Icon=everplay
 Terminal=false
 Categories=AudioVideo;Audio;Player;Music;Qt;
-MimeType=x-scheme-handler/nokturn;
+MimeType=x-scheme-handler/everplay;x-scheme-handler/nokturn;
 Keywords=music;player;audio;youtube;lyrics;muzyka;odtwarzacz;
-StartupWMClass=nokturn
+StartupWMClass=everplay
 SingleMainWindow=true

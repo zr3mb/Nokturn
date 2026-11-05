@@ -1,5 +1,5 @@
 import QtQuick
-import Nokturn
+import Everplay
 
 // Compact "quick pick" tile on the home page.
 Item {

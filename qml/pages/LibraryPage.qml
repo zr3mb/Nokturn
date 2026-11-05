@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
-import Nokturn
+import Everplay
 
 // Library. The lists are virtualized (ListView / GridView), so they only create
 // the visible rows — it stays smooth even with thousands of tracks.
@@ -94,7 +94,7 @@ Item {
                 Icon { name: "folder"; size: 24; color: Theme.accent }
                 Text {
                     Layout.fillWidth: true
-                    text: qsTr("You don't have any local files yet. Add a music folder — Nokturn will read the tags and covers.")
+                    text: qsTr("You don't have any local files yet. Add a music folder — Everplay will read the tags and covers.")
                     color: Theme.textDim
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap

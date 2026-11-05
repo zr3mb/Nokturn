@@ -1,9 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
-// This plugin's settings screen: Nokturn shows it in a window from the plugin's card (the tune button).
-// It uses Nokturn's own controls (SegmentedTabs, Fader…) and keeps the values with plugin.setSetting.
+// This plugin's settings screen: Everplay shows it in a window from the plugin's card (the tune button).
+// It uses Everplay's own controls (SegmentedTabs, Fader…) and keeps the values with plugin.setSetting.
 ColumnLayout {
     property var plugin
     spacing: 14

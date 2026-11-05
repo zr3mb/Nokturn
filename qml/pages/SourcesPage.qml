@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import Nokturn
+import Everplay
 
 // Managing music sources. Local files and YouTube Music really work;
 // radio and custom streams are only an interface for now.
@@ -101,7 +101,7 @@ Item {
                     font.weight: Font.Bold
                 }
                 Text {
-                    text: qsTr("Connect the places Nokturn should play music from. Everything ends up in one library.")
+                    text: qsTr("Connect the places Everplay should play music from. Everything ends up in one library.")
                     color: Theme.textDim
                     font.pixelSize: 15
                 }
@@ -133,7 +133,7 @@ Item {
 
                         Hint {
                             visible: Library.folders.length === 0
-                                text: qsTr("No folder chosen yet. Add a folder and Nokturn will scan it together with its subfolders.")
+                                text: qsTr("No folder chosen yet. Add a folder and Everplay will scan it together with its subfolders.")
                         }
 
                         Repeater {
@@ -237,7 +237,7 @@ Item {
 
                             Hint {
                                 text: YouTube.browserName !== ""
-                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to your Google account there as usual. When YouTube Music appears, the window closes by itself and Nokturn downloads your liked tracks and playlists.").arg(YouTube.browserName)
+                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to your Google account there as usual. When YouTube Music appears, the window closes by itself and Everplay downloads your liked tracks and playlists.").arg(YouTube.browserName)
                                       : qsTr("Chrome, Edge or Brave was not found. You can paste the cookies manually.")
                             }
                             Flow {
@@ -496,12 +496,12 @@ Item {
                             spacing: 12
 
                             Hint {
-                                text: qsTr("Spotify doesn't let other apps play its music, so Nokturn syncs your playlists and liked songs and plays each track from YouTube Music.")
+                                text: qsTr("Spotify doesn't let other apps play its music, so Everplay syncs your playlists and liked songs and plays each track from YouTube Music.")
                             }
                             Hint {
                                 visible: !spotifySignIn.ownApp
                                 text: YouTube.browserName !== ""
-                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to Spotify there as usual — a free account is enough. When the web player appears, the window closes by itself and Nokturn downloads your playlists and liked songs.").arg(YouTube.browserName)
+                                      ? qsTr("We'll open a separate %1 window with a clean profile. Sign in to Spotify there as usual — a free account is enough. When the web player appears, the window closes by itself and Everplay downloads your playlists and liked songs.").arg(YouTube.browserName)
                                       : qsTr("Signing in needs Google Chrome, Microsoft Edge or Brave.")
                             }
                             Flow {
@@ -570,7 +570,7 @@ Item {
                             Spinner { size: 22; color: Theme.warning }
                             Hint {
                                 text: Spotify.loginStatus !== "" ? Spotify.loginStatus
-                                      : qsTr("Sign in in the browser and allow access — Nokturn continues by itself.")
+                                      : qsTr("Sign in in the browser and allow access — Everplay continues by itself.")
                             }
                             PillButton {
                                 kind: "ghost"

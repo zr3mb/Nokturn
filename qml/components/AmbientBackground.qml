@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import Nokturn
+import Everplay
 
 // Live background: soft, drifting patches of light in the current cover's colors,
 // gently pulsing with the music.

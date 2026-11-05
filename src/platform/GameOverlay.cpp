@@ -31,7 +31,7 @@
 #  include <linux/input.h>
 #  include <sys/ioctl.h>
 #  include <unistd.h>
-#  ifdef NOKTURN_LAYERSHELL
+#  ifdef EVERPLAY_LAYERSHELL
 #    include <LayerShellQt/window.h>
 #  endif
 #endif
@@ -56,10 +56,10 @@ enum PadButton : unsigned {
 
 QString serverName()
 {
-    // Per user: another account's Nokturn must not get the requests.
+    // Per user: another account's Everplay must not get the requests.
     QString user = qEnvironmentVariable("USER", qEnvironmentVariable("USERNAME", QStringLiteral("user")));
     user.remove(QRegularExpression(QStringLiteral("[^A-Za-z0-9_.-]")));
-    return QStringLiteral("nokturn-overlay-") + user;
+    return QStringLiteral("everplay-overlay-") + user;
 }
 
 #ifdef Q_OS_WIN
@@ -358,7 +358,7 @@ bool GameOverlay::supported() const
 #endif
 }
 
-// ---- "nokturn --overlay" ----------------------------------------------------------
+// ---- "everplay --overlay" ----------------------------------------------------------
 
 bool GameOverlay::sendToRunning(const QString &command)
 {
@@ -377,7 +377,7 @@ void GameOverlay::listen()
     m_server = new QLocalServer(this);
     m_server->setSocketOptions(QLocalServer::UserAccessOption);
     if (!m_server->listen(serverName())) {
-        // A socket left behind by a crash — unless another Nokturn is really there.
+        // A socket left behind by a crash — unless another Everplay is really there.
         QLocalSocket probe;
         probe.connectToServer(serverName());
         if (probe.waitForConnected(200))
@@ -411,7 +411,7 @@ QString GameOverlay::toggleCommand() const
         return QStringLiteral("\"%1\" --overlay").arg(appImage);
     const QString exe = QCoreApplication::applicationFilePath();
     if (exe.startsWith(QLatin1String("/usr/")) || exe.startsWith(QDir::homePath() + QLatin1String("/.local/bin/")))
-        return QStringLiteral("nokturn --overlay");
+        return QStringLiteral("everplay --overlay");
     return QStringLiteral("\"%1\" --overlay").arg(exe);
 }
 
@@ -643,7 +643,7 @@ void GameOverlay::registerHotkey()
         m_activationToken = token;
         toggle();
     });
-    m_portal->start(QStringLiteral("overlay"), tr("Open the Nokturn menu over a game"), portalTrigger(m_key, m_modifiers));
+    m_portal->start(QStringLiteral("overlay"), tr("Open the Everplay menu over a game"), portalTrigger(m_key, m_modifiers));
 #endif
 }
 
@@ -763,7 +763,7 @@ void GameOverlay::prepare(QWindow *window)
         quick->setPersistentGraphics(true);
         quick->setPersistentSceneGraph(true);
     }
-#if defined(Q_OS_LINUX) && defined(NOKTURN_LAYERSHELL)
+#if defined(Q_OS_LINUX) && defined(EVERPLAY_LAYERSHELL)
     // A layer surface above everything, full games included, with the keyboard while it's shown.
     // The compositor puts it on the output it chooses (the focused one).
     if (QGuiApplication::platformName().startsWith(QLatin1String("wayland")) && !window->handle()) {
@@ -773,7 +773,7 @@ void GameOverlay::prepare(QWindow *window)
             layer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorBottom
                                                             | LayerShellQt::Window::AnchorLeft | LayerShellQt::Window::AnchorRight));
             layer->setExclusiveZone(-1);
-            layer->setScope(QStringLiteral("nokturn-overlay"));
+            layer->setScope(QStringLiteral("everplay-overlay"));
             m_layerShell = true;
         }
     }
