@@ -478,7 +478,9 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
   picked for the hardware: `base` (142 MB), `small` (466 MB, from 8 threads), `medium` (1.5 GB, from 16 threads
   and 16 GB of RAM).
 - Flow: Qt Multimedia decodes the track (a file or a YouTube stream) to 16 kHz mono WAV →
-  `whisper-cli -ml 1 -sow -oj` returns words with timestamps (the start of the lyrics goes in as `--prompt`) →
+  `whisper-cli -ml 1 -sow -mc 0 -bs 3 -oj` returns words with timestamps (no text carried between windows, so a
+  repeated chorus can't loop; the language comes from the lyrics or, without them, from `-dl` on two pieces from
+  the middle of the track) →
   `LyricsAligner` aligns the lyric words with the transcription words (Needleman–Wunsch, fuzzy comparison with
   Levenshtein) and computes the time of each line; lines without recognized words are interpolated.
   A result covering less than 25% of the words is rejected.
