@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
@@ -52,6 +53,7 @@ private:
 
     void setStage(Stage stage);
     bool prepareProfile(const QString &profileDir);
+    void launchWindow();
     void checkWindowTitle();
     void closeInteractiveWindow();
     void startReading();
@@ -81,6 +83,9 @@ private:
     QTimer m_fallback;
     QTimer m_settle;
     int m_portAttempts = 0;
+    bool m_readerLaunched = false;   // the hidden browser of the readout has been started
+    QStringList m_lastTitles;        // for the log: only changes are written
+    QElapsedTimer m_launchClock;
     int m_requestId = 0;
     QHash<int, Reply> m_pending;
     QString m_session;          // CDP session of the open.spotify.com tab

@@ -57,7 +57,13 @@ SpotifyWebLogin::SpotifyWebLogin(QObject *parent)
 
     connect(&m_socket, &QWebSocket::connected, this, &SpotifyWebLogin::onConnected);
     connect(&m_socket, &QWebSocket::textMessageReceived, this, &SpotifyWebLogin::onMessage);
+    connect(&m_socket, &QWebSocket::errorOccurred, this, [this] {
+        BrowserLogin::log(QStringLiteral("Spotify DevTools connection: %1").arg(m_socket.errorString()));
+    });
     connect(&m_process, &QProcess::finished, this, &SpotifyWebLogin::onProcessFinished);
+    connect(&m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        BrowserLogin::log(QStringLiteral("Spotify browser process error %1: %2").arg(int(error)).arg(m_process.errorString()));
+    });
 }
 
 SpotifyWebLogin::~SpotifyWebLogin()
@@ -102,13 +108,9 @@ bool SpotifyWebLogin::prepareProfile(const QString &profileDir)
     }
     m_profileDir = profileDir;
     QDir().mkpath(profileDir);
-    // Chrome keeps a "lockfile" while the profile is open — a second launch would only hand over to it.
-    const QString lock = profileDir + QStringLiteral("/lockfile");
-    if (QFile::exists(lock) && !QFile::remove(lock)) {
-        emit failed(tr("The sign-in window is already open — finish signing in there or close it"));
-        return false;
-    }
-    QFile::remove(profileDir + QStringLiteral("/DevToolsActivePort"));
+    m_readerLaunched = false;
+    m_lastTitles.clear();
+    m_launchClock.invalidate();
     return true;
 }
 
@@ -116,16 +118,31 @@ void SpotifyWebLogin::start(const QString &profileDir)
 {
     if (running() || !prepareProfile(profileDir))
         return;
+    BrowserLogin::log(QStringLiteral("--- Spotify sign-in with %1%2").arg(
+        m_browser, BrowserLogin::debuggingBlocked(m_browser) ? QStringLiteral(" (remote debugging blocked by policy)") : QString()));
     setStage(Stage::Interactive);
+    // A browser still on this profile would get the new window handed over, so it goes first.
+    BrowserLogin::whenProfileFree(this, m_profileDir, 0, [this] {
+        if (m_stage == Stage::Interactive)
+            launchWindow();
+    });
+}
+
+void SpotifyWebLogin::launchWindow()
+{
+    QFile::remove(m_profileDir + QStringLiteral("/lockfile"));
+    QFile::remove(m_profileDir + QStringLiteral("/DevToolsActivePort"));
     m_process.setProgram(m_browser);
     m_process.setArguments({
-        QStringLiteral("--user-data-dir=") + QDir::toNativeSeparators(profileDir),
+        QStringLiteral("--user-data-dir=") + QDir::toNativeSeparators(m_profileDir),
         QStringLiteral("--no-first-run"),
         QStringLiteral("--no-default-browser-check"),
         QStringLiteral("--window-size=520,760"),
         QStringLiteral("--app=") + QString::fromLatin1(kLoginUrl).replace(QStringLiteral("{lang}"), Language::instance()->effective()),
     });
     m_process.start();
+    m_launchClock.start();
+    BrowserLogin::log(QStringLiteral("Spotify sign-in window started (pid %1)").arg(m_process.processId()));
     m_titleTimer.start();
 }
 
@@ -137,8 +154,10 @@ void SpotifyWebLogin::refresh(const QString &profileDir)
         emit failed(tr("Not signed in to Spotify"));
         return;
     }
-    if (prepareProfile(profileDir))
+    if (prepareProfile(profileDir)) {
+        BrowserLogin::log(QStringLiteral("--- renewing the Spotify token with %1").arg(m_browser));
         startReading();
+    }
 }
 
 void SpotifyWebLogin::cancel()
@@ -155,7 +174,22 @@ void SpotifyWebLogin::checkWindowTitle()
 {
     // After signing in Spotify redirects to the web player ("Spotify – Web Player: …"); before the page
     // provides a title, the window is named after the URL.
-    for (const QString &title : BrowserLogin::windowTitles(m_process.processId())) {
+    const QList<qint64> owners = BrowserLogin::profileProcesses(m_profileDir, m_process.processId());
+    const QStringList titles = BrowserLogin::profileWindowTitles(m_profileDir, m_process.processId());
+    if (titles != m_lastTitles) {
+        m_lastTitles = titles;
+        BrowserLogin::log(QStringLiteral("Spotify window titles (processes %1): %2").arg(owners.size()).arg(titles.join(QStringLiteral(" | "))));
+    }
+#ifdef Q_OS_WIN
+    // Nothing of the browser left on the profile: the user closed the window, maybe already signed in.
+    if (owners.isEmpty() && m_launchClock.isValid() && m_launchClock.elapsed() > 1500) {
+        BrowserLogin::log(QStringLiteral("the Spotify sign-in window was closed"));
+        m_titleTimer.stop();
+        startReading();
+        return;
+    }
+#endif
+    for (const QString &title : titles) {
         if (title.contains(QLatin1String("Web Player"), Qt::CaseInsensitive)
             || title.contains(QLatin1String("open.spotify.com"), Qt::CaseInsensitive)) {
             closeInteractiveWindow();
@@ -168,28 +202,35 @@ void SpotifyWebLogin::closeInteractiveWindow()
 {
     m_titleTimer.stop();
     setStage(Stage::Closing);
+    BrowserLogin::log(QStringLiteral("Spotify web player reached, closing the window"));
 #ifdef Q_OS_WIN
-    BrowserLogin::closeWindows(m_process.processId());   // gently — Chrome then writes the cookies to disk
+    // Gently: Chrome then writes the cookies to disk. The readout waits until the profile is free.
+    BrowserLogin::closeProfileWindows(m_profileDir, m_process.processId());
 #else
     m_process.terminate();
 #endif
-    m_closeTimer.start();
+    startReading();
 }
 
 void SpotifyWebLogin::onProcessFinished()
 {
+    BrowserLogin::log(QStringLiteral("Spotify browser process ended (exit code %1, %2 ms after start)")
+                          .arg(m_process.exitCode()).arg(m_launchClock.isValid() ? m_launchClock.elapsed() : -1));
     switch (m_stage) {
     case Stage::Interactive:
+#ifdef Q_OS_WIN
+        // Not necessarily the window closing: a launcher hands the window to another process and quits.
+        // checkWindowTitle() watches the profile and notices when its window is really gone.
+#else
         // The user closed the window — they may already have signed in, so we check anyway.
         m_titleTimer.stop();
         startReading();
+#endif
         break;
     case Stage::Closing:
-        m_closeTimer.stop();
-        startReading();
-        break;
+        break;   // the readout already waits for the profile
     case Stage::Reading:
-        if (m_socket.state() == QAbstractSocket::UnconnectedState && !m_portTimer.isActive())
+        if (m_readerLaunched && m_socket.state() == QAbstractSocket::UnconnectedState && !m_portTimer.isActive())
             fail(tr("Couldn't read the Spotify session from the browser"));
         break;
     case Stage::Idle:
@@ -201,7 +242,10 @@ void SpotifyWebLogin::onProcessFinished()
 
 void SpotifyWebLogin::startReading()
 {
+    if (m_stage == Stage::Reading)
+        return;
     setStage(Stage::Reading);
+    m_readerLaunched = false;
     m_portAttempts = 0;
     m_pending.clear();
     m_session.clear();
@@ -211,13 +255,16 @@ void SpotifyWebLogin::startReading()
     m_queries = {};
     m_headers = {};
     m_pages.clear();
-    QFile::remove(m_profileDir + QStringLiteral("/DevToolsActivePort"));
     m_timeout.start();
 
-    // A moment for a closing browser to release the profile.
-    QTimer::singleShot(500, this, [this] {
-        if (m_stage != Stage::Reading)
+    // The hidden browser needs the profile to itself: a window still open on it would take the launch
+    // over, and DevTools would never answer. A closing window gets a few seconds to save its cookies.
+    BrowserLogin::whenProfileFree(this, m_profileDir, 12000, [this] {
+        if (m_stage != Stage::Reading || m_readerLaunched)
             return;
+        m_readerLaunched = true;
+        QFile::remove(m_profileDir + QStringLiteral("/lockfile"));
+        QFile::remove(m_profileDir + QStringLiteral("/DevToolsActivePort"));
         m_process.setProgram(m_browser);
         m_process.setArguments({
             QStringLiteral("--headless=new"),
@@ -230,6 +277,8 @@ void SpotifyWebLogin::startReading()
             QStringLiteral("about:blank"),
         });
         m_process.start();
+        m_launchClock.start();
+        BrowserLogin::log(QStringLiteral("Spotify hidden readout started (pid %1)").arg(m_process.processId()));
         m_portTimer.start();
     });
 }
@@ -241,12 +290,18 @@ void SpotifyWebLogin::waitForDevTools()
         const QStringList lines = QString::fromUtf8(file.readAll()).split('\n', Qt::SkipEmptyParts);
         if (lines.size() >= 2) {
             m_portTimer.stop();
+            BrowserLogin::log(QStringLiteral("Spotify DevTools on port %1").arg(lines.at(0).trimmed()));
             m_socket.open(QUrl(QStringLiteral("ws://127.0.0.1:%1%2").arg(lines.at(0).trimmed(), lines.at(1).trimmed())));
             return;
         }
     }
-    if (++m_portAttempts > 80)   // ~20 s
-        fail(tr("Couldn't read the Spotify session from the browser (DevTools isn't responding)"));
+    if (++m_portAttempts > 80) {   // ~20 s
+        BrowserLogin::log(QStringLiteral("Spotify DevTools never answered; browser processes on the profile: %1")
+                              .arg(BrowserLogin::profileProcesses(m_profileDir).size()));
+        fail(BrowserLogin::debuggingBlocked(m_browser)
+                 ? tr("A policy on this computer turns off remote debugging in the browser, so the session can't be read")
+                 : tr("Couldn't read the Spotify session from the browser (DevTools isn't responding)"));
+    }
 }
 
 void SpotifyWebLogin::send(const QString &method, const QJsonObject &params, Reply reply)
@@ -429,6 +484,7 @@ void SpotifyWebLogin::onEvent(const QString &method, const QJsonObject &params)
 
 void SpotifyWebLogin::succeed()
 {
+    BrowserLogin::log(QStringLiteral("Spotify signed in, token read"));
     const QString token = m_token;
     const QDateTime expires = m_expires;
     const QJsonObject web { { "queries", m_queries }, { "headers", m_headers } };
@@ -438,6 +494,7 @@ void SpotifyWebLogin::succeed()
 
 void SpotifyWebLogin::fail(const QString &reason)
 {
+    BrowserLogin::log(QStringLiteral("Spotify failed: %1").arg(reason));
     stopAll();
     emit failed(reason);
 }
@@ -465,7 +522,7 @@ void SpotifyWebLogin::stopAll()
     if (m_process.state() != QProcess::NotRunning) {
 #ifdef Q_OS_WIN
         if (stage == Stage::Interactive || stage == Stage::Closing)
-            BrowserLogin::closeWindows(m_process.processId());
+            BrowserLogin::closeProfileWindows(m_profileDir, m_process.processId());
 #else
         m_process.terminate();
 #endif

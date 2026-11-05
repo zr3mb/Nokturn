@@ -1,8 +1,12 @@
 #include "BrowserLogin.h"
 
+#include "AppPaths.h"
 #include "Language.h"
 
+#include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QSet>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -13,6 +17,10 @@
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
+#  include <tlhelp32.h>
+#  include <winternl.h>
+#else
+#  include <signal.h>
 #endif
 
 namespace {
@@ -45,7 +53,7 @@ QString appPath(const QString &exe)
 #ifdef Q_OS_WIN
 struct WindowScan
 {
-    DWORD pid = 0;
+    QSet<DWORD> pids;
     QList<HWND> windows;
     QStringList titles;
 };
@@ -55,7 +63,7 @@ BOOL CALLBACK collectWindow(HWND hwnd, LPARAM param)
     auto *scan = reinterpret_cast<WindowScan *>(param);
     DWORD pid = 0;
     GetWindowThreadProcessId(hwnd, &pid);
-    if (pid == scan->pid && IsWindowVisible(hwnd)) {
+    if (scan->pids.contains(pid) && IsWindowVisible(hwnd)) {
         wchar_t title[512];
         const int len = GetWindowTextW(hwnd, title, 512);
         scan->windows << hwnd;
@@ -64,15 +72,66 @@ BOOL CALLBACK collectWindow(HWND hwnd, LPARAM param)
     return TRUE;
 }
 
-WindowScan scanWindows(qint64 pid)
+WindowScan scanWindows(const QList<qint64> &pids)
 {
     WindowScan scan;
-    scan.pid = DWORD(pid);
-    if (pid > 0)
+    for (qint64 pid : pids)
+        if (pid > 0)
+            scan.pids.insert(DWORD(pid));
+    if (!scan.pids.isEmpty())
         EnumWindows(collectWindow, reinterpret_cast<LPARAM>(&scan));
     return scan;
 }
+
+WindowScan scanWindows(qint64 pid)
+{
+    return scanWindows(QList<qint64> { pid });
+}
+
+// Another process's command line (Windows 8.1+), empty when it can't be read.
+QString commandLine(DWORD pid)
+{
+    using Query = LONG(WINAPI *)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+    static const auto query = reinterpret_cast<Query>(
+        GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess"));
+    if (!query)
+        return {};
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process)
+        return {};
+    constexpr ULONG kCommandLineInformation = 60;
+    ULONG size = 0;
+    query(process, kCommandLineInformation, nullptr, 0, &size);
+    QString line;
+    if (size > sizeof(UNICODE_STRING) && size < 1024 * 1024) {
+        QByteArray buffer(int(size), 0);
+        if (query(process, kCommandLineInformation, buffer.data(), size, &size) >= 0) {
+            const auto *text = reinterpret_cast<const UNICODE_STRING *>(buffer.constData());
+            line = QString::fromWCharArray(text->Buffer, text->Length / 2);
+        }
+    }
+    CloseHandle(process);
+    return line;
+}
+
+QString normalized(QString path)
+{
+    path = QDir::toNativeSeparators(QDir::cleanPath(path)).toLower();
+    while (path.endsWith(QLatin1Char('\\')))
+        path.chop(1);
+    return path;
+}
 #endif
+
+QString policyValueName(const QString &browser)
+{
+    const QString exe = QFileInfo(browser).fileName().toLower();
+    if (exe == QLatin1String("msedge.exe"))
+        return QStringLiteral("Microsoft\\Edge");
+    if (exe == QLatin1String("brave.exe"))
+        return QStringLiteral("BraveSoftware\\Brave");
+    return QStringLiteral("Google\\Chrome");
+}
 
 } // namespace
 
@@ -102,7 +161,13 @@ BrowserLogin::BrowserLogin(QObject *parent)
             requestCookies();
     });
     connect(&m_socket, &QWebSocket::textMessageReceived, this, &BrowserLogin::onMessage);
+    connect(&m_socket, &QWebSocket::errorOccurred, this, [this] {
+        log(QStringLiteral("DevTools connection: %1").arg(m_socket.errorString()));
+    });
     connect(&m_process, &QProcess::finished, this, &BrowserLogin::onProcessFinished);
+    connect(&m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        log(QStringLiteral("browser process error %1: %2").arg(int(error)).arg(m_process.errorString()));
+    });
 }
 
 BrowserLogin::~BrowserLogin()
@@ -158,19 +223,172 @@ QString BrowserLogin::findBrowser(QString *displayName)
           { pf + "/BraveSoftware/Brave-Browser/Application/brave.exe",
             local + "/BraveSoftware/Brave-Browser/Application/brave.exe" } },
     };
+    // The first installed one whose policy allows the readout; a blocked one only when there's nothing else.
+    QString blocked, blockedName;
     for (const Candidate &c : candidates) {
         QStringList paths = c.paths;
         paths.prepend(appPath(QString::fromLatin1(c.exe)));
         for (const QString &p : paths) {
-            if (!p.isEmpty() && QFileInfo::exists(p)) {
-                if (displayName)
-                    *displayName = QString::fromLatin1(c.name);
-                return QDir::toNativeSeparators(p);
+            if (p.isEmpty() || !QFileInfo::exists(p))
+                continue;
+            if (debuggingBlocked(p)) {
+                if (blocked.isEmpty()) {
+                    blocked = QDir::toNativeSeparators(p);
+                    blockedName = QString::fromLatin1(c.name);
+                }
+                break;
             }
+            if (displayName)
+                *displayName = QString::fromLatin1(c.name);
+            return QDir::toNativeSeparators(p);
         }
     }
+    if (displayName && !blocked.isEmpty())
+        *displayName = blockedName;
+    return blocked;
+#endif
+}
+
+QList<qint64> BrowserLogin::profileProcesses(const QString &profileDir, qint64 extra)
+{
+    QList<qint64> pids;
+#ifdef Q_OS_WIN
+    const QString profile = normalized(profileDir);
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot != INVALID_HANDLE_VALUE) {
+        PROCESSENTRY32W entry;
+        entry.dwSize = sizeof(entry);
+        for (bool ok = Process32FirstW(snapshot, &entry); ok; ok = Process32NextW(snapshot, &entry)) {
+            const QString exe = QString::fromWCharArray(entry.szExeFile).toLower();
+            if (exe != QLatin1String("chrome.exe") && exe != QLatin1String("msedge.exe") && exe != QLatin1String("brave.exe"))
+                continue;
+            // The browser process itself: its helpers carry "--type=renderer" and the like.
+            const QString line = commandLine(entry.th32ProcessID).toLower();
+            if (line.contains(QLatin1String("--type=")))
+                continue;
+            const int at = line.indexOf(QLatin1String("--user-data-dir="));
+            if (at < 0)
+                continue;
+            QString dir = line.mid(at + 16).trimmed();
+            if (dir.startsWith(QLatin1Char('"')))
+                dir = dir.mid(1, dir.indexOf(QLatin1Char('"'), 1) - 1);
+            else if (const int space = dir.indexOf(QLatin1String(" --")); space >= 0)
+                dir = dir.left(space);
+            if (normalized(dir) == profile)
+                pids << qint64(entry.th32ProcessID);
+        }
+        CloseHandle(snapshot);
+    }
+#else
+    // Chrome on Linux keeps a "SingletonLock" symlink to "<host>-<pid>" while the profile is open.
+    const QFileInfo lock(profileDir + QStringLiteral("/SingletonLock"));
+    if (lock.isSymLink()) {
+        const qint64 pid = lock.symLinkTarget().section(QLatin1Char('-'), -1).toLongLong();
+        if (pid > 0 && QFileInfo::exists(QStringLiteral("/proc/%1").arg(pid)))
+            pids << pid;
+    }
+#endif
+    if (extra > 0 && !pids.contains(extra)) {
+#ifdef Q_OS_WIN
+        if (HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, DWORD(extra))) {
+            DWORD code = 0;
+            if (GetExitCodeProcess(process, &code) && code == STILL_ACTIVE)
+                pids << extra;
+            CloseHandle(process);
+        }
+#else
+        pids << extra;
+#endif
+    }
+    return pids;
+}
+
+QStringList BrowserLogin::profileWindowTitles(const QString &profileDir, qint64 extra)
+{
+#ifdef Q_OS_WIN
+    return scanWindows(profileProcesses(profileDir, extra)).titles;
+#else
+    Q_UNUSED(profileDir) Q_UNUSED(extra)
     return {};
 #endif
+}
+
+void BrowserLogin::closeProfileWindows(const QString &profileDir, qint64 extra)
+{
+#ifdef Q_OS_WIN
+    for (HWND hwnd : scanWindows(profileProcesses(profileDir, extra)).windows)
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+#else
+    Q_UNUSED(profileDir) Q_UNUSED(extra)
+#endif
+}
+
+void BrowserLogin::killProfileProcesses(const QString &profileDir)
+{
+#ifdef Q_OS_WIN
+    for (qint64 pid : profileProcesses(profileDir)) {
+        if (HANDLE process = OpenProcess(PROCESS_TERMINATE, FALSE, DWORD(pid))) {
+            TerminateProcess(process, 1);
+            CloseHandle(process);
+            log(QStringLiteral("ended a browser still holding the profile (pid %1)").arg(pid));
+        }
+    }
+#else
+    for (qint64 pid : profileProcesses(profileDir)) {
+        ::kill(pid_t(pid), SIGKILL);
+        log(QStringLiteral("ended a browser still holding the profile (pid %1)").arg(pid));
+    }
+#endif
+}
+
+void BrowserLogin::whenProfileFree(QObject *context, const QString &profileDir, int waitMs, std::function<void()> then)
+{
+    auto *timer = new QTimer(context);
+    auto *clock = new QElapsedTimer;
+    clock->start();
+    timer->setInterval(250);
+    QObject::connect(timer, &QTimer::timeout, context, [=] {
+        const bool held = !profileProcesses(profileDir).isEmpty();
+        if (held && clock->elapsed() < waitMs)
+            return;
+        if (held) {
+            log(QStringLiteral("the profile is still in use after %1 ms — ending its browser").arg(clock->elapsed()));
+            killProfileProcesses(profileDir);
+        }
+        timer->deleteLater();
+        delete clock;
+        // A moment for the ended browser to release its files.
+        QTimer::singleShot(held ? 600 : 150, context, then);
+    });
+    timer->start();
+}
+
+bool BrowserLogin::debuggingBlocked(const QString &browser)
+{
+#ifdef Q_OS_WIN
+    for (const char *root : { "HKEY_LOCAL_MACHINE", "HKEY_CURRENT_USER" }) {
+        QSettings reg(QStringLiteral("%1\\Software\\Policies\\%2").arg(QLatin1String(root), policyValueName(browser)),
+                      QSettings::NativeFormat);
+        const QVariant allowed = reg.value(QStringLiteral("RemoteDebuggingAllowed"));
+        if (allowed.isValid() && allowed.toInt() == 0)
+            return true;
+    }
+#else
+    Q_UNUSED(browser)
+#endif
+    return false;
+}
+
+void BrowserLogin::log(const QString &line)
+{
+    const QString path = AppPaths::dataDir() + QStringLiteral("/login.log");
+    QFile file(path);
+    if (file.size() > 256 * 1024)
+        file.remove();   // only recent attempts matter
+    if (file.open(QIODevice::Append | QIODevice::Text))
+        file.write((QDateTime::currentDateTime().toString(Qt::ISODate) + QLatin1Char(' ') + line + QLatin1Char('\n')).toUtf8());
+    if (qEnvironmentVariableIsSet("NOKTURN_LOGIN_DEBUG"))
+        qInfo("login: %s", qPrintable(line));
 }
 
 QStringList BrowserLogin::windowTitles(qint64 pid)
@@ -249,30 +467,42 @@ void BrowserLogin::start(const QString &profileDir)
 
     m_profileDir = profileDir;
     QDir().mkpath(profileDir);
-    // Chrome keeps a "lockfile" while the profile is open — a second launch would only
-    // hand the window to the existing instance, so in that state we don't start over.
-    const QString lock = profileDir + QStringLiteral("/lockfile");
-    if (QFile::exists(lock) && !QFile::remove(lock)) {
-        emit failed(tr("The sign-in window is already open — finish signing in there or close it"));
-        return;
-    }
-    QFile::remove(profileDir + QStringLiteral("/DevToolsActivePort"));
-
     m_refreshMode = false;
-    setStage(Stage::Interactive);
     m_closePending = false;
+    m_readerLaunched = false;
+    m_lastTitles.clear();
+    m_launchClock.invalidate();
+    log(QStringLiteral("--- %1 sign-in with %2%3").arg(m_site == Site::SoundCloud ? QStringLiteral("SoundCloud") : QStringLiteral("YouTube"),
+                                                       m_browser, debuggingBlocked(m_browser) ? QStringLiteral(" (remote debugging blocked by policy)") : QString()));
+    setStage(Stage::Interactive);
+    // A browser still on this profile (a window from an earlier attempt, a hidden readout that never ended)
+    // would get the new window handed over and keep it out of our sight, so it goes first.
+    if (!profileProcesses(profileDir).isEmpty())
+        log(QStringLiteral("the profile is in use by an earlier browser, ending it"));
+    whenProfileFree(this, profileDir, 0, [this] {
+        if (m_stage == Stage::Interactive)
+            launchWindow();
+    });
+}
+
+void BrowserLogin::launchWindow()
+{
+    QFile::remove(m_profileDir + QStringLiteral("/lockfile"));
+    QFile::remove(m_profileDir + QStringLiteral("/DevToolsActivePort"));
     const QString url = m_site == Site::SoundCloud
                             ? QString::fromLatin1(kSoundCloudLoginUrl)
                             : QString::fromLatin1(kLoginUrl).replace(QStringLiteral("{lang}"), Language::instance()->effective());
     m_process.setProgram(m_browser);
     m_process.setArguments({
-        QStringLiteral("--user-data-dir=") + QDir::toNativeSeparators(profileDir),
+        QStringLiteral("--user-data-dir=") + QDir::toNativeSeparators(m_profileDir),
         QStringLiteral("--no-first-run"),
         QStringLiteral("--no-default-browser-check"),
         QStringLiteral("--window-size=520,760"),
         QStringLiteral("--app=") + url,
     });
     m_process.start();
+    m_launchClock.start();
+    log(QStringLiteral("sign-in window started (pid %1)").arg(m_process.processId()));
     m_titleTimer.start();
 }
 
@@ -286,12 +516,10 @@ void BrowserLogin::refresh(const QString &profileDir, std::function<bool(const Y
         return;
     }
     m_profileDir = profileDir;
-    const QString lock = profileDir + QStringLiteral("/lockfile");
-    if (QFile::exists(lock) && !QFile::remove(lock)) {
-        emit failed(tr("The sign-in window is open"));
-        return;
-    }
     m_refreshMode = true;
+    m_readerLaunched = false;
+    m_launchClock.invalidate();
+    log(QStringLiteral("--- renewing the session with %1").arg(m_browser));
     m_accept = std::move(accept);
     emit runningChanged();
     startReading();
@@ -312,15 +540,26 @@ void BrowserLogin::checkWindowTitle()
 #ifdef Q_OS_WIN
     // The app window's title is the page title. After a successful sign-in Google redirects
     // to music.youtube.com, and the window starts being called "YouTube Music".
-    const WindowScan scan = scanWindows(m_process.processId());
+    const QList<qint64> owners = profileProcesses(m_profileDir, m_process.processId());
+    const WindowScan scan = scanWindows(owners);
+    if (scan.titles != m_lastTitles) {
+        m_lastTitles = scan.titles;
+        log(QStringLiteral("window titles (processes %1): %2").arg(owners.size()).arg(scan.titles.join(QStringLiteral(" | "))));
+    }
+    // Nothing of the browser left on the profile: the user closed the window, maybe already signed in.
+    // (The pid we started isn't the measure: a launcher may have handed the window over and quit.)
+    if (owners.isEmpty() && m_launchClock.isValid() && m_launchClock.elapsed() > 1500) {
+        log(QStringLiteral("the sign-in window was closed"));
+        m_titleTimer.stop();
+        startReading();
+        return;
+    }
     if (m_site == Site::SoundCloud) {
         // Signed in, SoundCloud lands on one of its own pages (the feed, Discover, the home page) — named by
         // their titles. Pages on the way (Google / Apple sign-in, secure.soundcloud.com, a window still named
         // after its URL) don't count. The window stays a moment longer, so the session cookie gets saved.
         if (m_closePending)
             return;
-        if (qEnvironmentVariableIsSet("NOKTURN_LOGIN_DEBUG"))
-            qInfo("login: window titles %s", qPrintable(scan.titles.join(QStringLiteral(" | "))));
         for (const QString &title : scan.titles) {
             const QString t = title.toLower();
             if (!t.contains(QLatin1String("soundcloud")) || t.contains(QLatin1String("sign")) || t.contains(QLatin1String("register"))
@@ -355,30 +594,36 @@ void BrowserLogin::closeInteractiveWindow()
 {
     m_titleTimer.stop();
     setStage(Stage::Closing);
+    log(QStringLiteral("signed in, closing the window"));
 #ifdef Q_OS_WIN
-    // A gentle close (like clicking X) — Chrome then writes the cookies to disk.
-    for (HWND hwnd : scanWindows(m_process.processId()).windows)
-        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+    // A gentle close (like clicking X): Chrome then writes the cookies to disk. The readout waits
+    // until the profile is free, and ends the browser if it doesn't close.
+    closeProfileWindows(m_profileDir, m_process.processId());
 #else
     m_process.terminate();   // SIGTERM — Chrome closes properly and saves the cookies
 #endif
-    m_closeTimer.start();
+    startReading();
 }
 
 void BrowserLogin::onProcessFinished()
 {
+    log(QStringLiteral("browser process ended (exit code %1, %2 ms after start)")
+            .arg(m_process.exitCode()).arg(m_launchClock.isValid() ? m_launchClock.elapsed() : -1));
     switch (m_stage) {
     case Stage::Interactive:
+#ifdef Q_OS_WIN
+        // Not necessarily the window closing: a launcher hands the window to another process and quits.
+        // checkWindowTitle() watches the profile and notices when its window is really gone.
+#else
         // The user closed the window — they may already have signed in, so we check the session anyway.
         m_titleTimer.stop();
         startReading();
+#endif
         break;
     case Stage::Closing:
-        m_closeTimer.stop();
-        startReading();
-        break;
+        break;   // the readout already waits for the profile
     case Stage::Reading:
-        if (m_socket.state() == QAbstractSocket::UnconnectedState && !m_portTimer.isActive())
+        if (m_readerLaunched && m_socket.state() == QAbstractSocket::UnconnectedState && !m_portTimer.isActive())
             fail(tr("Couldn't read the session from the browser"));
         break;
     case Stage::Idle:
@@ -390,15 +635,21 @@ void BrowserLogin::onProcessFinished()
 
 void BrowserLogin::startReading()
 {
+    if (m_stage == Stage::Reading)
+        return;
     setStage(Stage::Reading);
     m_portAttempts = 0;
     m_readAttempts = 0;
-    QFile::remove(m_profileDir + QStringLiteral("/DevToolsActivePort"));
+    m_readerLaunched = false;
 
-    // A moment for the closing browser to release the profile.
-    QTimer::singleShot(500, this, [this] {
-        if (m_stage != Stage::Reading)
+    // The hidden browser needs the profile to itself: a window still open on it would take the launch
+    // over, and DevTools would never answer. A closing window gets a few seconds to save its cookies.
+    whenProfileFree(this, m_profileDir, 12000, [this] {
+        if (m_stage != Stage::Reading || m_readerLaunched)
             return;
+        m_readerLaunched = true;
+        QFile::remove(m_profileDir + QStringLiteral("/lockfile"));
+        QFile::remove(m_profileDir + QStringLiteral("/DevToolsActivePort"));
         m_process.setProgram(m_browser);
         m_process.setArguments({
             QStringLiteral("--headless=new"),
@@ -409,6 +660,8 @@ void BrowserLogin::startReading()
             m_refreshMode ? QStringLiteral("https://soundcloud.com/discover") : QStringLiteral("about:blank"),
         });
         m_process.start();
+        m_launchClock.start();
+        log(QStringLiteral("hidden readout started (pid %1)").arg(m_process.processId()));
         m_portTimer.start();
     });
 }
@@ -421,13 +674,19 @@ void BrowserLogin::waitForDevTools()
         const QStringList lines = QString::fromUtf8(file.readAll()).split('\n', Qt::SkipEmptyParts);
         if (lines.size() >= 2) {
             m_portTimer.stop();
+            log(QStringLiteral("DevTools on port %1").arg(lines.at(0).trimmed()));
             const QUrl ws(QStringLiteral("ws://127.0.0.1:%1%2").arg(lines.at(0).trimmed(), lines.at(1).trimmed()));
             m_socket.open(ws);
             return;
         }
     }
-    if (++m_portAttempts > 80)   // ~20 s
-        fail(tr("Couldn't read the session from the browser (DevTools isn't responding)"));
+    if (++m_portAttempts > 80) {   // ~20 s
+        log(QStringLiteral("DevTools never answered; browser processes on the profile: %1")
+                .arg(profileProcesses(m_profileDir).size()));
+        fail(debuggingBlocked(m_browser)
+                 ? tr("A policy on this computer turns off remote debugging in the browser, so the session can't be read")
+                 : tr("Couldn't read the session from the browser (DevTools isn't responding)"));
+    }
 }
 
 void BrowserLogin::requestCookies()
@@ -450,6 +709,7 @@ void BrowserLogin::onMessage(const QString &message)
                                                  m_site == Site::SoundCloud ? QStringLiteral("soundcloud.com")
                                                                             : QStringLiteral("youtube.com"));
     if (signedIn(cookies) && (!m_refreshMode || !m_accept || m_accept(cookies))) {
+        log(QStringLiteral("signed in, session read"));
         stopAll();
         emit succeeded(cookies);
         return;
@@ -476,6 +736,7 @@ bool BrowserLogin::signedIn(const YtCookies &cookies) const
 
 void BrowserLogin::fail(const QString &reason)
 {
+    log(QStringLiteral("failed: %1").arg(reason));
     stopAll();
     emit failed(reason);
 }
@@ -500,8 +761,7 @@ void BrowserLogin::stopAll()
     if (m_process.state() != QProcess::NotRunning) {
 #ifdef Q_OS_WIN
         if (stage == Stage::Interactive || stage == Stage::Closing)
-            for (HWND hwnd : scanWindows(m_process.processId()).windows)
-                PostMessageW(hwnd, WM_CLOSE, 0, 0);
+            closeProfileWindows(m_profileDir, m_process.processId());
 #else
         m_process.terminate();
 #endif
