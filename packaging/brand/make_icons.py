@@ -145,7 +145,7 @@ def android(res):
         d.mkdir(parents=True, exist_ok=True)
         icon(px).save(d / "ic_launcher.png", optimize=True)
         # adaptive icon: the launcher masks a 108 dp square to its own shape and shows the middle 72 dp
-        padded(round(px * 108 / 48), 0.86).save(d / "ic_launcher_background.png", optimize=True)
+        padded(round(px * 108 / 48), 0.74).save(d / "ic_launcher_background.png", optimize=True)
     anydpi = res / "mipmap-anydpi-v26"
     anydpi.mkdir(parents=True, exist_ok=True)
     (anydpi / "ic_launcher.xml").write_text(
