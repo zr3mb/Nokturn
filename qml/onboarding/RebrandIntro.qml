@@ -261,7 +261,8 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             y: root.height / 2 - height / 2 - 70 * root.k * stage.rise
             readonly property real p: root.seg(2.65, 3.5)
-            scale: 4.2 * root.k * root.outBack(p)
+            width: 144 * root.k; height: width
+            scale: root.outBack(p)
             rotation: -200 * (1 - root.outCubic(p))
             opacity: root.seg(2.65, 2.85)
         }

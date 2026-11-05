@@ -1314,26 +1314,54 @@ Control Ui::hit(float x, float y) const
     return None;
 }
 
+// The app icon (packaging/brand: the logo with rounded corners), a PNG in this program's resources. A bitmap
+// belongs to the render target it was made for: the window's, or the one of a --preview picture.
+ID2D1Bitmap *g_logo = nullptr;
+ID2D1RenderTarget *g_logoTarget = nullptr;
+
+void forgetLogo()   // before its render target goes
+{
+    release(g_logo);
+    g_logoTarget = nullptr;
+}
+
+ID2D1Bitmap *logoBitmap(ID2D1RenderTarget *rt)
+{
+    ID2D1Bitmap *&bitmap = g_logo;
+    if (bitmap && g_logoTarget == rt)
+        return bitmap;
+    forgetLogo();
+    g_logoTarget = rt;
+    const HRSRC res = FindResourceW(nullptr, MAKEINTRESOURCEW(2), MAKEINTRESOURCEW(10));   // 10: RT_RCDATA
+    const HGLOBAL data = res ? LoadResource(nullptr, res) : nullptr;
+    if (!data)
+        return nullptr;
+    IWICImagingFactory *wic = nullptr;
+    IWICStream *stream = nullptr;
+    IWICBitmapDecoder *decoder = nullptr;
+    IWICBitmapFrameDecode *frame = nullptr;
+    IWICFormatConverter *converter = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic)))
+        && SUCCEEDED(wic->CreateStream(&stream))
+        && SUCCEEDED(stream->InitializeFromMemory(static_cast<BYTE *>(LockResource(data)), SizeofResource(nullptr, res)))
+        && SUCCEEDED(wic->CreateDecoderFromStream(stream, nullptr, WICDecodeMetadataCacheOnLoad, &decoder))
+        && SUCCEEDED(decoder->GetFrame(0, &frame))
+        && SUCCEEDED(wic->CreateFormatConverter(&converter))
+        && SUCCEEDED(converter->Initialize(frame, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, nullptr, 0,
+                                           WICBitmapPaletteTypeMedianCut)))
+        rt->CreateBitmapFromWicBitmap(converter, nullptr, &bitmap);
+    release(converter);
+    release(frame);
+    release(decoder);
+    release(stream);
+    release(wic);
+    return bitmap;
+}
+
 void Ui::drawLogo(ID2D1RenderTarget *rt, float x, float y, float size)
 {
-    // The app icon (packaging/linux/everplay.svg): a soft gradient tile with four bars.
-    const float k = size / 128;
-    const D2D1_GRADIENT_STOP stops[2] = { { 0, rgb(0xb3c6bb) }, { 1, rgb(0x3f5061) } };
-    ID2D1GradientStopCollection *collection = nullptr;
-    ID2D1LinearGradientBrush *gradient = nullptr;
-    ID2D1SolidColorBrush *white = nullptr;
-    rt->CreateGradientStopCollection(stops, 2, &collection);
-    rt->CreateLinearGradientBrush(D2D1::LinearGradientBrushProperties(D2D1::Point2F(x, y + 4 * k), D2D1::Point2F(x, y + 124 * k)),
-                                  collection, &gradient);
-    rt->CreateSolidColorBrush(rgb(0xf4f0ea), &white);
-    rt->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(x + 4 * k, y + 4 * k, x + 124 * k, y + 124 * k), 38 * k, 38 * k), gradient);
-    const float bars[4][4] = { { 35, 52, 10, 24 }, { 52, 36, 10, 56 }, { 69, 44, 10, 40 }, { 86, 56, 10, 16 } };
-    for (const auto &b : bars)
-        rt->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(x + b[0] * k, y + b[1] * k, x + (b[0] + b[2]) * k, y + (b[1] + b[3]) * k),
-                                                   5 * k, 5 * k), white);
-    release(white);
-    release(gradient);
-    release(collection);
+    if (ID2D1Bitmap *bitmap = logoBitmap(rt))
+        rt->DrawBitmap(bitmap, D2D1::RectF(x, y, x + size, y + size), 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
 }
 
 void Ui::paint(ID2D1RenderTarget *rt)
@@ -1664,8 +1692,10 @@ LRESULT Ui::handle(UINT msg, WPARAM wp, LPARAM lp)
         if (m_rt) {
             m_rt->BeginDraw();
             paint(m_rt);
-            if (m_rt->EndDraw() == HRESULT(D2DERR_RECREATE_TARGET))
+            if (m_rt->EndDraw() == HRESULT(D2DERR_RECREATE_TARGET)) {
+                forgetLogo();
                 release(m_rt);
+            }
         }
         EndPaint(m_hwnd, &ps);
         return 0;
@@ -1823,6 +1853,7 @@ bool Ui::renderPng(const std::wstring &file, float scale)
     release(frame);
     release(encoder);
     release(stream);
+    forgetLogo();
     release(rt);
     release(bitmap);
     release(wic);

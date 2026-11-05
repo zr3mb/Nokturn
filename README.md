@@ -1,3 +1,5 @@
+<p align="center"><img src="packaging/brand/icon-256.png" width="128" alt=""></p>
+
 # Everplay
 
 A music player for many sources (local files, YouTube Music, internet radio, custom streams).
@@ -289,8 +291,8 @@ Appearance and layout settings (`[ui]` in `settings.ini`) are remembered between
 - Discord requires an **application ID**: create an application at
   [discord.com/developers/applications](https://discord.com/developers/applications) (its name shows up as
   "Listening to <name>"), copy the *Application ID* and paste it in the settings. It can also be built in at
-  compile time: `-DEVERPLAY_DISCORD_CLIENT_ID=…` (Linux: `DISCORD_CLIENT_ID=… ./build.sh`). Optionally add a
-  `everplay` image under *Rich Presence → Art Assets* — it shows instead of the cover when there's none online.
+  compile time: `-DEVERPLAY_DISCORD_CLIENT_ID=…` (Linux: `DISCORD_CLIENT_ID=… ./build.sh`). When a track has no
+  cover online the status shows the logo from the server (`/static/logo-512.png`).
 - Older Discord clients that don't know the newer fields (status type, buttons) get the basic version.
 
 ## Playlists — how it works
@@ -529,6 +531,7 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `i18n/` | Translations: `pl.json` (Polish), `en.json` (English plural forms) |
 | `scripts/check_translations.py` | Translation completeness check |
 | `server/` | The online server: `nokturn_server/` (aiohttp app, SQLite, rooms, link pages), `install.sh` for Ubuntu, tests |
+| `packaging/brand/` | The logo (`everplay-logo.png`) and `make_icons.py`, which makes every icon from it: the Windows `.ico`, the Linux SVG, the setup's picture, the window icon; `--android` / `--web` for the other platforms |
 | `packaging/linux/` | `.desktop` file, SVG icon, metainfo (AppStream) |
 | `packaging/windows/` | The setup (`setup/`), the package it downloads (`make_payload.py`), the icon |
 | `qml/onboarding/` | First-run wizard: steps, animated layout thumbnails (`LayoutPreview`), transition preview |
