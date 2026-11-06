@@ -59,6 +59,35 @@ int pairScore(const QString &a, const QString &b)
 
 enum Step : std::uint8_t { None, Diag, Up, Left };
 
+// Line starts in increasing order, then the ends: a line ends at the start of the next one, but no later
+// than shortly after its last sung word (nothing should be highlighted during an instrumental break).
+void finishLineTimes(QList<LyricLine> &lines, const std::vector<qint64> &lastWordEnd, qint64 durationMs)
+{
+    // The order must be increasing (shifting by unrecognized words may have broken it).
+    qint64 last = -1;
+    for (LyricLine &l : lines) {
+        if (l.start < 0)
+            continue;
+        if (l.start <= last)
+            l.start = last + 120;
+        if (durationMs > 0)
+            l.start = std::min(l.start, durationMs);
+        last = l.start;
+    }
+
+    qint64 next = durationMs;
+    for (int li = int(lines.size()) - 1; li >= 0; --li) {
+        LyricLine &l = lines[li];
+        if (l.start < 0)
+            continue;
+        qint64 end = next >= 0 ? next : l.start + 6000;
+        if (lastWordEnd[li] > l.start)
+            end = std::min(end, lastWordEnd[li] + 1500);
+        l.end = std::max(end, l.start + 300);
+        next = l.start;
+    }
+}
+
 } // namespace
 
 QString normalize(const QString &word)
@@ -266,32 +295,102 @@ Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs)
         lines[li].start = std::max<qint64>(0, t);
     }
 
-    // The order must be increasing (shifting by unrecognized words may have broken it).
-    qint64 last = -1;
-    for (LyricLine &l : lines) {
-        if (l.start < 0)
+    finishLineTimes(lines, lastWordEnd, durationMs);
+    result.lyrics.synced = true;
+    result.lyrics.wordTimed = true;
+    result.lyrics.origin = QStringLiteral("stt");
+    return result;
+}
+
+Result fromLineWords(const Lyrics &lyrics, const QList<QList<Word>> &lineWords, qint64 durationMs)
+{
+    Result result;
+    result.lyrics = lyrics;
+    QList<LyricLine> &lines = result.lyrics.lines;
+    std::vector<qint64> lastWordEnd(lines.size(), -1);
+    std::vector<bool> hasWords(lines.size(), false);
+    int tokens = 0, timed = 0;
+    for (int li = 0; li < lines.size(); ++li) {
+        LyricLine &line = lines[li];
+        line.start = line.end = -1;
+        line.words.clear();
+        const QString &text = line.text;
+        // The words of the line as the karaoke highlight splits them: runs of non-spaces with a letter in them.
+        struct Span { int from; int length; qint64 start; qint64 end; };
+        QList<Span> spans;
+        for (int i = 0; i < text.size();) {
+            while (i < text.size() && text.at(i).isSpace())
+                ++i;
+            const int from = i;
+            while (i < text.size() && !text.at(i).isSpace())
+                ++i;
+            if (i > from && !normalize(text.mid(from, i - from)).isEmpty())
+                spans << Span { from, i - from, -1, -1 };
+        }
+        tokens += int(spans.size());
+        hasWords[li] = !spans.isEmpty();
+        const QList<Word> heard = li < lineWords.size() ? lineWords.at(li) : QList<Word>();
+        if (spans.isEmpty() || heard.isEmpty())
             continue;
-        if (l.start <= last)
-            l.start = last + 120;
-        if (durationMs > 0)
-            l.start = std::min(l.start, durationMs);
-        last = l.start;
+
+        // The aligner's words are the line's own text, split a little differently around punctuation
+        // ("king-Kong" comes back as "king-" and "Kong"). Each is found in the line by its letters, in order,
+        // and gives its time to the words of the line it covers.
+        int pos = 0;
+        for (const Word &w : heard) {
+            int first = -1, last = -1;
+            for (const QChar c : w.text) {
+                if (!c.isLetterOrNumber())
+                    continue;
+                int at = pos;
+                while (at < text.size() && text.at(at).toCaseFolded() != c.toCaseFolded())
+                    ++at;
+                if (at >= text.size())
+                    break;
+                if (first < 0)
+                    first = at;
+                last = at;
+                pos = at + 1;
+            }
+            if (first < 0)
+                continue;
+            for (Span &s : spans) {
+                if (s.from <= last && first < s.from + s.length) {
+                    s.start = s.start < 0 ? w.start : std::min(s.start, w.start);
+                    s.end = std::max(s.end, w.end);
+                }
+            }
+            lastWordEnd[li] = std::max(lastWordEnd[li], w.end);
+        }
+        for (const Span &s : spans) {
+            if (s.start < 0)
+                continue;
+            line.words << LyricWord { s.start, std::max(s.end, s.start + 1), s.from, s.length };
+            ++timed;
+        }
+        line.start = line.words.isEmpty() ? heard.first().start : line.words.first().start;
+        lastWordEnd[li] = std::max(lastWordEnd[li], line.start);
+        ++result.anchoredLines;
+    }
+    result.coverage = tokens > 0 ? double(timed) / tokens : 0;
+    if (result.anchoredLines == 0)
+        return result;
+
+    // A line the aligner didn't place goes right after the previous one (or a moment before the next).
+    for (int li = 0; li < lines.size(); ++li) {
+        if (!hasWords[li] || lines[li].start >= 0)
+            continue;
+        qint64 before = -1, after = -1;
+        for (int k = li - 1; k >= 0 && before < 0; --k)
+            if (lines[k].start >= 0)
+                before = std::max(lines[k].start, lastWordEnd[k]);
+        for (int k = li + 1; k < lines.size() && after < 0; ++k)
+            if (hasWords[k] && lines[k].start >= 0)
+                after = lines[k].start;
+        lines[li].start = before >= 0 ? before + 200 : std::max<qint64>(0, after - 2000);
     }
 
-    // A line ends at the start of the next one, but no later than shortly after the last sung word
-    // (nothing should be highlighted during an instrumental break).
-    qint64 next = durationMs;
-    for (int li = int(lines.size()) - 1; li >= 0; --li) {
-        LyricLine &l = lines[li];
-        if (l.start < 0)
-            continue;
-        qint64 end = next >= 0 ? next : l.start + 6000;
-        if (lastWordEnd[li] > l.start)
-            end = std::min(end, lastWordEnd[li] + 1500);
-        l.end = std::max(end, l.start + 300);
-        next = l.start;
-    }
-
+    finishLineTimes(lines, lastWordEnd, durationMs);
     result.lyrics.synced = true;
     result.lyrics.wordTimed = true;
     result.lyrics.origin = QStringLiteral("stt");

@@ -427,14 +427,32 @@ Item {
             { name: "F7-shown", run: () => { log(); Player.pause() } }
         ]
     }
-    // Aligning plain lyrics with speech recognition (--tour-align "<query>"): the first YouTube result plays muted.
+    // --tour-stt-download (with --tour-align or --tour-recognize): first the lyric timing components, through
+    // the app's own download.
+    readonly property var sttDownloadSteps: {
+        if (Qt.application.arguments.indexOf("--tour-stt-download") < 0)
+            return []
+        const steps = [{ name: "G0-download", run: () => {
+            console.log("tour: stt", "| engine", Lyrics.sttEngineReady, "| aligner", Lyrics.sttAlignerReady, "| separator", Lyrics.sttSeparatorReady,
+                        "| gpu", Lyrics.sttGpuName)
+            Lyrics.downloadSttComponents()
+        } }]
+        for (let i = 0; i < 120; ++i)
+            steps.push({ name: "G1-wait" + i, run: () => console.log("tour: stt download", Lyrics.sttDownloading, Lyrics.sttDownloadLabel,
+                                                                      Math.round(Lyrics.sttProgress * 100) + "%", "| complete", Lyrics.sttComplete,
+                                                                      "| gpu", Lyrics.sttGpuName, "| separates", Lyrics.sttSeparates) })
+        return steps
+    }
+    // Lyric timing (--tour-align "<query>"): the first YouTube result plays muted; plain lyrics get line times,
+    // synced ones get every word timed.
     readonly property bool withAlign: Qt.application.arguments.indexOf("--tour-align") >= 0
     readonly property string alignQuery: withAlign ? Qt.application.arguments[Qt.application.arguments.indexOf("--tour-align") + 1].replace(/_/g, " ") : ""
     readonly property var alignSteps: {
         const log = () => console.log("tour: align", Player.title, "| state", Lyrics.state, "| synced", Lyrics.synced, "| canAlign", Lyrics.canAlign,
                                       "| aligning", Lyrics.aligning, Math.round(Lyrics.alignProgress * 100) + "%", Lyrics.alignStage,
-                                      "| lines", Lyrics.lines.length, "| model", Lyrics.sttModel, "| gpu", Lyrics.sttUsesGpu)
+                                      "| lines", Lyrics.lines.length, "| words timed", Lyrics.wordTimed, "| separates", Lyrics.sttSeparates)
         const s = [
+            ...root.sttDownloadSteps,
             { name: "A1-search", run: () => { Nav.finishOnboarding(); Player.muted = true; Nav.navigate("search", { query: root.alignQuery.split("@")[0], filter: 2 }) } },
             { name: "A2-wait", run: () => {} },
             { name: "A3-play", run: () => {
@@ -446,15 +464,19 @@ Item {
                 if (pick) Player.playFrom(r, pick, "search")
             } },
             { name: "A4-wait", run: log },
-            { name: "A5-align", run: () => { log(); Nav.immersive = true; Lyrics.alignNow() } }
+            { name: "A5-align", run: () => { log(); Nav.immersive = true; if (Lyrics.canAlign) Lyrics.alignNow(); else Lyrics.timeWordsNow() } }
         ]
         for (let i = 0; i < 80; ++i)
             s.push({ name: "A6-wait" + i, run: log })
         s.push({ name: "A7-lines", run: () => {
             log()
             for (const l of Lyrics.lines)
-                console.log("tour: line", l.start.toFixed(1), l.end.toFixed(1), l.text)
+                console.log("tour: line", l.start.toFixed(1), l.end.toFixed(1), l.words.length, l.text)
         } })
+        // The timing settings as they look now
+        s.push({ name: "A8-settings", run: () => { Player.pause(); Nav.immersive = false; Nav.navigate("settings") } })
+        for (const y of [1600, 2000, 2400, 2800])
+            s.push({ name: "A9-settings-" + y, run: () => root.scrollPage(y) })
         return s
     }
     // The order of the tracks in a playlist (--tour-track-order "<pair code or ->", with EVERPLAY_SERVER): a local
@@ -962,7 +984,7 @@ Item {
     ]
     // Stats, "Recently played" and resuming a long recording (--tour-stats).
     // Lyrics recognized for a track without any (--tour-recognize <folder>: a folder with one recording
-    // with words in it; the profile needs whisper and the "base" model).
+    // with words in it; the profile needs CrispASR and the "small" model).
     readonly property bool withRecognize: Qt.application.arguments.indexOf("--tour-recognize") >= 0
     readonly property string recognizeFolder: withRecognize ? Qt.application.arguments[Qt.application.arguments.indexOf("--tour-recognize") + 1] : ""
     function recognizeLog() {
@@ -972,16 +994,7 @@ Item {
     }
     readonly property var recognizeSteps: {
         const steps = []
-        // --tour-gpu-download: first the CUDA build of whisper.cpp, through the app's own download
-        if (Qt.application.arguments.indexOf("--tour-gpu-download") >= 0) {
-            steps.push({ name: "G0-gpu", run: () => {
-                console.log("tour: gpu", Lyrics.sttGpuName, Lyrics.sttGpuDriver, "| supported", Lyrics.sttGpuSupported, "| engine", Lyrics.sttGpuEngineReady)
-                Lyrics.downloadSttGpuEngine()
-            } })
-            for (let i = 0; i < 90; ++i)
-                steps.push({ name: "G1-wait" + i, run: () => console.log("tour: gpu download", Lyrics.sttDownloading, Math.round(Lyrics.sttProgress * 100) + "%",
-                                                                         "| engine", Lyrics.sttGpuEngineReady, "| uses gpu", Lyrics.sttUsesGpu) })
-        }
+        steps.push(...root.sttDownloadSteps)
         steps.push(...[
             { name: "R1-add", run: () => { Nav.finishOnboarding(); Nav.queueOpen = true; Lyrics.sttModel = "small"
                                            Library.addFolder("file:///" + root.recognizeFolder.replace(/\\/g, "/")) } },
