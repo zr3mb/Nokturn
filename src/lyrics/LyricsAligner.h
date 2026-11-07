@@ -31,6 +31,11 @@ double similarity(const QString &a, const QString &b);
 
 Result align(const Lyrics &lyrics, const QList<Word> &words, qint64 durationMs = -1);
 
+// Lyrics timed by forced alignment: `lineWords` holds, for every line of `lyrics`, the words the aligner
+// found for it (empty for breaks and lines it didn't place). Those words are the line's own text, so they
+// only need mapping onto it — nothing has to be matched.
+Result fromLineWords(const Lyrics &lyrics, const QList<QList<Word>> &lineWords, qint64 durationMs = -1);
+
 // The language of the lyrics as whisper's code ("pl", "en"…), from its letters and most common words;
 // empty when the text doesn't tell clearly.
 QString guessLanguage(const Lyrics &lyrics);

@@ -147,8 +147,8 @@ On Linux:
 - **cookies** are encrypted with a key from the system password store (GNOME Keyring / KWallet via `secret-tool`,
   the `libsecret-tools` / `libsecret` package); without it the file is plain text, but with `0600` permissions;
 - **yt-dlp** is downloaded as the standalone `yt-dlp_linux` (or `_aarch64`) file, also with SHA-256 verification;
-- **whisper.cpp** (lyric timing) is installed from the distribution's repositories — Everplay looks for the
-  `whisper-cli` and `whisper-cpp` commands.
+- **CrispASR** (lyric timing) is downloaded from the settings like on Windows (the `linux-x86_64-vulkan` package,
+  `linux-x86_64` without the Vulkan loader); on other architectures Everplay looks for the `crispasr` command.
 
 Developer tool: `Everplay.exe --tour <folder>` (Linux: `everplay --tour <folder>`) walks through every screen and
 saves PNG screenshots of them.
@@ -531,23 +531,41 @@ first.
 
 ### Automatic timing (alpha)
 
-For lyrics without timestamps you can turn on singing recognition in *Settings → Lyrics*:
+With *Settings → Lyrics → Automatic timing* on, lyrics without timestamps get them and synced lyrics get the time
+of every word (the word-by-word highlight):
 
-- Runs **locally** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (`whisper-cli`). The program
-  (the `whisper-bin-x64.zip` package from GitHub, SHA-256 from the release's `digest` field) and a ggml model
-  (Hugging Face, SHA-256 from `lfs.oid`) are downloaded from the settings. The package is unpacked with the `tar`
-  built into Windows.
-- Only available on **stronger hardware** (at least 4 CPU threads and 8 GB of RAM). The recommended model is
-  picked for the hardware: `base` (142 MB), `small` (466 MB, from 8 threads), `medium` (1.5 GB, from 16 threads
-  and 16 GB of RAM).
-- Flow: Qt Multimedia decodes the track (a file or a YouTube stream) to 16 kHz mono WAV →
-  `whisper-cli -ml 1 -sow -mc 0 -bs 3 -oj` returns words with timestamps (no text carried between windows, so a
-  repeated chorus can't loop; the language comes from the lyrics or, without them, from `-dl` on two pieces from
-  the middle of the track) →
-  `LyricsAligner` aligns the lyric words with the transcription words (Needleman–Wunsch, fuzzy comparison with
-  Levenshtein) and computes the time of each line; lines without recognized words are interpolated.
-  A result covering less than 25% of the words is rejected.
-- The result goes to the cache, so each track is recognized only once. Changing the track stops recognition.
+- Runs **locally** with [CrispASR](https://github.com/CrispStrobe/CrispASR), downloaded from the settings in a
+  pinned release (v0.8.50, the Vulkan build: any graphics card with a current driver, or the CPU; the CPU-only
+  build when the Vulkan one doesn't start). Its models come from Hugging Face at fixed revisions. Every file is
+  checked against a SHA-256 written in `SpeechEngine.cpp`; the package is unpacked with `tar` (built into
+  Windows 10/11).
+- **Forced alignment** instead of recognizing the singing: the lyrics are known, so the CTC aligner
+  (`canary-ctc-aligner-q5_0`, 461 MB, 25+ European languages) only finds where each of their words is sung:
+  `crispasr --align-only -am <aligner> --text-file <lines> --align-granularity segment` returns one segment with
+  word times per line. `LyricsAligner::fromLineWords` maps those words back onto the line's text. The aligner
+  places a word about 250 ms after the singer starts it, so every time is moved that much earlier.
+- **Vocal separation** with a graphics card: `crispasr --separate` with Mel-Band RoFormer
+  (`mel-band-roformer-vocals-f16`, 457 MB) leaves only the vocals first, which is what makes the timing
+  accurate. On the CPU it takes far too long, so without a graphics card the whole mix is aligned.
+- Measured against hand-timed lyrics: separated vocals + the aligner put 97% of lines within
+  0.5 s and every line within 1 s (12 tracks; 84% / 93% on 28 further tracks with LRCLIB timing as the
+  reference), against 80% / 91% for whisper `medium` + text matching. On the whole mix the aligner reaches
+  about 88% / 90%.
+- Flow: Qt Multimedia decodes the track (a file or a YouTube stream) to WAV (44.1 kHz stereo for the
+  separator, 16 kHz mono otherwise) → separation (graphics card) → alignment. A separation failure falls back to
+  the mix, a graphics card failure to the CPU. A track takes about 20–60 s with a graphics card, a few seconds
+  without.
+- Synced lyrics keep their line times and get the words inside each line. When the aligned lines are off from
+  them by more than 1.5 s (median), the lyrics were timed for another cut of the track (LRCLIB has some), and
+  the aligned timing replaces them.
+- **Lyrics recognition** (a track nobody has lyrics for, a button in the lyrics panel, test feature): a whisper
+  ggml model (`base` 142 MB, `small` 466 MB, `medium` 1.5 GB; Hugging Face, SHA-256 from `lfs.oid`) through
+  CrispASR's whisper backend: `-ml 1 -sow -mc 0 -bs 3 -oj` returns words with timestamps (no text carried
+  between windows, so a repeated chorus can't loop; the language comes from `-dl --lid-model <model>` on two
+  pieces from the middle of the track), and `LyricsAligner::fromTranscription` builds the lines. Needs at least
+  4 CPU threads and 8 GB of RAM, or a graphics card.
+- The result goes to the cache, so each track is aligned only once. Changing the track stops the job.
+  The CPU and CUDA builds of whisper.cpp that earlier versions downloaded are deleted on start.
 
 ## Structure
 
@@ -572,8 +590,8 @@ For lyrics without timestamps you can turn on singing recognition in *Settings �
 | `src/audio/AudioEngine.*`, `src/audio/Equalizer.*` | Custom output path: deck mixer (transition styles), buffer + `QAudioSink`, 7-band parametric equalizer |
 | `src/lyrics/Lyrics.*` | Lyrics structure, LRC parser, cache (de)serialization |
 | `src/lyrics/LrcLib.*` | LRCLIB client: exact lookup, then a search by duration |
-| `src/lyrics/LyricsAligner.*` | Aligning lyrics with the transcription (line times) |
-| `src/lyrics/SpeechEngine.*` | whisper.cpp: download with SHA-256 verification, decoding to 16 kHz, transcription, hardware detection |
+| `src/lyrics/LyricsAligner.*` | Line and word times from forced alignment or from a transcription |
+| `src/lyrics/SpeechEngine.*` | CrispASR: download with SHA-256 verification, decoding to WAV, vocal separation, alignment, transcription, graphics card detection |
 | `src/lyrics/LyricsService.*` | `Lyrics` singleton for QML: lyric sources, cache, current line, alignment (alpha) |
 | `src/online/OnlineService.*` | `Online` singleton: the server account, share links, shared playlists, listening rooms (WebSocket, driving the player), `everplay://` links |
 | `src/platform/DiscordPresence.*` | `Discord` singleton: Discord IPC (Rich Presence), "Listening" status |

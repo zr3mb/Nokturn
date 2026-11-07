@@ -131,7 +131,7 @@ Item {
         PillButton {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 6
-            visible: Lyrics.state === "missing" && Lyrics.hardwareOk && !Lyrics.sttReady && !Lyrics.recognizing
+            visible: Lyrics.state === "missing" && Lyrics.recognizeHardwareOk && !Lyrics.sttRecognizeReady && !Lyrics.recognizing
             kind: "ghost"
             icon: "lyrics"
             text: qsTr("Set up lyrics recognition (test)")

@@ -593,9 +593,10 @@ Item {
                     visible: !Nav.mobile   // desktop only
                     icon: "clock"
                     title: qsTr("Automatic timing (alpha)")
-                    description: Lyrics.hardwareOk
-                        ? qsTr("When lyrics have no timestamps, Everplay recognizes the singing in the recording (whisper.cpp, locally on your computer) and aligns the lyric lines to it. It puts a heavy load on the CPU for tens of seconds to a few minutes per track; the result is remembered. Your hardware: %1.").arg(Lyrics.hardwareSummary)
-                        : qsTr("Requires stronger hardware (at least 4 CPU threads and 8 GB of RAM). Your hardware: %1.").arg(Lyrics.hardwareSummary)
+                    description: qsTr("Lyrics without timestamps get them, and synced lyrics get every word timed: Everplay matches the lyrics to the singing in the recording (CrispASR, locally on your computer). The result is remembered.")
+                        + " " + (Lyrics.sttUsesGpu
+                                 ? qsTr("On %1 the vocals are first separated from the music, which makes the timing much more accurate; it takes up to a minute per track.").arg(Lyrics.sttGpuName)
+                                 : qsTr("With a graphics card the vocals are first separated from the music, which makes the timing much more accurate. Without one it takes a few seconds per track."))
                     Toggle {
                         enabled: Lyrics.hardwareOk
                         opacity: enabled ? 1 : 0.4
@@ -603,31 +604,21 @@ Item {
                         onToggled: c => Lyrics.autoAlign = c
                     }
                 }
-                // Shown with the hardware for it: recognizing lyrics (a button in the lyrics) needs them too.
                 SettingRow {
-                    visible: Lyrics.hardwareOk && !Nav.mobile
-                    icon: "tune"
-                    title: qsTr("Speech recognition model")
-                    description: qsTr("A larger model recognizes singing better but runs slower.") + " "
-                        + Lyrics.sttModel + ": " + Lyrics.modelSize(Lyrics.sttModel)
-                        + " · " + (Lyrics.sttModel === Lyrics.recommendedModel ? qsTr("recommended for your hardware") : qsTr("recommended: %1").arg(Lyrics.recommendedModel))
-                    SegmentedTabs {
-                        model: Lyrics.sttModels.map(m => m.charAt(0).toUpperCase() + m.slice(1))
-                        currentIndex: Lyrics.sttModels.indexOf(Lyrics.sttModel)
-                        onActivated: i => Lyrics.sttModel = Lyrics.sttModels[i]
-                    }
-                }
-                SettingRow {
-                    visible: Lyrics.hardwareOk
-                    icon: Lyrics.sttReady ? "check" : "add"
-                    title: Lyrics.sttReady ? qsTr("Speech recognition is ready") : qsTr("Download components")
+                    visible: !Nav.mobile
+                    icon: Lyrics.sttComplete ? "check" : "add"
+                    title: Lyrics.sttComplete ? qsTr("Lyric timing is ready") : qsTr("Download components")
                     description: Lyrics.sttDownloading
                         ? qsTr("Downloading: %1… %2%").arg(Lyrics.sttDownloadLabel).arg(Math.round(Lyrics.sttProgress * 100))
-                        : qsTr("whisper.cpp program: %1").arg(Lyrics.sttEngineReady ? qsTr("installed")
-                              : Lyrics.sttCanDownloadEngine ? qsTr("missing (official release from GitHub)")
-                              : qsTr("missing — install the whisper.cpp package (whisper-cli or whisper-cpp command)"))
-                          + " · " + qsTr("model %1: %2").arg(Lyrics.sttModel).arg(Lyrics.sttModelReady ? qsTr("downloaded") : qsTr("missing (%1, Hugging Face)").arg(Lyrics.modelSize(Lyrics.sttModel)))
-                          + ". " + qsTr("Files are verified with SHA-256.")
+                        : [qsTr("CrispASR program: %1").arg(Lyrics.sttEngineReady ? qsTr("installed")
+                               : Lyrics.sttCanDownloadEngine ? qsTr("missing (official release from GitHub, %1)").arg(Lyrics.sttEngineSize)
+                               : qsTr("missing — install CrispASR (the crispasr command)")),
+                           qsTr("alignment model: %1").arg(Lyrics.sttAlignerReady ? qsTr("downloaded") : qsTr("missing (%1, Hugging Face)").arg(Lyrics.sttAlignerSize)),
+                           qsTr("vocal separation model: %1").arg(Lyrics.sttSeparatorReady ? qsTr("downloaded")
+                               : !Lyrics.sttEngineReady ? qsTr("with a graphics card (%1, Hugging Face)").arg(Lyrics.sttSeparatorSize)
+                               : Lyrics.sttUsesGpu ? qsTr("missing (%1, Hugging Face)").arg(Lyrics.sttSeparatorSize)
+                               : qsTr("not needed without a graphics card"))
+                          ].join(" · ") + ". " + qsTr("Files are verified with SHA-256.")
                     Row {
                         spacing: 8
                         PillButton {
@@ -638,11 +629,11 @@ Item {
                             onClicked: Lyrics.cancelSttDownload()
                         }
                         PillButton {
-                            visible: !Lyrics.sttDownloading && !Lyrics.sttEngineReady && Lyrics.sttCanDownloadEngine
+                            visible: !Lyrics.sttDownloading && !Lyrics.sttComplete && (Lyrics.sttEngineReady || Lyrics.sttCanDownloadEngine)
                             kind: "primary"
                             icon: "add"
-                            text: qsTr("Download whisper.cpp")
-                            onClicked: Lyrics.downloadSttEngine()
+                            text: qsTr("Download")
+                            onClicked: Lyrics.downloadSttComponents()
                         }
                         PillButton {
                             visible: !Lyrics.sttDownloading && !Lyrics.sttEngineReady && !Lyrics.sttCanDownloadEngine
@@ -652,44 +643,49 @@ Item {
                             onClicked: Lyrics.redetectStt()
                         }
                         PillButton {
-                            visible: !Lyrics.sttDownloading && Lyrics.sttEngineReady && !Lyrics.sttModelReady
+                            visible: !Lyrics.sttDownloading && (Lyrics.sttAlignerReady || Lyrics.sttSeparatorReady)
+                            kind: "ghost"
+                            text: qsTr("Remove")
+                            onClicked: Lyrics.removeSttComponents()
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: Lyrics.sttEngineReady && !Nav.mobile
+                    icon: "equalizer"
+                    title: qsTr("Graphics card")
+                    description: Lyrics.sttUsesGpu
+                        ? qsTr("%1: the vocals are separated on it before timing, and lyrics recognition runs on it too.").arg(Lyrics.sttGpuName)
+                        : qsTr("None found (CrispASR looks for one through Vulkan). Timing runs on the CPU without separating the vocals, so it's less accurate.")
+                }
+                // Shown with the hardware for it: the button in the lyrics of a track without any needs it.
+                SettingRow {
+                    visible: Lyrics.recognizeHardwareOk && !Nav.mobile
+                    icon: "tune"
+                    title: qsTr("Lyrics recognition model")
+                    description: qsTr("For tracks nobody has lyrics for, Everplay can write them down from the recording (test feature). A larger model recognizes singing better but runs slower.") + " "
+                        + Lyrics.sttModel + ": " + Lyrics.modelSize(Lyrics.sttModel) + " · "
+                        + (Lyrics.sttModelReady ? qsTr("downloaded") : qsTr("not downloaded")) + " · "
+                        + (Lyrics.sttModel === Lyrics.recommendedModel ? qsTr("recommended for your hardware") : qsTr("recommended: %1").arg(Lyrics.recommendedModel))
+                    Row {
+                        spacing: 8
+                        SegmentedTabs {
+                            model: Lyrics.sttModels.map(m => m.charAt(0).toUpperCase() + m.slice(1))
+                            currentIndex: Lyrics.sttModels.indexOf(Lyrics.sttModel)
+                            onActivated: i => Lyrics.sttModel = Lyrics.sttModels[i]
+                        }
+                        PillButton {
+                            visible: !Lyrics.sttDownloading && !Lyrics.sttModelReady
                             kind: "primary"
                             icon: "add"
-                            text: qsTr("Download the model")
+                            text: qsTr("Download")
                             onClicked: Lyrics.downloadSttModel()
                         }
                         PillButton {
                             visible: !Lyrics.sttDownloading && Lyrics.sttModelReady
                             kind: "ghost"
-                            text: qsTr("Remove the model")
-                            onClicked: Lyrics.removeSttModel(Lyrics.sttModel)
-                        }
-                    }
-                }
-                // An NVIDIA card: recognition runs there, several times faster
-                SettingRow {
-                    visible: Lyrics.sttGpuName !== "" && !Nav.mobile
-                    icon: "equalizer"
-                    title: qsTr("Graphics card acceleration")
-                    description: !Lyrics.sttGpuSupported
-                        ? qsTr("%1 could recognize the singing much faster, but it needs NVIDIA driver 551 or newer (yours: %2).").arg(Lyrics.sttGpuName).arg(Lyrics.sttGpuDriver)
-                        : Lyrics.sttGpuEngineReady
-                          ? qsTr("Speech recognition runs on %1: several times faster than on the CPU, and the largest model is quick too.").arg(Lyrics.sttGpuName)
-                          : qsTr("%1 can recognize the singing several times faster than the CPU. It needs the CUDA version of whisper.cpp (official release from GitHub, %2, verified with SHA-256).").arg(Lyrics.sttGpuName).arg(Lyrics.sttGpuEngineSize)
-                    Row {
-                        spacing: 8
-                        PillButton {
-                            visible: Lyrics.sttGpuSupported && !Lyrics.sttGpuEngineReady && !Lyrics.sttDownloading
-                            kind: "primary"
-                            icon: "add"
-                            text: qsTr("Download")
-                            onClicked: Lyrics.downloadSttGpuEngine()
-                        }
-                        PillButton {
-                            visible: Lyrics.sttGpuEngineReady && !Lyrics.sttDownloading
-                            kind: "ghost"
                             text: qsTr("Remove")
-                            onClicked: Lyrics.removeSttGpuEngine()
+                            onClicked: Lyrics.removeSttModel(Lyrics.sttModel)
                         }
                     }
                 }

@@ -134,9 +134,7 @@ Item {
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: Lyrics.hardwareOk
-                                ? qsTr("Lyrics without timestamps get them from singing recognition (whisper.cpp, locally). Your hardware: %1 — recommended model: %2.").arg(Lyrics.hardwareSummary).arg(Lyrics.recommendedModel)
-                                : qsTr("Requires stronger hardware (at least 4 CPU threads and 8 GB of RAM). Yours: %1.").arg(Lyrics.hardwareSummary)
+                            text: qsTr("Lyrics without timestamps get them, and synced lyrics get every word timed, by matching them to the singing in the recording (CrispASR, locally). Most accurate with a graphics card.")
                             color: Theme.textDim
                             font.pixelSize: 12
                             wrapMode: Text.WordWrap
@@ -152,7 +150,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     visible: Lyrics.autoAlign && !Lyrics.sttReady
-                    text: qsTr("You'll download the required components (the whisper.cpp program and the %1 model, %2) in Settings → Lyrics.").arg(Lyrics.sttModel).arg(Lyrics.modelSize(Lyrics.sttModel))
+                    text: qsTr("You'll download the required components (the CrispASR program and its models, up to about 1 GB) in Settings → Lyrics.")
                     color: Theme.warning
                     font.pixelSize: 12
                     wrapMode: Text.WordWrap
